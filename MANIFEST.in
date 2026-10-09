@@ -1,0 +1,9 @@
+graft tests
+graft examples
+graft scripts
+graft docs
+include requirements-dev.lock
+include requirements-dev.txt
+include CHANGELOG.md
+include CONTRIBUTING.md
+global-exclude __pycache__ *.py[cod]

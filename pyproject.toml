@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools==84.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "inventory-policy-lab"
+version = "0.1.0"
+description = "From demand history per SKU to a verified inventory policy: ABC-XYZ, intermittency, backtested forecasts, safety stock, reorder point, EOQ and a replay (standard library only)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+dependencies = []
+authors = [{ name = "Rodrigo Pantoja Navajas" }]
+keywords = ["inventory", "operations", "supply-chain", "safety-stock", "forecasting", "abc-analysis", "croston"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business",
+    "Topic :: Scientific/Engineering :: Mathematics",
+]
+
+[project.urls]
+Homepage = "https://github.com/rodrix91/inventory-policy-lab"
+Changelog = "https://github.com/rodrix91/inventory-policy-lab/blob/main/CHANGELOG.md"
+
+[project.scripts]
+inventory-policy-lab = "inventory_policy_lab.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+inventory_policy_lab = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["src", "tests", "scripts"]
+mypy_path = "src"
+
+[tool.coverage.run]
+source = ["inventory_policy_lab"]
+branch = true
+patch = ["subprocess"]  # also measure the CLI tests that run `python -m`
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 100  # line + branch; exclusions need a `# pragma: no cover - reason`
