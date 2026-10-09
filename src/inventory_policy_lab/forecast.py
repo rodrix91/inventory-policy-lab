@@ -1,0 +1,118 @@
+"""One-step-ahead forecasting methods and a holdout backtest.
+
+Every method takes the history observed so far and returns the forecast of
+demand per period for the next period. The backtest re-runs the method at each
+holdout period with only the data before it (rolling origin, one step ahead).
+"""
+
+from __future__ import annotations
+
+import math
+import statistics
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+
+Method = Callable[[Sequence[float]], float]
+
+
+def naive(history: Sequence[float]) -> float:
+    """The last observed value."""
+    return history[-1]
+
+
+def moving_average(history: Sequence[float], window: int = 3) -> float:
+    """Mean of the last ``window`` periods (fewer when the history is shorter)."""
+    return statistics.fmean(history[-window:])
+
+
+def ses(history: Sequence[float], alpha: float = 0.2) -> float:
+    """Simple exponential smoothing, level initialised with the first observation."""
+    level = history[0]
+    for value in history[1:]:
+        level += alpha * (value - level)
+    return level
+
+
+def _croston_parts(history: Sequence[float], alpha: float) -> tuple[float, float] | None:
+    """Smoothed demand size and inter-demand interval, or ``None`` without demand.
+
+    Both start at the first demand: the size at its value, the interval at the
+    number of periods up to and including it. They are updated only in periods
+    with demand, the interval with the periods since the previous demand.
+    """
+    size = interval = 0.0
+    last = -1
+    for index, value in enumerate(history):
+        if value <= 0:
+            continue
+        gap = index - last
+        if last < 0:
+            size, interval = value, float(gap)
+        else:
+            size += alpha * (value - size)
+            interval += alpha * (gap - interval)
+        last = index
+    if last < 0:
+        return None
+    return size, interval
+
+
+def croston(history: Sequence[float], alpha: float = 0.1) -> float:
+    """Croston (1972): smoothed size divided by smoothed interval; 0 without demand."""
+    parts = _croston_parts(history, alpha)
+    return 0.0 if parts is None else parts[0] / parts[1]
+
+
+def sba(history: Sequence[float], alpha: float = 0.1) -> float:
+    """Syntetos-Boylan approximation: Croston times ``1 - alpha / 2`` (bias correction)."""
+    return (1 - alpha / 2) * croston(history, alpha)
+
+
+@dataclass(frozen=True)
+class BacktestResult:
+    """Accuracy of one method over the holdout periods."""
+
+    method: str
+    forecasts: tuple[float, ...]
+    mae: float
+    rmse: float
+    bias: float  # mean of forecast - actual: positive means over-forecasting
+    mase: float | None  # None when the in-sample naive error is zero
+
+
+def naive_scale(train: Sequence[float]) -> float:
+    """Mean absolute one-step naive error in the training data (MASE denominator)."""
+    return statistics.fmean(abs(train[i] - train[i - 1]) for i in range(1, len(train)))
+
+
+def backtest(series: Sequence[float], name: str, method: Method, holdout: int) -> BacktestResult:
+    """Score ``method`` on the last ``holdout`` periods of ``series``.
+
+    MASE follows Hyndman & Koehler (2006): MAE over the holdout divided by the
+    in-sample MAE of the one-step naive forecast on the training periods. It is
+    defined on series with zeros, unlike MAPE. Needs ``holdout >= 1`` and at
+    least two training periods.
+    """
+    start = len(series) - holdout
+    if holdout < 1 or start < 2:
+        raise ValueError("backtest needs holdout >= 1 and at least 2 training periods")
+    forecasts = tuple(method(series[:t]) for t in range(start, len(series)))
+    errors = [f - a for f, a in zip(forecasts, series[start:], strict=True)]
+    mae = statistics.fmean(abs(e) for e in errors)
+    rmse = math.sqrt(statistics.fmean(e * e for e in errors))
+    scale = naive_scale(series[:start])
+    return BacktestResult(
+        method=name,
+        forecasts=forecasts,
+        mae=mae,
+        rmse=rmse,
+        bias=statistics.fmean(errors),
+        mase=mae / scale if scale > 0 else None,
+    )
+
+
+def pick_best(results: Sequence[BacktestResult]) -> BacktestResult:
+    """Lowest MASE; by MAE when MASE is undefined; ties go to the earlier method."""
+    if all(r.mase is not None for r in results):
+        return min(results, key=lambda r: r.mase if r.mase is not None else math.inf)
+    return min(results, key=lambda r: r.mae)

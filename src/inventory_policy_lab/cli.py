@@ -1,0 +1,175 @@
+"""Command-line interface: ``inventory-policy-lab demand.csv [options]``."""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from collections.abc import Sequence
+from pathlib import Path
+
+from . import __version__
+from .analysis import Config, analyze_file
+from .errors import EXIT_INPUT, EXIT_OK, InventoryPolicyError
+from .render import render_json, render_markdown
+
+EXIT_CODES_HELP = """exit codes:
+  0  report written
+  2  invalid option or option value
+  3  input file missing, unreadable or not UTF-8
+  4  invalid data (missing column, bad number, mixed period formats)
+  5  history too short for the holdout"""
+
+
+def _pair(text: str) -> tuple[float, float]:
+    parts = text.split(",")
+    try:
+        if len(parts) != 2:
+            raise ValueError
+        return float(parts[0]), float(parts[1])
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"expected two numbers like 0.8,0.95, got {text!r}"
+        ) from None
+
+
+def _class_levels(text: str) -> dict[str, float]:
+    levels: dict[str, float] = {}
+    for item in text.split(","):
+        name, sep, value = item.partition("=")
+        try:
+            if not sep:
+                raise ValueError
+            levels[name.strip().upper()] = float(value)
+        except ValueError:
+            raise argparse.ArgumentTypeError(
+                f"expected CLASS=LEVEL pairs like A=0.99,B=0.95, got {text!r}"
+            ) from None
+    return levels
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="inventory-policy-lab",
+        description=(
+            "Turn a CSV of demand history per SKU into an inventory-policy report: "
+            "ABC-XYZ, demand patterns, backtested forecasts, safety stock, reorder "
+            "point, EOQ and a replay of the policy on the history."
+        ),
+        epilog=EXIT_CODES_HELP,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    add = parser.add_argument
+    add("path", type=Path, help="CSV with columns sku, period, quantity[, unit_cost, lead_time]")
+    add("--format", choices=("markdown", "json"), default="markdown", help="output format")
+    add("-o", "--output", type=Path, help="write the report to this file instead of stdout")
+    add("--version", action="version", version=f"%(prog)s {__version__}")
+
+    group = parser.add_argument_group("service and policy")
+    group.add_argument(
+        "--service-level", type=float, default=0.95, help="target cycle service level (0.95)"
+    )
+    group.add_argument(
+        "--class-service-levels",
+        type=_class_levels,
+        default={},
+        metavar="A=0.99,B=0.95,C=0.9",
+        help="service level per ABC class, overriding --service-level",
+    )
+    group.add_argument(
+        "--lead-time",
+        type=float,
+        default=1.0,
+        help="lead time in periods for SKUs without lead_time values (1)",
+    )
+    group.add_argument(
+        "--lead-time-std",
+        type=float,
+        default=0.0,
+        help="standard deviation of that default lead time (0)",
+    )
+    group.add_argument(
+        "--review-period",
+        type=float,
+        default=1.0,
+        help="periods between inventory reviews, added to the protection interval (1)",
+    )
+    group.add_argument(
+        "--ordering-cost", type=float, help="cost per order, for EOQ (needs --holding-rate)"
+    )
+    group.add_argument(
+        "--holding-rate",
+        type=float,
+        help="yearly holding cost as a fraction of unit cost, for EOQ (e.g. 0.25)",
+    )
+    group.add_argument(
+        "--order-cover",
+        type=float,
+        default=1.0,
+        help="without EOQ, order quantity = forecast x this many periods (1)",
+    )
+    group.add_argument(
+        "--sigma",
+        choices=("demand", "rmse"),
+        default="demand",
+        help="safety-stock sigma: demand std dev, or RMSE of the picked forecast (demand)",
+    )
+
+    group = parser.add_argument_group("classification and forecasting")
+    group.add_argument(
+        "--abc-thresholds", type=_pair, default=(0.8, 0.95), help="cumulative shares (0.8,0.95)"
+    )
+    group.add_argument(
+        "--xyz-thresholds", type=_pair, default=(0.5, 1.0), help="CV limits of X and Y (0.5,1.0)"
+    )
+    group.add_argument(
+        "--periods-per-year", type=float, default=12.0, help="to annualize demand (12)"
+    )
+    group.add_argument(
+        "--holdout", type=int, default=6, help="periods held out for the backtest (6)"
+    )
+    group.add_argument("--ma-window", type=int, default=3, help="moving-average window (3)")
+    group.add_argument("--ses-alpha", type=float, default=0.2, help="SES smoothing (0.2)")
+    group.add_argument(
+        "--croston-alpha", type=float, default=0.1, help="Croston/SBA smoothing (0.1)"
+    )
+    return parser
+
+
+def config_from_args(args: argparse.Namespace) -> Config:
+    return Config(
+        service_level=args.service_level,
+        class_service_levels=args.class_service_levels,
+        holdout=args.holdout,
+        ma_window=args.ma_window,
+        ses_alpha=args.ses_alpha,
+        croston_alpha=args.croston_alpha,
+        periods_per_year=args.periods_per_year,
+        abc_thresholds=args.abc_thresholds,
+        xyz_thresholds=args.xyz_thresholds,
+        lead_time=args.lead_time,
+        lead_time_std=args.lead_time_std,
+        review_period=args.review_period,
+        ordering_cost=args.ordering_cost,
+        holding_rate=args.holding_rate,
+        order_cover=args.order_cover,
+        sigma=args.sigma,
+    )
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    try:
+        report = analyze_file(args.path, config_from_args(args))
+    except InventoryPolicyError as exc:
+        print(f"inventory-policy-lab: error: {exc}", file=sys.stderr)
+        return exc.exit_code
+    text = render_json(report) if args.format == "json" else render_markdown(report)
+    if args.output is None:
+        sys.stdout.write(text)
+        return EXIT_OK
+    try:
+        args.output.write_text(text, encoding="utf-8")
+    except OSError as exc:
+        print(f"inventory-policy-lab: error: cannot write {args.output}: {exc}", file=sys.stderr)
+        return EXIT_INPUT
+    return EXIT_OK
