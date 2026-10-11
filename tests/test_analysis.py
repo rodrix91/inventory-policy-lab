@@ -56,6 +56,8 @@ SMOOTH = [10.0, 12, 9, 11, 10, 13, 9, 10, 12, 11]
         ({"ordering_cost": 1, "holding_rate": 0}, "holding rate must be positive"),
         ({"order_cover": 0}, "order cover must be positive"),
         ({"sigma": "mad"}, "sigma must be 'demand' or 'rmse'"),
+        ({"safety_stock_method": "poisson"}, "must be 'normal' or 'bootstrap'"),
+        ({"bootstrap_samples": 99}, "bootstrap samples must be at least 100"),
     ],
 )
 def test_invalid_settings(settings: dict[str, Any], message: str) -> None:
@@ -168,3 +170,52 @@ def test_synthetic_example_runs_and_is_consistent() -> None:
         assert result.policy.reorder_point >= result.policy.safety_stock >= 0
         if result.profile.category in ("intermittent", "lumpy"):
             assert {b.method for b in result.backtests} == {"ses", "croston", "sba"}
+
+
+def test_bootstrap_safety_stock_is_reproducible_and_per_sku() -> None:
+    lumpy = [0.0, 0, 40, 0, 0, 0, 90, 0, 0, 55, 0, 0]
+    config = Config(safety_stock_method="bootstrap", holdout=4)
+    first = analyze(data_from({"a": SMOOTH, "lumpy": lumpy}), config)
+    again = analyze(data_from({"lumpy": lumpy}), config)
+    by_sku = {r.sku: r for r in first.skus}
+    assert by_sku["lumpy"].policy == again.skus[0].policy  # independent of the other SKUs
+    for result in first.skus:
+        assert result.policy.safety_stock_method == "bootstrap"
+        assert result.policy.safety_stock >= 0
+        assert result.policy.reorder_point == pytest.approx(
+            result.forecast * (result.policy.lead_time + result.policy.review_period)
+            + result.policy.safety_stock
+        )
+
+
+def test_bootstrap_floor_is_noted() -> None:
+    # A rising series: the naive forecast (last value) exceeds most resampled periods.
+    rising = [1.0, 1, 1, 1, 1, 1, 1, 1, 1, 50]
+    result = analyze(
+        data_from({"a": rising}), Config(safety_stock_method="bootstrap", holdout=2)
+    ).skus[0]
+    assert (result.method, result.forecast) == ("naive", 50.0)
+    assert result.policy.safety_stock == 0
+    assert result.policy.reorder_point == 100.0  # 50 x (L 1 + R 1)
+    assert any("floored at 0" in note for note in result.notes)
+
+
+def test_bootstrap_lifts_the_lumpy_sku_of_the_synthetic_example() -> None:
+    path = EXAMPLES / "demand_synthetic.csv"
+    normal = {r.sku: r for r in analyze_file(path).skus}
+    boot = {r.sku: r for r in analyze_file(path, Config(safety_stock_method="bootstrap")).skus}
+    # The numbers quoted in the README's "Bootstrap safety stock" section.
+    rates = {
+        sku: (normal[sku].simulation.fill_rate, boot[sku].simulation.fill_rate)
+        for sku in ("SKU-005", "SKU-006", "SKU-010", "SKU-012")
+    }
+    assert {k: (round(a or 0, 3), round(b or 0, 3)) for k, (a, b) in rates.items()} == {
+        "SKU-005": (1.0, 1.0),
+        "SKU-006": (0.959, 1.0),
+        "SKU-010": (0.769, 0.784),
+        "SKU-012": (0.725, 1.0),
+    }
+    on_hand = [sum(r.simulation.average_on_hand for r in s.values()) for s in (normal, boot)]
+    assert [round(v, 1) for v in on_hand] == [1257.5, 1065.4]
+    assert round(normal["SKU-005"].simulation.average_on_hand, 1) == 555.7
+    assert round(boot["SKU-005"].simulation.average_on_hand, 1) == 314.5

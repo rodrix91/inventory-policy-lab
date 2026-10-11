@@ -136,3 +136,18 @@ def test_python_dash_m_runs_the_cli() -> None:
     proc = run_module("does-not-exist.csv")
     assert proc.returncode == 3
     assert proc.stdout == ""
+
+
+def test_bootstrap_options(capsys: pytest.CaptureFixture[str]) -> None:
+    args = [WORKED, "--holdout", "2", "--safety-stock", "bootstrap"]
+    assert main([*args, "--bootstrap-samples", "500", "--seed", "3", "--format", "json"]) == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["settings"]["safety_stock_method"] == "bootstrap"
+    assert (report["settings"]["bootstrap_samples"], report["settings"]["seed"]) == (500, 3)
+    assert {s["policy"]["safety_stock_method"] for s in report["skus"]} == {"bootstrap"}
+    assert main(args) == 0
+    assert "bootstrap of protection-interval demand (2000 samples, seed 0)" in (
+        capsys.readouterr().out
+    )
+    assert main([*args, "--bootstrap-samples", "10"]) == 2
+    assert "bootstrap samples must be at least 100" in capsys.readouterr().err

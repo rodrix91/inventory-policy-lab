@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import random
 import statistics
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -30,7 +31,7 @@ from .forecast import (
     sba,
     ses,
 )
-from .policy import Policy, build_policy, eoq
+from .policy import Policy, bootstrap_safety_stock, build_policy, eoq
 from .reader import DemandData, SkuHistory, read_demand
 from .simulate import SimulationResult, simulate
 
@@ -59,6 +60,9 @@ class Config:
     holding_rate: float | None = None
     order_cover: float = 1.0
     sigma: str = "demand"
+    safety_stock_method: str = "normal"
+    bootstrap_samples: int = 2000
+    seed: int = 0
 
     def validate(self) -> None:
         """Raise :class:`ConfigError` for any setting out of range."""
@@ -101,6 +105,15 @@ class Config:
             raise ConfigError(f"order cover must be positive, got {self.order_cover}")
         if self.sigma not in ("demand", "rmse"):
             raise ConfigError(f"sigma must be 'demand' or 'rmse', got {self.sigma!r}")
+        if self.safety_stock_method not in ("normal", "bootstrap"):
+            raise ConfigError(
+                "safety-stock method must be 'normal' or 'bootstrap', "
+                f"got {self.safety_stock_method!r}"
+            )
+        if self.bootstrap_samples < 100:
+            raise ConfigError(
+                f"bootstrap samples must be at least 100, got {self.bootstrap_samples}"
+            )
 
     def methods(self, category: str) -> dict[str, Method]:
         """Candidate forecasting methods for a demand category, in tie-break order."""
@@ -234,8 +247,35 @@ def _analyze_sku(history: SkuHistory, config: Config, abc: str, value: float) ->
             config.holding_rate * history.unit_cost,
         )
     level = config.class_service_levels.get(abc, config.service_level)
+    bootstrap_units = None
+    if config.safety_stock_method == "bootstrap":
+        # One generator per SKU, seeded by the run seed and the SKU name, so a
+        # SKU's result does not depend on which other SKUs are in the file.
+        rng = random.Random(f"{config.seed}:{history.sku}")
+        quantile, bootstrap_units = bootstrap_safety_stock(
+            series,
+            level,
+            forecast,
+            lead,
+            config.review_period,
+            history.lead_times,
+            config.bootstrap_samples,
+            rng,
+        )
+        if bootstrap_units == 0 and quantile < forecast * (lead + config.review_period):
+            notes.append(
+                "bootstrap quantile below the forecast over the protection interval: "
+                "safety stock floored at 0"
+            )
     policy = build_policy(
-        level, forecast, sigma_demand, lead, sigma_lead, eoq_units, config.review_period
+        level,
+        forecast,
+        sigma_demand,
+        lead,
+        sigma_lead,
+        eoq_units,
+        config.review_period,
+        bootstrap_units,
     )
 
     if eoq_units is not None:

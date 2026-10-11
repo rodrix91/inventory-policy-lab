@@ -113,6 +113,19 @@ def build_parser() -> argparse.ArgumentParser:
         default="demand",
         help="safety-stock sigma: demand std dev, or RMSE of the picked forecast (demand)",
     )
+    group.add_argument(
+        "--safety-stock",
+        choices=("normal", "bootstrap"),
+        default="normal",
+        help="normal formula, or bootstrap quantile of protection-interval demand (normal)",
+    )
+    group.add_argument(
+        "--bootstrap-samples",
+        type=int,
+        default=2000,
+        help="draws per SKU with --safety-stock bootstrap, at least 100 (2000)",
+    )
+    group.add_argument("--seed", type=int, default=0, help="random seed of the bootstrap (0)")
 
     group = parser.add_argument_group("classification and forecasting")
     group.add_argument(
@@ -153,6 +166,9 @@ def config_from_args(args: argparse.Namespace) -> Config:
         holding_rate=args.holding_rate,
         order_cover=args.order_cover,
         sigma=args.sigma,
+        safety_stock_method=args.safety_stock,
+        bootstrap_samples=args.bootstrap_samples,
+        seed=args.seed,
     )
 
 
