@@ -25,7 +25,7 @@ from .errors import (
     InventoryPolicyError,
 )
 from .forecast import BacktestResult, backtest, croston, moving_average, naive, sba, ses
-from .policy import Policy, build_policy, eoq, safety_stock
+from .policy import Policy, bootstrap_safety_stock, build_policy, eoq, safety_stock
 from .reader import DemandData, SkuHistory, parse_rows, read_demand
 from .render import render_json, render_markdown, report_to_dict
 from .simulate import SimulationResult, simulate
@@ -50,6 +50,7 @@ __all__ = [
     "analyze",
     "analyze_file",
     "backtest",
+    "bootstrap_safety_stock",
     "build_policy",
     "coefficient_of_variation",
     "croston",

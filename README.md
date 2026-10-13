@@ -213,7 +213,7 @@ for sku in report.skus:
 markdown = render_markdown(report)  # or render_json(report) / report.to_dict()
 ```
 
-The building blocks are public too: `read_demand`, `abc_classes`, `xyz_class`, `demand_profile`, `naive`, `moving_average`, `ses`, `croston`, `sba`, `backtest`, `safety_stock`, `eoq`, `build_policy` and `simulate`. Errors are subclasses of `InventoryPolicyError` with an `exit_code`.
+The building blocks are public too: `read_demand`, `abc_classes`, `xyz_class`, `demand_profile`, `naive`, `moving_average`, `ses`, `croston`, `sba`, `backtest`, `safety_stock`, `bootstrap_safety_stock`, `eoq`, `build_policy` and `simulate`. Errors are subclasses of `InventoryPolicyError` with an `exit_code`.
 
 ## Options
 
@@ -228,6 +228,8 @@ The building blocks are public too: `read_demand`, `abc_classes`, `xyz_class`, `
 | `--ordering-cost S`, `--holding-rate h` | none | Cost per order and yearly holding cost as a fraction of unit cost; together they enable EOQ |
 | `--order-cover K` | 1 | Without EOQ, order quantity = forecast x K periods |
 | `--sigma demand\|rmse` | demand | Safety-stock sigma: standard deviation of demand per period, or RMSE of the picked forecast on the holdout |
+| `--safety-stock normal\|bootstrap` | normal | Safety stock from the normal formula, or from a bootstrap of protection-interval demand |
+| `--bootstrap-samples N`, `--seed S` | 2000, 0 | Draws per SKU (at least 100) and random seed of the bootstrap; the same seed gives the same report |
 | `--abc-thresholds a,b` | 0.8,0.95 | Cumulative value shares that end classes A and B |
 | `--xyz-thresholds x,y` | 0.5,1.0 | CV limits of X and Y |
 | `--periods-per-year N` | 12 | To annualize demand (52 for weeks) |
@@ -278,9 +280,33 @@ s  = D x (L + R) + SS
 
 `D` is the forecast per period, `sigma_D` the sample standard deviation of demand per period (or the holdout RMSE with `--sigma rmse`), `L` and `sigma_L` the mean and sample standard deviation of the observed lead times (or the defaults), and `R` the review period. Demand is reviewed once per period in the data, so `R = 1` by default: an order placed now must cover demand until the next order can arrive, `L + R` periods later. `R = 0` gives the continuous-review textbook formula. See [ADR 0003](docs/decisions/0003-policy-and-replay.md).
 
+**Bootstrap safety stock** (`--safety-stock bootstrap`). Instead of assuming normal demand, each SKU draws N protection intervals: the length is a lead time drawn from the SKU's observed lead times (or the default `L`) plus `R`, rounded half up to whole periods, and the demand is the sum of that many periods drawn with replacement from the SKU's own history. The quantile P of those sums (nearest rank) is the stock that covered the interval in a share P of the draws:
+
+```
+Q_P = quantile P of the N bootstrap sums of protection-interval demand
+SS  = max(Q_P - D x (L + R), 0)
+s   = D x (L + R) + SS
+```
+
+The floor at zero keeps `s` from falling below the forecast over the interval (the report notes when it applies). Each SKU has its own generator seeded with `"<seed>:<sku>"`, so a SKU's result does not change when other SKUs are added to the file. Periods are drawn independently, so autocorrelation and trend are not kept; see [ADR 0004](docs/decisions/0004-bootstrap-safety-stock.md).
+
 **EOQ.** `Q* = sqrt(2 x A x S / H)` with `A = D x periods per year`, `S` the cost per order and `H = holding rate x unit cost`. Without EOQ settings, `Q = D x order cover`; with a zero forecast, Q = 1 unit so the replay can run (noted in the report).
 
 **Replay.** Starting with `s + Q` on hand: orders due arrive at the start of each period; demand is served from stock and the rest is backordered; at the end of the period, while the inventory position (net stock + on order) is at or below `s`, an order of `Q` is placed, arriving at the start of period `t + L + 1` (L rounded half up to whole periods). Fill rate = units served from stock when demanded / total demand; a stockout period is one whose demand was not fully served from stock; average on hand is the mean end-of-period stock.
+
+## Bootstrap safety stock on the example
+
+The same synthetic file with `--safety-stock bootstrap` (2000 draws, seed 0), against the default normal formula. Numbers from real runs, pinned in `tests/test_analysis.py`:
+
+| SKU | Pattern | Fill rate, normal | Fill rate, bootstrap | Avg on hand, normal | Avg on hand, bootstrap |
+|---|---|---|---|---|---|
+| SKU-005 | erratic | 100.0% | 100.0% | 555.7 | 314.5 |
+| SKU-006 | intermittent | 95.9% | 100.0% | 10.9 | 16.5 |
+| SKU-010 | intermittent | 76.9% | 78.4% | 7.1 | 7.7 |
+| SKU-012 | lumpy | 72.5% | 100.0% | 22.6 | 33.1 |
+| All 12 SKUs | | 99.4% | 99.8% | 1,257.5 (sum) | 1,065.4 (sum) |
+
+The lumpy SKU-012 goes from 72.5% to 100%, and the erratic SKU-005 keeps 100% with 43% less stock, because a few large months inflate its standard deviation far more than its 95% quantile. SKU-010 barely moves: one or two large orders in 24 months are too rare for any 95% quantile of single months to cover. **Caveat:** this replay is in-sample. The bootstrap resamples the same history the replay runs on, which flatters it; an out-of-sample comparison is on the roadmap.
 
 ## Architecture
 
@@ -306,7 +332,7 @@ Data flows one way: `reader` returns plain data, `analysis` returns a `Report`, 
 
 ## Limitations
 
-- **Normal approximation.** Safety stock assumes independent, normally distributed demand per period and lead time. It fits poorly for lumpy and slow-moving items; the replay exposes the gap but the tool does not offer a compound-Poisson or bootstrap alternative yet.
+- **Normal approximation by default.** The default safety stock assumes independent, normally distributed demand per period and lead time, which fits poorly for lumpy and slow-moving items. `--safety-stock bootstrap` drops the normal assumption but still draws periods independently (no autocorrelation or trend) and can only reproduce demand sizes already in the history.
 - **Stationary methods.** No trend or seasonal models (Holt, Holt-Winters). A seasonal or trending item gets a level forecast and a sigma inflated by the pattern.
 - **One policy for the whole history.** The replay applies the reorder point computed from the end of the history to all of it, so it is in-sample: a check of the policy on the data, not an out-of-sample estimate of future service.
 - **Selection by a per-period error measure.** MASE is the best-behaved of the usual accuracy measures on zeros, but Teunter & Duncan (2009) show that per-period error measures are a poor guide for intermittent items, where service and stock outcomes matter more. On intermittent and lumpy SKUs the pick among SES, Croston and SBA is a heuristic; the replay is the better judge.

@@ -8,13 +8,22 @@ from typing import TYPE_CHECKING, Any
 from . import __version__
 
 if TYPE_CHECKING:  # pragma: no cover - imports for type hints only
-    from .analysis import Report, SkuResult
+    from .analysis import Config, Report, SkuResult
 
 METHOD_ORDER = ("naive", "moving_average", "ses", "croston", "sba")
 SIGMA_LABELS = {
     "demand": "standard deviation of demand per period",
     "rmse": "RMSE of the picked method on the holdout",
 }
+
+
+def _safety_stock_label(config: Config) -> str:
+    if config.safety_stock_method == "bootstrap":
+        return (
+            "safety stock: bootstrap of protection-interval demand "
+            f"({config.bootstrap_samples} samples, seed {config.seed})"
+        )
+    return f"safety-stock sigma: {SIGMA_LABELS[config.sigma]}"
 
 
 def _r(value: float | None, digits: int = 4) -> float | None:
@@ -64,6 +73,7 @@ def _sku_dict(result: SkuResult) -> dict[str, Any]:
             "sigma_lead_time": _r(policy.sigma_lead_time),
             "review_period": _r(policy.review_period),
             "safety_stock": _r(policy.safety_stock),
+            "safety_stock_method": policy.safety_stock_method,
             "reorder_point": _r(policy.reorder_point),
             "eoq": _r(policy.eoq),
             "order_quantity": _r(result.order_quantity),
@@ -116,6 +126,9 @@ def report_to_dict(report: Report) -> dict[str, Any]:
             "holding_rate": config.holding_rate,
             "order_cover": config.order_cover,
             "sigma": config.sigma,
+            "safety_stock_method": config.safety_stock_method,
+            "bootstrap_samples": config.bootstrap_samples,
+            "seed": config.seed,
         },
         "summary": {
             "skus": len(report.skus),
@@ -171,7 +184,7 @@ def render_markdown(report: Report) -> str:
         f"XYZ by CV: X <= {x:g}, Y <= {y:g}",
         f"- Target cycle service level: {levels}; review period: {config.review_period:g}; "
         f"holdout: last {config.holdout} periods; "
-        f"safety-stock sigma: {SIGMA_LABELS[config.sigma]}",
+        f"{_safety_stock_label(config)}",
         f"- Replayed fill rate, all SKUs: {_pct(report.overall_fill_rate())}",
         "",
         "## ABC-XYZ matrix",
