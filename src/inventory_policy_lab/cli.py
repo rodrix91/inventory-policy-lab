@@ -150,6 +150,20 @@ def build_parser() -> argparse.ArgumentParser:
     group.add_argument(
         "--holdout", type=int, default=6, help="periods held out for the backtest (6)"
     )
+    group.add_argument(
+        "--trend-seasonal",
+        action="store_true",
+        help=(
+            "also backtest damped Holt and Holt-Winters (additive, multiplicative) on smooth "
+            "and erratic SKUs when the history allows"
+        ),
+    )
+    group.add_argument(
+        "--season-length",
+        type=int,
+        metavar="M",
+        help="season of Holt-Winters in periods (default: --periods-per-year, 12)",
+    )
     group.add_argument("--ma-window", type=int, default=3, help="moving-average window (3)")
     group.add_argument("--ses-alpha", type=float, default=0.2, help="SES smoothing (0.2)")
     group.add_argument(
@@ -180,6 +194,8 @@ def config_from_args(args: argparse.Namespace) -> Config:
         bootstrap_samples=args.bootstrap_samples,
         seed=args.seed,
         test_periods=args.test_periods,
+        trend_seasonal=args.trend_seasonal,
+        season_length=args.season_length,
     )
 
 

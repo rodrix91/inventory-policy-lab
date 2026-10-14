@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import random
 import statistics
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from functools import partial
 from typing import TYPE_CHECKING, Any
@@ -34,11 +34,21 @@ from .forecast import (
 from .policy import Policy, bootstrap_safety_stock, build_policy, eoq
 from .reader import DemandData, SkuHistory, read_demand
 from .simulate import SimulationResult, simulate
+from .smoothing import (
+    HOLT_MIN_HISTORY,
+    FitError,
+    SmoothingFit,
+    fit_holt_damped,
+    fit_holt_winters,
+)
 
 if TYPE_CHECKING:  # pragma: no cover - imports for type hints only
     from .validation import OutOfSampleReport
 
 INTERMITTENT = ("intermittent", "lumpy")
+TREND_SEASONAL = ("holt_damped", "hw_additive", "hw_multiplicative")
+
+Fitter = Callable[[Sequence[float]], SmoothingFit]
 
 
 @dataclass(frozen=True)
@@ -67,6 +77,17 @@ class Config:
     bootstrap_samples: int = 2000
     seed: int = 0
     test_periods: int = 0  # last periods kept out for the out-of-sample replay; 0 = off
+    trend_seasonal: bool = False  # add damped Holt and Holt-Winters candidates (ADR 0006)
+    season_length: int | None = None  # None: periods_per_year when it is a whole number
+
+    @property
+    def effective_season_length(self) -> int | None:
+        """Season of the Holt-Winters candidates: the setting, else one year of periods."""
+        if self.season_length is not None:
+            return self.season_length
+        if self.periods_per_year >= 2 and float(self.periods_per_year).is_integer():
+            return int(self.periods_per_year)
+        return None
 
     def validate(self) -> None:
         """Raise :class:`ConfigError` for any setting out of range."""
@@ -120,6 +141,13 @@ class Config:
             )
         if self.test_periods < 0:
             raise ConfigError(f"test periods cannot be negative, got {self.test_periods}")
+        if self.season_length is not None:
+            if not self.trend_seasonal:
+                raise ConfigError(
+                    "a season length only applies with trend_seasonal (--trend-seasonal)"
+                )
+            if self.season_length < 2:
+                raise ConfigError(f"season length must be at least 2, got {self.season_length}")
 
     def methods(self, category: str) -> dict[str, Method]:
         """Candidate forecasting methods for a demand category, in tie-break order."""
@@ -138,6 +166,52 @@ class Config:
             "moving_average": partial(moving_average, window=self.ma_window),
             "ses": smoothing,
         }
+
+    def trend_seasonal_fitters(
+        self, category: str, fit_length: int, positive: bool
+    ) -> dict[str, Fitter]:
+        """Damped Holt and Holt-Winters fitters a SKU can use, in tie-break order.
+
+        ``fit_length`` is the shortest history a fit will see (the periods before
+        the first backtest origin) and ``positive`` says whether every period has
+        demand. Nothing is returned without ``trend_seasonal`` or for intermittent
+        and lumpy SKUs; damped Holt needs ``HOLT_MIN_HISTORY`` periods and
+        Holt-Winters two full seasons, the multiplicative form demand in every period.
+        """
+        if not self.trend_seasonal or category in INTERMITTENT:
+            return {}
+        fitters: dict[str, Fitter] = {}
+        if fit_length >= HOLT_MIN_HISTORY:
+            fitters["holt_damped"] = fit_holt_damped
+        season = self.effective_season_length
+        if season is not None and fit_length >= 2 * season:
+            fitters["hw_additive"] = partial(
+                fit_holt_winters, season_length=season, seasonal="additive"
+            )
+            if positive:
+                fitters["hw_multiplicative"] = partial(
+                    fit_holt_winters, season_length=season, seasonal="multiplicative"
+                )
+        return fitters
+
+
+def _one_step(fitter: Fitter) -> Method:
+    def method(history: Sequence[float]) -> float:
+        return fitter(history).forecast(1)
+
+    return method
+
+
+def _trend_seasonal_candidate(
+    series: Sequence[float], name: str, fitter: Fitter, holdout: int
+) -> tuple[BacktestResult, SmoothingFit] | None:
+    """Backtest and final fit of one trend or seasonal model; ``None`` if a fit fails."""
+    try:
+        final = fitter(series)
+        result = backtest(series, name, _one_step(fitter), holdout)
+    except FitError:
+        return None
+    return result, final
 
 
 @dataclass(frozen=True)
@@ -161,6 +235,7 @@ class SkuResult:
     order_quantity_source: str  # "eoq", "cover" or "minimum"
     simulation: SimulationResult
     notes: tuple[str, ...]
+    forecast_parameters: Mapping[str, float] | None = None  # smoothing parameters picked
 
     @property
     def abc_xyz(self) -> str:
@@ -220,10 +295,21 @@ def _analyze_sku(history: SkuHistory, config: Config, abc: str, value: float) ->
     best: BacktestResult | None = None
     backtests: tuple[BacktestResult, ...] = ()
     method_name = "ses" if profile.category in INTERMITTENT else "moving_average"
+    fits: dict[str, SmoothingFit] = {}
     if len(series) >= config.holdout + 2:
         backtests = tuple(
             backtest(series, name, method, config.holdout) for name, method in candidates.items()
         )
+        fitters = config.trend_seasonal_fitters(
+            profile.category, len(series) - config.holdout, min(series) > 0
+        )
+        for name, fitter in fitters.items():
+            candidate = _trend_seasonal_candidate(series, name, fitter, config.holdout)
+            if candidate is None:
+                notes.append(f"{name}: no valid fit (level not positive), left out")
+                continue
+            backtests += (candidate[0],)
+            fits[name] = candidate[1]
         best = pick_best(backtests)
         method_name = best.method
         if best.mase is None:
@@ -233,7 +319,16 @@ def _analyze_sku(history: SkuHistory, config: Config, abc: str, value: float) ->
             f"only {len(series)} period(s), fewer than holdout + 2 = {config.holdout + 2}: "
             f"no backtest, {method_name} used"
         )
-    forecast = candidates[method_name](series)
+    lead, sigma_lead, lead_source = _lead_time(history, config)
+    parameters = None
+    if method_name in fits:
+        # A trend or seasonal forecast changes from period to period; the static
+        # policy uses its mean over the protection interval, in whole periods.
+        fit = fits[method_name]
+        forecast = fit.mean_forecast(int(lead + config.review_period + 0.5))
+        parameters = fit.parameters()
+    else:
+        forecast = candidates[method_name](series)
 
     if config.sigma == "rmse" and best is not None:
         sigma_demand = best.rmse
@@ -241,7 +336,6 @@ def _analyze_sku(history: SkuHistory, config: Config, abc: str, value: float) ->
         sigma_demand = statistics.stdev(series) if len(series) > 1 else 0.0
         if config.sigma == "rmse":
             notes.append("no backtest RMSE: demand standard deviation used for safety stock")
-    lead, sigma_lead, lead_source = _lead_time(history, config)
     if lead_source == "default":
         notes.append("no observed lead times: default lead time used")
 
@@ -314,6 +408,7 @@ def _analyze_sku(history: SkuHistory, config: Config, abc: str, value: float) ->
         order_quantity_source=quantity_source,
         simulation=simulation,
         notes=tuple(notes),
+        forecast_parameters=parameters,
     )
 
 

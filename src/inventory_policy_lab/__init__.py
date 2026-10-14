@@ -3,7 +3,8 @@
 Standard library only. The main entry points are :func:`analyze_file` (or
 :func:`read_demand` + :func:`analyze`) and the renderers :func:`render_markdown`
 and :func:`render_json`. ``Config(test_periods=N)`` adds an out-of-sample replay
-(:func:`out_of_sample_replay`) to the report.
+(:func:`out_of_sample_replay`) to the report, and ``Config(trend_seasonal=True)``
+adds damped Holt and Holt-Winters to the forecast candidates.
 """
 
 from __future__ import annotations
@@ -30,6 +31,16 @@ from .policy import Policy, bootstrap_safety_stock, build_policy, eoq, safety_st
 from .reader import DemandData, SkuHistory, parse_rows, read_demand
 from .render import render_json, render_markdown, report_to_dict
 from .simulate import SimulationResult, simulate
+from .smoothing import (
+    FitError,
+    SmoothingFit,
+    fit_holt_damped,
+    fit_holt_winters,
+    holt_damped,
+    holt_damped_fit,
+    holt_winters,
+    holt_winters_fit,
+)
 from .validation import (
     OutOfSampleReport,
     PolicyReplay,
@@ -46,6 +57,7 @@ __all__ = [
     "DataError",
     "DemandData",
     "DemandProfile",
+    "FitError",
     "HistoryError",
     "InputFileError",
     "InventoryPolicyError",
@@ -58,6 +70,7 @@ __all__ = [
     "SkuHistory",
     "SkuOutOfSample",
     "SkuResult",
+    "SmoothingFit",
     "__version__",
     "abc_classes",
     "analyze",
@@ -69,6 +82,12 @@ __all__ = [
     "croston",
     "demand_profile",
     "eoq",
+    "fit_holt_damped",
+    "fit_holt_winters",
+    "holt_damped",
+    "holt_damped_fit",
+    "holt_winters",
+    "holt_winters_fit",
     "moving_average",
     "naive",
     "out_of_sample_replay",

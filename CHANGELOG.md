@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- Trend and seasonal forecasts, opt-in with `--trend-seasonal` (`Config.trend_seasonal`): damped Holt and additive and multiplicative Holt-Winters with a damped trend join the backtest of smooth and erratic SKUs, after the level methods, and are picked by the same lowest-MASE rule. Standard library only. Parameters come from a grid search on the squared one-step errors of the history each fit sees, so neither the holdout nor the `--test-periods` window can leak into them. A model is not a candidate without enough history (damped Holt: 4 periods before the first holdout origin; Holt-Winters: two full seasons; multiplicative: demand in every period). When one is picked, the policy uses its mean forecast over the protection interval `L + R`. API: `holt_damped`, `holt_winters`, `fit_holt_damped`, `fit_holt_winters`, `holt_damped_fit`, `holt_winters_fit`, `SmoothingFit`, `FitError` (ADR 0006).
+- `--season-length M` (`Config.season_length`), the Holt-Winters season, by default `--periods-per-year` when it is a whole number; it is a usage error without `--trend-seasonal`.
+- JSON: `trend_seasonal` and `season_length` in the settings (always present; `season_length` is null without the option), and `parameters` in a SKU's forecast when a smoothing model is picked. The Markdown report adds a settings line and backtest columns only with the option.
+- Results: on the synthetic 24-month example with `--test-periods 12`, the out-of-sample results do not change (fill rate 94.4% normal, 94.6% bootstrap; SKU-003 82.9% / 94.4%, SKU-004 79.7% / 67.7%): 12 training months are too few for Holt-Winters, and damped Holt loses SKU-004's training holdout. On the full history damped Holt is picked for SKU-003 and SKU-009 (all-SKU replayed fill rate 99.4% to 99.5%). On a 48-month synthetic series with known trend and seasonality, the out-of-sample fill rate goes from 97.5% to 99.6% (normal) and from 96.6% to 97.6% (bootstrap), with 52% and 14% more average stock.
+- Compatibility: without `--trend-seasonal` the candidates, picks and Markdown output are those of 0.2.0.
+
 ## [0.2.0] - 2026-10-14
 
 ### Added

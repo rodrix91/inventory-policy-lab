@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/rodrix91/inventory-policy-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/rodrix91/inventory-policy-lab/actions/workflows/ci.yml)
 
-Turn a CSV of demand history per SKU into an inventory-policy report you can check: ABC-XYZ classes, demand patterns (smooth, erratic, intermittent, lumpy), backtested forecasts, safety stock, reorder point, EOQ, and a replay of the resulting (s, Q) policy on the same history.
+Turn a CSV of demand history per SKU into an inventory-policy report you can check: ABC-XYZ classes, demand patterns (smooth, erratic, intermittent, lumpy), backtested forecasts (including damped Holt and Holt-Winters on request), safety stock, reorder point, EOQ, and a replay of the resulting (s, Q) policy on the same history.
 
 Python 3.11+, standard library only at runtime. Library and command line.
 
@@ -13,7 +13,7 @@ Python 3.11+, standard library only at runtime. Library and command line.
 Most stock problems are policy problems: the same safety-stock rule applied to a fast, stable item and to a spare part that sells twice a year; a forecast chosen because it is the default, not because it was tested; a reorder point computed once and never checked against what would actually have happened. This tool makes each step explicit and reviewable:
 
 - **Segment before you set policy.** ABC (value) and XYZ (variability) tell you where accuracy and service matter most; the Syntetos-Boylan classes tell you which forecasting methods even make sense.
-- **Test the forecast on data it has not seen.** Every candidate method is backtested on a holdout and scored with MASE, which works with zero-demand periods (MAPE does not).
+- **Test the forecast on data it has not seen.** Every candidate method is backtested on a holdout and scored with MASE, which works with zero-demand periods (MAPE does not). With `--trend-seasonal`, damped Holt and Holt-Winters compete too, with their parameters fitted only on the periods before each forecast.
 - **Verify the policy, not only the formula.** The (s, Q) policy is replayed period by period on the history, reporting the fill rate, stockout periods and average stock it would have produced. When the normal-distribution formula does not fit the item (lumpy demand, seasonality), the replay shows it. With `--test-periods N` the policy is also fitted on the earlier periods only and replayed on the last N, out of sample.
 
 It was written for teaching and analysis in operations management and logistics: every number in the report can be traced to a formula below, and the [worked example](#worked-example-checked-by-hand) is verified by hand in the test suite.
@@ -213,7 +213,7 @@ for sku in report.skus:
 markdown = render_markdown(report)  # or render_json(report) / report.to_dict()
 ```
 
-The building blocks are public too: `read_demand`, `abc_classes`, `xyz_class`, `demand_profile`, `naive`, `moving_average`, `ses`, `croston`, `sba`, `backtest`, `safety_stock`, `bootstrap_safety_stock`, `eoq`, `build_policy`, `simulate` (with `warmup=` to replay periods without scoring them), `train_history` and `out_of_sample_replay`. `Config(test_periods=12)` adds the out-of-sample replay to the report as `report.out_of_sample` (an `OutOfSampleReport`, with `totals(method, "in_sample" | "out_of_sample")`). Errors are subclasses of `InventoryPolicyError` with an `exit_code`.
+The building blocks are public too: `read_demand`, `abc_classes`, `xyz_class`, `demand_profile`, `naive`, `moving_average`, `ses`, `croston`, `sba`, `backtest`, `safety_stock`, `bootstrap_safety_stock`, `eoq`, `build_policy`, `simulate` (with `warmup=` to replay periods without scoring them), `train_history`, `out_of_sample_replay`, and the trend and seasonal models `holt_damped`, `holt_winters`, `fit_holt_damped` and `fit_holt_winters` (which return a `SmoothingFit` with `forecast(h)` and the parameters picked). `Config(trend_seasonal=True, season_length=12)` adds those models to the candidates of smooth and erratic SKUs. `Config(test_periods=12)` adds the out-of-sample replay to the report as `report.out_of_sample` (an `OutOfSampleReport`, with `totals(method, "in_sample" | "out_of_sample")`). Errors are subclasses of `InventoryPolicyError` with an `exit_code`.
 
 ## Options
 
@@ -231,6 +231,8 @@ The building blocks are public too: `read_demand`, `abc_classes`, `xyz_class`, `
 | `--safety-stock normal\|bootstrap` | normal | Safety stock from the normal formula, or from a bootstrap of protection-interval demand |
 | `--bootstrap-samples N`, `--seed S` | 2000, 0 | Draws per SKU (at least 100) and random seed of the bootstrap; the same seed gives the same report |
 | `--test-periods N` | 0 (off) | Also fit normal and bootstrap policies on all but the last N periods and replay them out of sample on those N; the training window needs at least holdout + 2 periods |
+| `--trend-seasonal` | off | Also backtest damped Holt and Holt-Winters (additive, multiplicative) on smooth and erratic SKUs when the history allows; see [ADR 0006](docs/decisions/0006-trend-and-seasonal-forecasts.md) |
+| `--season-length M` | `--periods-per-year` | Season of Holt-Winters in periods (12 for months); only with `--trend-seasonal` |
 | `--abc-thresholds a,b` | 0.8,0.95 | Cumulative value shares that end classes A and B |
 | `--xyz-thresholds x,y` | 0.5,1.0 | CV limits of X and Y |
 | `--periods-per-year N` | 12 | To annualize demand (52 for weeks) |
@@ -260,7 +262,23 @@ Croston:          size z and interval p smoothed only when demand occurs,
 SBA:              F = (1 - a/2) z / p          (Syntetos & Boylan, 2005)
 ```
 
-Smooth and erratic SKUs are scored with naive, moving average and SES; intermittent and lumpy SKUs with SES, Croston and SBA. Naive and moving averages are left out on mostly-zero series because after a run of zeros they forecast zero, which scores well on error measures yet means holding no stock (Teunter & Duncan, 2009); see [ADR 0002](docs/decisions/0002-forecast-selection.md).
+With `--trend-seasonal`, smooth and erratic SKUs also get (Gardner & McKenzie, 1985; Winters, 1960; Hyndman & Athanasopoulos, 2021):
+
+```
+damped Holt:      F(t+h) = L(t) + (phi + ... + phi^h) B(t)
+                  L(t) = a y(t) + (1 - a)(L(t-1) + phi B(t-1))
+                  B(t) = b (L(t) - L(t-1)) + (1 - b) phi B(t-1)
+                  start: L(2) = y(2), B(2) = y(2) - y(1)
+Holt-Winters:     F(t+h) = L(t) + (phi + ... + phi^h) B(t) + S(t+h-m)    (multiplicative: x S)
+                  L(t) = a (y(t) - S(t-m)) + (1 - a)(L(t-1) + phi B(t-1))
+                  S(t) = g (y(t) - L(t)) + (1 - g) S(t-m),  B(t) as above
+                  start: L = mean of season 1, B = (mean of season 2 - mean of season 1) / m,
+                  S(i) = y(i) - L (multiplicative: y(i) / L)
+```
+
+The parameters are picked by a grid search (a 0.1 to 0.9; b, g in {0.05, 0.1, 0.2, 0.3}; phi in {0.8, 0.9, 0.95, 0.98}) minimising the squared one-step errors of the history passed in, so at each backtest origin, and in the training window of `--test-periods`, later periods cannot influence them. Damped Holt needs 4 periods before the first holdout origin, Holt-Winters two full seasons (`2 x m`, with `m = --season-length`, by default `--periods-per-year`), the multiplicative form demand in every period; otherwise the model is not a candidate. Forecasts are floored at zero. When one of these models is picked, the forecast used by the policy is its mean over the next `L + R` periods (rounded half up), because the reorder point protects that interval and the policy is static.
+
+Smooth and erratic SKUs are scored with naive, moving average and SES (plus the models above with `--trend-seasonal`, after them in the tie-break order); intermittent and lumpy SKUs with SES, Croston and SBA. Naive and moving averages are left out on mostly-zero series because after a run of zeros they forecast zero, which scores well on error measures yet means holding no stock (Teunter & Duncan, 2009); see [ADR 0002](docs/decisions/0002-forecast-selection.md).
 
 **Backtest and selection.** For each of the last H periods, the method is fitted on the periods before it and forecasts that period (rolling origin). With errors `e = forecast - actual`:
 
@@ -326,6 +344,34 @@ This adds an "Out-of-sample replay" section to the report (and an `out_of_sample
 
 The full-history column covers all 12 SKUs and 24 periods; the other columns cover the 11 SKUs with training history. Out of sample both methods fall below 95%, and the bootstrap's in-sample lead almost disappears: 94.6% against 94.4%, with one stockout period more, although it holds about 20% less stock. Most of the loss comes from two items a level forecast cannot follow: the trending SKU-004 (79.7% normal, 67.7% bootstrap) and the seasonal SKU-003 (82.9% normal, 94.4% bootstrap). The intermittent SKU-008 is the clearest gain for the bootstrap (85.9% to 100%). One 12-period test window is a small sample, so read these as an indication, not a verdict on either method; the normal formula stays the default.
 
+## Trend and seasonal forecasts on the example
+
+`--trend-seasonal` adds damped Holt and Holt-Winters to the candidates ([ADR 0006](docs/decisions/0006-trend-and-seasonal-forecasts.md)). On the same synthetic file with `--test-periods 12`, before (0.2.0 candidates) and after:
+
+```bash
+python -m inventory_policy_lab examples/demand_synthetic.csv --test-periods 12 --trend-seasonal
+```
+
+| Scope | Safety stock | Fill rate train, before / after | Fill rate test, before / after | Stockout periods train / test, before / after | Avg on hand train / test, before / after |
+|---|---|---|---|---|---|
+| SKU-003 (seasonal) | normal | 92.3% / 92.3% | 82.9% / 82.9% | 3 / 4, 3 / 4 | 68.5 / 51.0, 68.5 / 51.0 |
+| SKU-003 (seasonal) | bootstrap | 99.5% / 99.5% | 94.4% / 94.4% | 1 / 3, 1 / 3 | 100.6 / 79.2, 100.6 / 79.2 |
+| SKU-004 (trend) | normal | 100.0% / 100.0% | 79.7% / 79.7% | 0 / 6, 0 / 6 | 60.7 / 8.6, 60.7 / 8.6 |
+| SKU-004 (trend) | bootstrap | 100.0% / 100.0% | 67.7% / 67.7% | 0 / 9, 0 / 9 | 46.8 / 3.6, 46.8 / 3.6 |
+| All 11 SKUs | normal | 98.8% / 98.8% | 94.4% / 94.4% | 4 / 11, 4 / 11 | 1,042.4 / 885.2, same |
+| All 11 SKUs | bootstrap | 99.9% / 99.9% | 94.6% / 94.6% | 1 / 12, 1 / 12 | 864.4 / 712.4, same |
+
+**On this file the new models change nothing out of sample**, and the reason is the data, not a bug: with 12 training months and a holdout of 6, the shortest fit has 6 periods, far from the 24 Holt-Winters needs for two seasons, so the seasonal SKU-003 never gets a seasonal candidate. Damped Holt is a candidate, but on SKU-004 it loses the training holdout (MASE 1.25 against 0.91 for the moving average), because 2024 demand is almost flat from July to November. On the full 24 months the main report does change: damped Holt wins the holdout of SKU-003 (MASE 0.90 against 1.00 for naive; in-sample fill rate 98.0% to 98.8%) and of SKU-009, and the replayed fill rate of all SKUs goes from 99.4% to 99.5%. SKU-004 keeps naive there too.
+
+With enough history the models do get picked. On a 48-month synthetic series with known trend and seasonality (`trend_seasonal_series()` in [`tests/test_smoothing.py`](tests/test_smoothing.py), 36 training and 12 test months), the seasonal items pick additive and multiplicative Holt-Winters, and out of sample:
+
+| Safety stock | Fill rate test, before / after | Stockout periods test, before / after | Avg on hand test (sum), before / after |
+|---|---|---|---|
+| normal | 97.5% / 99.6% | 3 / 1 | 189.8 / 289.0 |
+| bootstrap | 96.6% / 97.6% | 5 / 4 | 172.4 / 196.4 |
+
+Service improves, but mostly by holding more stock (52% more with the normal formula): the policy is static, so a seasonal forecast can only raise the one reorder point it sets for the whole year. The trending item keeps naive there as well. All numbers above are from real runs, pinned in `tests/test_smoothing.py`.
+
 ## Architecture
 
 ```mermaid
@@ -334,7 +380,7 @@ flowchart LR
     reader -->|DemandData: one series per SKU| analysis
     subgraph analysis [analysis.analyze]
         classify[classify: ABC, XYZ, Syntetos-Boylan]
-        forecast[forecast: methods, backtest, MASE pick]
+        forecast[forecast: methods, backtest, MASE pick; smoothing: Holt, Holt-Winters]
         policy[policy: SS, ROP, EOQ]
         simulate[simulate: replay of s, Q]
         validation[validation: out-of-sample replay, with --test-periods]
@@ -353,7 +399,7 @@ Data flows one way: `reader` returns plain data, `analysis` returns a `Report`, 
 ## Limitations
 
 - **Normal approximation by default.** The default safety stock assumes independent, normally distributed demand per period and lead time, which fits poorly for lumpy and slow-moving items. `--safety-stock bootstrap` drops the normal assumption but still draws periods independently (no autocorrelation or trend) and can only reproduce demand sizes already in the history.
-- **Stationary methods.** No trend or seasonal models (Holt, Holt-Winters). A seasonal or trending item gets a level forecast and a sigma inflated by the pattern.
+- **Trend and seasonality are opt-in and need history.** By default every forecast is a level forecast, and a seasonal or trending item gets a sigma inflated by the pattern. `--trend-seasonal` adds damped Holt and Holt-Winters, but Holt-Winters needs two full seasons before the first holdout origin (30 months of monthly data with the default holdout), parameters come from a coarse grid, and a short holdout can still prefer a level method. The policy stays static, so a seasonal forecast sets one reorder point for the whole year.
 - **One policy for the whole history.** The main replay applies the reorder point computed from the end of the history to all of it, so it is in-sample: a check of the policy on the data, not an estimate of future service. `--test-periods` gives an out-of-sample estimate, but from a single split in time with a fixed policy through the test window (no rolling refit), which on short histories is a small sample.
 - **Selection by a per-period error measure.** MASE is the best-behaved of the usual accuracy measures on zeros, but Teunter & Duncan (2009) show that per-period error measures are a poor guide for intermittent items, where service and stock outcomes matter more. On intermittent and lumpy SKUs the pick among SES, Croston and SBA is a heuristic; the replay is the better judge.
 - **Cycle service level only.** The target is the probability of no stockout per cycle; a fill-rate target (expected units short, the loss function) is not solved for, only measured by the replay.
@@ -372,6 +418,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). In short: `python -m pytest`, `coverage 
 - Syntetos, A. A., & Boylan, J. E. (2005). The accuracy of intermittent demand estimates. *International Journal of Forecasting*, 21(2), 303-314.
 - Syntetos, A. A., Boylan, J. E., & Croston, J. D. (2005). On the categorization of demand patterns. *Journal of the Operational Research Society*, 56(5), 495-503.
 - Hyndman, R. J., & Koehler, A. B. (2006). Another look at measures of forecast accuracy. *International Journal of Forecasting*, 22(4), 679-688.
+- Gardner, E. S., & McKenzie, E. (1985). Forecasting trends in time series. *Management Science*, 31(10), 1237-1246.
+- Winters, P. R. (1960). Forecasting sales by exponentially weighted moving averages. *Management Science*, 6(3), 324-342.
+- Hyndman, R. J., & Athanasopoulos, G. (2021). *Forecasting: Principles and Practice* (3rd ed.). OTexts. https://otexts.com/fpp3/
 - Teunter, R. H., & Duncan, L. (2009). Forecasting intermittent demand: a comparative study. *Journal of the Operational Research Society*, 60(3), 321-329.
 
 ## License
