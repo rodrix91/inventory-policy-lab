@@ -17,7 +17,7 @@ EXIT_CODES_HELP = """exit codes:
   2  invalid option or option value
   3  input file missing, unreadable or not UTF-8
   4  invalid data (missing column, bad number, mixed period formats)
-  5  history too short for the holdout"""
+  5  history too short for the holdout (or for --test-periods)"""
 
 
 def _pair(text: str) -> tuple[float, float]:
@@ -126,6 +126,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="draws per SKU with --safety-stock bootstrap, at least 100 (2000)",
     )
     group.add_argument("--seed", type=int, default=0, help="random seed of the bootstrap (0)")
+    group.add_argument(
+        "--test-periods",
+        type=int,
+        default=0,
+        metavar="N",
+        help=(
+            "also fit normal and bootstrap policies on all but the last N periods and "
+            "replay them out of sample on those N (0: off)"
+        ),
+    )
 
     group = parser.add_argument_group("classification and forecasting")
     group.add_argument(
@@ -169,6 +179,7 @@ def config_from_args(args: argparse.Namespace) -> Config:
         safety_stock_method=args.safety_stock,
         bootstrap_samples=args.bootstrap_samples,
         seed=args.seed,
+        test_periods=args.test_periods,
     )
 
 

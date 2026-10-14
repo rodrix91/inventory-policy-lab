@@ -8,7 +8,7 @@ import statistics
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from functools import partial
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .classify import (
     ADI_CUTOFF,
@@ -34,6 +34,9 @@ from .forecast import (
 from .policy import Policy, bootstrap_safety_stock, build_policy, eoq
 from .reader import DemandData, SkuHistory, read_demand
 from .simulate import SimulationResult, simulate
+
+if TYPE_CHECKING:  # pragma: no cover - imports for type hints only
+    from .validation import OutOfSampleReport
 
 INTERMITTENT = ("intermittent", "lumpy")
 
@@ -63,6 +66,7 @@ class Config:
     safety_stock_method: str = "normal"
     bootstrap_samples: int = 2000
     seed: int = 0
+    test_periods: int = 0  # last periods kept out for the out-of-sample replay; 0 = off
 
     def validate(self) -> None:
         """Raise :class:`ConfigError` for any setting out of range."""
@@ -114,6 +118,8 @@ class Config:
             raise ConfigError(
                 f"bootstrap samples must be at least 100, got {self.bootstrap_samples}"
             )
+        if self.test_periods < 0:
+            raise ConfigError(f"test periods cannot be negative, got {self.test_periods}")
 
     def methods(self, category: str) -> dict[str, Method]:
         """Candidate forecasting methods for a demand category, in tie-break order."""
@@ -167,6 +173,7 @@ class Report:
     config: Config
     abc_basis: str  # "value" or "quantity"
     skus: tuple[SkuResult, ...]
+    out_of_sample: OutOfSampleReport | None = None  # with Config.test_periods > 0
 
     def matrix(self) -> dict[str, dict[str, int]]:
         """Count of SKUs in each ABC-XYZ cell."""
@@ -334,7 +341,14 @@ def analyze(data: DemandData, config: Config | None = None) -> Report:
     }
     classes = abc_classes(values, *config.abc_thresholds)
     results = tuple(_analyze_sku(h, config, classes[h.sku], values[h.sku]) for h in data.skus)
-    return Report(data=data, config=config, abc_basis=basis, skus=results)
+    out_of_sample = None
+    if config.test_periods:
+        from .validation import out_of_sample_replay
+
+        out_of_sample = out_of_sample_replay(data, config)
+    return Report(
+        data=data, config=config, abc_basis=basis, skus=results, out_of_sample=out_of_sample
+    )
 
 
 def analyze_file(path: str | os.PathLike[str], config: Config | None = None) -> Report:

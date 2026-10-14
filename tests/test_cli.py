@@ -151,3 +151,13 @@ def test_bootstrap_options(capsys: pytest.CaptureFixture[str]) -> None:
     )
     assert main([*args, "--bootstrap-samples", "10"]) == 2
     assert "bootstrap samples must be at least 100" in capsys.readouterr().err
+
+
+def test_test_periods_option(capsys: pytest.CaptureFixture[str]) -> None:
+    synthetic = str(EXAMPLES / "demand_synthetic.csv")
+    assert main([synthetic, "--test-periods", "12", "--format", "json"]) == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["settings"]["test_periods"] == 12
+    assert report["out_of_sample"]["summary"]["normal"]["out_of_sample"]["fill_rate"] == 0.9443
+    assert main([synthetic, "--test-periods", "20"]) == 5
+    assert "Lower --test-periods or --holdout" in capsys.readouterr().err

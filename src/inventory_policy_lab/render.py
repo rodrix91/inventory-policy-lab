@@ -9,6 +9,8 @@ from . import __version__
 
 if TYPE_CHECKING:  # pragma: no cover - imports for type hints only
     from .analysis import Config, Report, SkuResult
+    from .simulate import SimulationResult
+    from .validation import OutOfSampleReport, ReplayTotals
 
 METHOD_ORDER = ("naive", "moving_average", "ses", "croston", "sba")
 SIGMA_LABELS = {
@@ -79,25 +81,88 @@ def _sku_dict(result: SkuResult) -> dict[str, Any]:
             "order_quantity": _r(result.order_quantity),
             "order_quantity_source": result.order_quantity_source,
         },
-        "simulation": {
-            "periods": sim.periods,
-            "lead_time_periods": sim.lead_time_periods,
-            "total_demand": _r(sim.total_demand),
-            "served_from_stock": _r(sim.served_from_stock),
-            "fill_rate": _r(sim.fill_rate),
-            "stockout_periods": sim.stockout_periods,
-            "average_on_hand": _r(sim.average_on_hand),
-            "orders_placed": sim.orders_placed,
-            "max_backorder": _r(sim.max_backorder),
-        },
+        "simulation": _simulation_dict(sim),
         "notes": list(result.notes),
+    }
+
+
+def _simulation_dict(sim: SimulationResult) -> dict[str, Any]:
+    return {
+        "periods": sim.periods,
+        "lead_time_periods": sim.lead_time_periods,
+        "total_demand": _r(sim.total_demand),
+        "served_from_stock": _r(sim.served_from_stock),
+        "fill_rate": _r(sim.fill_rate),
+        "stockout_periods": sim.stockout_periods,
+        "average_on_hand": _r(sim.average_on_hand),
+        "orders_placed": sim.orders_placed,
+        "max_backorder": _r(sim.max_backorder),
+    }
+
+
+def _totals_dict(totals: ReplayTotals) -> dict[str, Any]:
+    return {
+        "total_demand": _r(totals.total_demand),
+        "served_from_stock": _r(totals.served_from_stock),
+        "fill_rate": _r(totals.fill_rate),
+        "stockout_periods": totals.stockout_periods,
+        "average_on_hand": _r(totals.average_on_hand),
+    }
+
+
+def _out_of_sample_dict(oos: OutOfSampleReport) -> dict[str, Any]:
+    from .validation import SAFETY_STOCK_METHODS
+
+    return {
+        "test_periods": oos.test_periods,
+        "train": {
+            "periods": len(oos.train_calendar),
+            "first_period": oos.train_calendar[0],
+            "last_period": oos.train_calendar[-1],
+        },
+        "test": {
+            "periods": len(oos.test_calendar),
+            "first_period": oos.test_calendar[0],
+            "last_period": oos.test_calendar[-1],
+        },
+        "skipped_skus": list(oos.skipped),
+        "summary": {
+            method: {
+                sample: _totals_dict(oos.totals(method, sample))
+                for sample in ("in_sample", "out_of_sample")
+            }
+            for method in SAFETY_STOCK_METHODS
+        },
+        "skus": [
+            {
+                "sku": s.sku,
+                "train_periods": s.train_periods,
+                "test_periods": s.test_periods,
+                "abc": s.abc,
+                "category": s.category,
+                "forecast_method": s.forecast_method,
+                "forecast": _r(s.forecast),
+                "policies": {
+                    r.method: {
+                        "safety_stock": _r(r.safety_stock),
+                        "reorder_point": _r(r.reorder_point),
+                        "order_quantity": _r(r.order_quantity),
+                        "in_sample": _simulation_dict(r.in_sample),
+                        "out_of_sample": _simulation_dict(r.out_of_sample),
+                    }
+                    for r in s.replays
+                },
+                "notes": list(s.notes),
+            }
+            for s in oos.skus
+        ],
     }
 
 
 def report_to_dict(report: Report) -> dict[str, Any]:
     """A JSON-ready dictionary with every number rounded to 4 decimals."""
     data, config = report.data, report.config
-    return {
+    result: dict[str, Any] = {
         "tool": "inventory-policy-lab",
         "version": __version__,
         "source": data.source,
@@ -129,6 +194,7 @@ def report_to_dict(report: Report) -> dict[str, Any]:
             "safety_stock_method": config.safety_stock_method,
             "bootstrap_samples": config.bootstrap_samples,
             "seed": config.seed,
+            "test_periods": config.test_periods,
         },
         "summary": {
             "skus": len(report.skus),
@@ -138,6 +204,9 @@ def report_to_dict(report: Report) -> dict[str, Any]:
         },
         "skus": [_sku_dict(result) for result in report.skus],
     }
+    if report.out_of_sample is not None:
+        result["out_of_sample"] = _out_of_sample_dict(report.out_of_sample)
+    return result
 
 
 def render_json(report: Report) -> str:
@@ -155,6 +224,85 @@ def _pct(value: float | None, digits: int = 1) -> str:
 def _table(header: list[str], rows: list[list[str]]) -> list[str]:
     lines = ["| " + " | ".join(header) + " |", "|" + "|".join("---" for _ in header) + "|"]
     lines += ["| " + " | ".join(row) + " |" for row in rows]
+    return lines
+
+
+def _out_of_sample_lines(oos: OutOfSampleReport) -> list[str]:
+    from .validation import SAFETY_STOCK_METHODS
+
+    train, test = oos.train_calendar, oos.test_calendar
+    lines = [
+        "",
+        f"## Out-of-sample replay (train {train[0]} to {train[-1]}, test {test[0]} to {test[-1]})",
+        "",
+        f"Each policy is fitted on the first {len(train)} periods only (classes, forecast "
+        "pick, sigma, lead times, bootstrap draws) and replayed over the whole history; "
+        f"in-sample scores the {len(train)} training periods, out-of-sample only the last "
+        f"{len(test)}, which start from the stock the policy left at the end of training.",
+        "",
+    ]
+    rows = []
+    for method in SAFETY_STOCK_METHODS:
+        inside, outside = (oos.totals(method, s) for s in ("in_sample", "out_of_sample"))
+        rows.append(
+            [
+                method,
+                _pct(inside.fill_rate),
+                _pct(outside.fill_rate),
+                str(inside.stockout_periods),
+                str(outside.stockout_periods),
+                _num(inside.average_on_hand),
+                _num(outside.average_on_hand),
+            ]
+        )
+    lines += _table(
+        [
+            "Safety stock",
+            "Fill rate, in-sample",
+            "Fill rate, out-of-sample",
+            "Stockout periods, in",
+            "Stockout periods, out",
+            "Avg on hand, in (sum)",
+            "Avg on hand, out (sum)",
+        ],
+        rows,
+    )
+    lines += [""]
+    sku_rows = []
+    for s in oos.skus:
+        normal, boot = s.replay("normal"), s.replay("bootstrap")
+        sku_rows.append(
+            [
+                s.sku,
+                s.abc,
+                s.category,
+                s.forecast_method,
+                f"{_pct(normal.in_sample.fill_rate)} / {_pct(normal.out_of_sample.fill_rate)}",
+                f"{_pct(boot.in_sample.fill_rate)} / {_pct(boot.out_of_sample.fill_rate)}",
+                f"{normal.out_of_sample.stockout_periods} / {boot.out_of_sample.stockout_periods}",
+                f"{_num(normal.out_of_sample.average_on_hand)} / "
+                f"{_num(boot.out_of_sample.average_on_hand)}",
+            ]
+        )
+    lines += _table(
+        [
+            "SKU",
+            "Class (train)",
+            "Pattern (train)",
+            "Method",
+            "Fill rate normal, in / out",
+            "Fill rate bootstrap, in / out",
+            "Stockout periods out, normal / bootstrap",
+            "Avg on hand out, normal / bootstrap",
+        ],
+        sku_rows,
+    )
+    if oos.skipped:
+        lines += [
+            "",
+            f"Not in the out-of-sample replay (no history before {test[0]}): "
+            f"{', '.join(oos.skipped)}.",
+        ]
     return lines
 
 
@@ -259,6 +407,8 @@ def render_markdown(report: Report) -> str:
         bias = scores[r.method].bias if r.method in scores else None
         backtest_rows.append([r.sku, *cells, _num(bias, 2)])
     lines += _table(["SKU", *METHOD_ORDER, "Bias of pick"], backtest_rows)
+    if report.out_of_sample is not None:
+        lines += _out_of_sample_lines(report.out_of_sample)
     noted = [r for r in report.skus if r.notes]
     if noted:
         lines += ["", "## Notes", ""]
