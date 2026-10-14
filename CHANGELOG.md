@@ -4,12 +4,18 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-14
+
 ### Added
 
 - Bootstrap safety stock (`--safety-stock bootstrap`, `--bootstrap-samples`, `--seed`; `bootstrap_safety_stock` in the API): the service-level quantile of protection-interval demand resampled from each SKU's own history, with lead times drawn from the observed ones, instead of the normal formula. Seeded per SKU, so reports are reproducible. On the synthetic example the lumpy SKU-012 goes from 72.5% to 100% replayed fill rate and total average stock falls from 1,257.5 to 1,065.4 units (in-sample; see ADR 0004).
 - `safety_stock_method` in the JSON policy of each SKU and `safety_stock_method`, `bootstrap_samples` and `seed` in the JSON settings.
 - Out-of-sample replay (`--test-periods N`; `Config.test_periods`, `out_of_sample_replay`, `train_history`, `OutOfSampleReport` in the API): each SKU is fitted on all but the last N periods (ABC, pattern, forecast pick, sigma, lead times observed in training, bootstrap draws) and the normal and bootstrap policies are both replayed, scoring the training periods (in-sample) and the last N (out-of-sample) separately, in a new report section and an `out_of_sample` JSON key. On the synthetic example with 12 test periods, the fill rate falls from 98.8% to 94.4% (normal) and from 99.9% to 94.6% (bootstrap), so the bootstrap's in-sample lead almost disappears out of sample, while it still holds about 20% less stock (ADR 0005).
 - `simulate(..., warmup=k)` replays the first k periods without scoring them; `SkuHistory.lead_time_periods` dates each observed lead time by its row. `test_periods` in the JSON settings.
+
+### Changed
+
+- Development: Ruff 0.17.0 (Dependabot PR #2, hashed lock regenerated).
 
 ## [0.1.0] - 2026-10-09
 
@@ -27,5 +33,6 @@ First public version (alpha).
 - Synthetic, seeded example dataset (`examples/demand_synthetic.csv`, `scripts/generate_example.py`), a hand-checked worked example (`examples/worked_example.csv`, verified in `tests/test_worked_example.py`) and an ABC Pareto chart drawn as SVG with the standard library (`docs/abc-pareto.svg`).
 - README samples generated from real runs and checked by the test suite; CI on Python 3.11, 3.12 and 3.13 with tests, 100% line and branch coverage, Ruff and strict mypy; a release workflow that builds and tests the sdist and wheel.
 
-[Unreleased]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/rodrix91/inventory-policy-lab/releases/tag/v0.1.0

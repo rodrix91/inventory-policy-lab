@@ -8,7 +8,7 @@ and :func:`render_json`. ``Config(test_periods=N)`` adds an out-of-sample replay
 
 from __future__ import annotations
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 from .analysis import Config, Report, SkuResult, analyze, analyze_file
 from .classify import (
