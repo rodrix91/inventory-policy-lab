@@ -9,8 +9,9 @@ from . import __version__
 
 if TYPE_CHECKING:  # pragma: no cover - imports for type hints only
     from .analysis import Config, Report, SkuResult
+    from .policy import Policy
     from .simulate import SimulationResult
-    from .validation import OutOfSampleReport, ReplayTotals
+    from .validation import OutOfSampleReport, PolicyReplay, ReplayTotals
 
 METHOD_ORDER = ("naive", "moving_average", "ses", "croston", "sba")
 TREND_SEASONAL_ORDER = ("holt_damped", "hw_additive", "hw_multiplicative")
@@ -48,6 +49,48 @@ def _trend_seasonal_label(config: Config) -> str:
 
 def _r(value: float | None, digits: int = 4) -> float | None:
     return None if value is None else round(value, digits)
+
+
+def _rs(values: tuple[float, ...]) -> list[float]:
+    return [round(value, 4) for value in values]
+
+
+def _policy_name(config: Config) -> str:
+    return "(R, S)" if config.policy == "RS" else "(s, Q)"
+
+
+def _policy_label(config: Config) -> str:
+    if config.policy == "RS":
+        label = (
+            "- Policy: (R, S) periodic review, order-up-to level S = D x (L + R) + SS, "
+            f"reviewed every {config.review_period:g} period(s)"
+        )
+    else:
+        label = "- Policy: (s, Q) reorder point s = D x (L + R) + SS, fixed order quantity Q"
+    if config.dynamic_levels:
+        level = "S" if config.policy == "RS" else "s"
+        label += (
+            f"; dynamic levels: {level} follows the forecast period by period, "
+            f"{level}(t) = mean forecast of the next L + R periods x (L + R) + SS"
+        )
+    return label
+
+
+def _level_dict(policy: Policy, quantity: float, source: str) -> dict[str, Any]:
+    """The level and quantity keys of a policy: (s, Q) as before, (R, S) with S."""
+    if policy.kind == "RS":
+        return {
+            "kind": "RS",
+            "order_up_to": _r(policy.reorder_point),
+            "reorder_point": None,
+            "order_quantity": None,
+            "order_quantity_source": None,
+        }
+    return {
+        "reorder_point": _r(policy.reorder_point),
+        "order_quantity": _r(quantity),
+        "order_quantity_source": source,
+    }
 
 
 def _sku_dict(result: SkuResult) -> dict[str, Any]:
@@ -97,14 +140,19 @@ def _sku_dict(result: SkuResult) -> dict[str, Any]:
             "review_period": _r(policy.review_period),
             "safety_stock": _r(policy.safety_stock),
             "safety_stock_method": policy.safety_stock_method,
-            "reorder_point": _r(policy.reorder_point),
             "eoq": _r(policy.eoq),
-            "order_quantity": _r(result.order_quantity),
-            "order_quantity_source": result.order_quantity_source,
+            **_level_dict(policy, result.order_quantity, result.order_quantity_source),
+            **_dynamic_dict(result.levels, result.next_levels),
         },
         "simulation": _simulation_dict(sim),
         "notes": list(result.notes),
     }
+
+
+def _dynamic_dict(levels: tuple[float, ...], next_levels: tuple[float, ...]) -> dict[str, Any]:
+    if not levels and not next_levels:
+        return {}
+    return {"levels": _rs(levels), "next_levels": _rs(next_levels)}
 
 
 def _simulation_dict(sim: SimulationResult) -> dict[str, Any]:
@@ -129,6 +177,21 @@ def _totals_dict(totals: ReplayTotals) -> dict[str, Any]:
         "stockout_periods": totals.stockout_periods,
         "average_on_hand": _r(totals.average_on_hand),
     }
+
+
+def _replay_level_dict(replay: PolicyReplay, kind: str) -> dict[str, Any]:
+    values: dict[str, Any]
+    if kind == "RS":
+        values = {"order_up_to": _r(replay.reorder_point), "reorder_point": None}
+        values["order_quantity"] = None
+    else:
+        values = {
+            "reorder_point": _r(replay.reorder_point),
+            "order_quantity": _r(replay.order_quantity),
+        }
+    if replay.test_levels:
+        values["test_levels"] = _rs(replay.test_levels)
+    return values
 
 
 def _out_of_sample_dict(oos: OutOfSampleReport) -> dict[str, Any]:
@@ -166,8 +229,7 @@ def _out_of_sample_dict(oos: OutOfSampleReport) -> dict[str, Any]:
                 "policies": {
                     r.method: {
                         "safety_stock": _r(r.safety_stock),
-                        "reorder_point": _r(r.reorder_point),
-                        "order_quantity": _r(r.order_quantity),
+                        **_replay_level_dict(r, oos.policy),
                         "in_sample": _simulation_dict(r.in_sample),
                         "out_of_sample": _simulation_dict(r.out_of_sample),
                     }
@@ -218,6 +280,8 @@ def report_to_dict(report: Report) -> dict[str, Any]:
             "test_periods": config.test_periods,
             "trend_seasonal": config.trend_seasonal,
             "season_length": config.effective_season_length if config.trend_seasonal else None,
+            "policy": config.policy,
+            "dynamic_levels": config.dynamic_levels,
         },
         "summary": {
             "skus": len(report.skus),
@@ -329,6 +393,14 @@ def _out_of_sample_lines(oos: OutOfSampleReport) -> list[str]:
     return lines
 
 
+def _level_cell(result: SkuResult) -> str:
+    level = _num(result.policy.reorder_point)
+    if not result.next_levels:
+        return level
+    low, high = min(result.next_levels), max(result.next_levels)
+    return f"{level} ({_num(low)} to {_num(high)})"
+
+
 def render_markdown(report: Report) -> str:
     """A human-readable report: settings, ABC-XYZ matrix, patterns, policy, backtest, notes."""
     data, config = report.data, report.config
@@ -360,6 +432,8 @@ def render_markdown(report: Report) -> str:
     ]
     if config.trend_seasonal:
         lines.append(_trend_seasonal_label(config))
+    if config.policy != "sQ" or config.dynamic_levels:
+        lines.append(_policy_label(config))
     lines += ["", "## ABC-XYZ matrix", ""]
     matrix = report.matrix()
     rows = [
@@ -383,8 +457,11 @@ def render_markdown(report: Report) -> str:
             "Forecast/period",
             "CSL",
             "Safety stock",
-            "Reorder point (s)",
-            "Order qty (Q)",
+            *(
+                ("Order-up-to (S)", "Review (R)")
+                if config.policy == "RS"
+                else ("Reorder point (s)", "Order qty (Q)")
+            ),
             "Fill rate",
             "Stockout periods",
             "Avg on hand",
@@ -398,8 +475,12 @@ def render_markdown(report: Report) -> str:
                 _num(r.forecast),
                 _pct(r.policy.service_level, 0),
                 _num(r.policy.safety_stock),
-                _num(r.policy.reorder_point),
-                f"{_num(r.order_quantity)} ({r.order_quantity_source})",
+                _level_cell(r),
+                (
+                    f"{r.policy.review_period:g}"
+                    if config.policy == "RS"
+                    else f"{_num(r.order_quantity)} ({r.order_quantity_source})"
+                ),
                 _pct(r.simulation.fill_rate),
                 f"{r.simulation.stockout_periods}/{r.simulation.periods}",
                 _num(r.simulation.average_on_hand),
@@ -407,6 +488,13 @@ def render_markdown(report: Report) -> str:
             for r in report.skus
         ],
     )
+    if config.dynamic_levels:
+        lines += [
+            "",
+            "With dynamic levels the level column shows the level at the end of the "
+            "history and, in parentheses, the lowest and highest level of the next "
+            f"{len(report.skus[0].next_levels)} period(s); the JSON report lists every one.",
+        ]
     others = "naive, moving average and SES"
     order: tuple[str, ...] = METHOD_ORDER
     if config.trend_seasonal:
@@ -444,8 +532,8 @@ def render_markdown(report: Report) -> str:
     lines += [
         "",
         "Fill rate, stockout periods and average on hand come from replaying this same "
-        "history under the (s, Q) policy (in-sample): a check of the formulas on the data, "
-        "not a forecast of future service.",
+        f"history under the {_policy_name(config)} policy (in-sample): a check of the "
+        "formulas on the data, not a forecast of future service.",
         "",
     ]
     return "\n".join(lines)

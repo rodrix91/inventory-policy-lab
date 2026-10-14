@@ -1,4 +1,4 @@
-"""Safety stock, reorder point and economic order quantity."""
+"""Safety stock, reorder point or order-up-to level, and economic order quantity."""
 
 from __future__ import annotations
 
@@ -8,10 +8,18 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from statistics import NormalDist
 
+POLICY_KINDS = ("sQ", "RS")
+
 
 @dataclass(frozen=True)
 class Policy:
-    """An (s, Q) policy for one SKU, in units and periods (``R = 0``: continuous review)."""
+    """An (s, Q) or (R, S) policy for one SKU, in units and periods.
+
+    ``reorder_point`` is the level the inventory position is compared with:
+    the reorder point ``s`` of an (s, Q) policy (``R = 0``: continuous review),
+    or the order-up-to level ``S`` of an (R, S) policy, which has the same
+    formula ``D * (L + R) + SS`` (ADR 0007).
+    """
 
     service_level: float  # target cycle service level (probability of no stockout per cycle)
     z: float
@@ -24,6 +32,12 @@ class Policy:
     reorder_point: float
     eoq: float | None
     safety_stock_method: str = "normal"  # "normal" (formula) or "bootstrap" (empirical)
+    kind: str = "sQ"  # "sQ" (reorder point, fixed quantity) or "RS" (periodic, order-up-to)
+
+    @property
+    def order_up_to(self) -> float | None:
+        """The order-up-to level ``S`` of an (R, S) policy; ``None`` for (s, Q)."""
+        return self.reorder_point if self.kind == "RS" else None
 
 
 def safety_stock(
@@ -109,13 +123,18 @@ def build_policy(
     eoq_units: float | None = None,
     review_period: float = 0.0,
     bootstrap_units: float | None = None,
+    kind: str = "sQ",
 ) -> Policy:
-    """Combine safety stock and reorder point ``s = D * (L + R) + SS`` into a :class:`Policy`.
+    """Combine safety stock and the level ``D * (L + R) + SS`` into a :class:`Policy`.
 
-    With ``bootstrap_units`` (from :func:`bootstrap_safety_stock`) that value is
-    the safety stock and the policy is marked ``"bootstrap"``; ``z`` is still the
-    normal quantile of the service level, reported for comparison.
+    The level is the reorder point ``s`` with ``kind="sQ"`` and the order-up-to
+    level ``S`` with ``kind="RS"``. With ``bootstrap_units`` (from
+    :func:`bootstrap_safety_stock`) that value is the safety stock and the
+    policy is marked ``"bootstrap"``; ``z`` is still the normal quantile of the
+    service level, reported for comparison.
     """
+    if kind not in POLICY_KINDS:
+        raise ValueError(f"kind must be 'sQ' or 'RS', got {kind!r}")
     z, ss = safety_stock(
         service_level, demand_per_period, sigma_demand, lead_time, sigma_lead_time, review_period
     )
@@ -134,4 +153,33 @@ def build_policy(
         reorder_point=demand_per_period * (lead_time + review_period) + ss,
         eoq=eoq_units,
         safety_stock_method=method,
+        kind=kind,
+    )
+
+
+def dynamic_levels(
+    forecasts: Sequence[float],
+    periods: int,
+    lead_time: float,
+    review_period: float,
+    safety_stock: float,
+) -> tuple[float, ...]:
+    """Levels that follow the forecast: one per period, ``D(t) * (L + R) + SS``.
+
+    ``forecasts[i]`` is the demand forecast of period ``i``. The level used at
+    the end of period ``t`` protects the next ``L + R`` periods, so ``D(t)`` is
+    the mean forecast of periods ``t + 1`` to ``t + P`` with ``P = L + R``
+    rounded half up (at least 1). ``forecasts`` must cover ``periods + P``
+    periods. With a constant forecast ``D`` every level is the static
+    ``D * (L + R) + SS`` of :func:`build_policy` (ADR 0007).
+    """
+    protection = lead_time + review_period
+    steps = max(int(protection + 0.5), 1)
+    if len(forecasts) < periods + steps:
+        raise ValueError(
+            f"forecasts must cover {periods} periods plus {steps} ahead, got {len(forecasts)}"
+        )
+    return tuple(
+        math.fsum(forecasts[t + 1 : t + 1 + steps]) / steps * protection + safety_stock
+        for t in range(periods)
     )

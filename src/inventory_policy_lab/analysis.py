@@ -31,9 +31,9 @@ from .forecast import (
     sba,
     ses,
 )
-from .policy import Policy, bootstrap_safety_stock, build_policy, eoq
+from .policy import POLICY_KINDS, Policy, bootstrap_safety_stock, build_policy, dynamic_levels, eoq
 from .reader import DemandData, SkuHistory, read_demand
-from .simulate import SimulationResult, simulate
+from .simulate import SimulationResult, simulate, simulate_periodic
 from .smoothing import (
     HOLT_MIN_HISTORY,
     FitError,
@@ -79,6 +79,8 @@ class Config:
     test_periods: int = 0  # last periods kept out for the out-of-sample replay; 0 = off
     trend_seasonal: bool = False  # add damped Holt and Holt-Winters candidates (ADR 0006)
     season_length: int | None = None  # None: periods_per_year when it is a whole number
+    policy: str = "sQ"  # "sQ" (reorder point, fixed quantity) or "RS" (order-up-to, ADR 0007)
+    dynamic_levels: bool = False  # levels that follow a trend or seasonal forecast (ADR 0007)
 
     @property
     def effective_season_length(self) -> int | None:
@@ -148,6 +150,20 @@ class Config:
                 )
             if self.season_length < 2:
                 raise ConfigError(f"season length must be at least 2, got {self.season_length}")
+        if self.policy not in POLICY_KINDS:
+            raise ConfigError(f"policy must be 'sQ' or 'RS', got {self.policy!r}")
+        if self.policy == "RS" and not (
+            self.review_period >= 1 and float(self.review_period).is_integer()
+        ):
+            raise ConfigError(
+                "an (R, S) policy needs a whole review period of at least 1, "
+                f"got {self.review_period}"
+            )
+        if self.dynamic_levels and not self.trend_seasonal:
+            raise ConfigError(
+                "dynamic levels follow a trend or seasonal forecast and need "
+                "trend_seasonal (--trend-seasonal)"
+            )
 
     def methods(self, category: str) -> dict[str, Method]:
         """Candidate forecasting methods for a demand category, in tie-break order."""
@@ -214,6 +230,25 @@ def _trend_seasonal_candidate(
     return result, final
 
 
+def replay_policy(
+    demand: Sequence[float],
+    policy: Policy,
+    order_quantity: float,
+    levels: Sequence[float] = (),
+    warmup: int = 0,
+) -> SimulationResult:
+    """Replay ``demand`` under ``policy``: (s, Q) or (R, S), static or with ``levels``.
+
+    ``levels`` (one per period of ``demand``) replace the policy's single level
+    when given. An (R, S) policy ignores ``order_quantity``.
+    """
+    level: float | Sequence[float] = levels if levels else policy.reorder_point
+    if policy.kind == "RS":
+        review = int(policy.review_period)
+        return simulate_periodic(demand, level, review, policy.lead_time, warmup=warmup)
+    return simulate(demand, level, order_quantity, policy.lead_time, warmup=warmup)
+
+
 @dataclass(frozen=True)
 class SkuResult:
     sku: str
@@ -236,6 +271,8 @@ class SkuResult:
     simulation: SimulationResult
     notes: tuple[str, ...]
     forecast_parameters: Mapping[str, float] | None = None  # smoothing parameters picked
+    levels: tuple[float, ...] = ()  # dynamic levels of the replayed periods; () when static
+    next_levels: tuple[float, ...] = ()  # dynamic levels of the periods after the history
 
     @property
     def abc_xyz(self) -> str:
@@ -283,7 +320,11 @@ def _lead_time(history: SkuHistory, config: Config) -> tuple[float, float, str]:
     return statistics.fmean(observed), sigma, "observed"
 
 
-def _analyze_sku(history: SkuHistory, config: Config, abc: str, value: float) -> SkuResult:
+def _analyze_sku(
+    history: SkuHistory, config: Config, abc: str, value: float, horizon: int | None = None
+) -> SkuResult:
+    """One SKU. With dynamic levels, ``horizon`` periods after the history get levels
+    too (``next_levels``); by default one season (one period without a season)."""
     series = history.demand
     notes: list[str] = []
     if history.filled_periods:
@@ -377,6 +418,7 @@ def _analyze_sku(history: SkuHistory, config: Config, abc: str, value: float) ->
         eoq_units,
         config.review_period,
         bootstrap_units,
+        config.policy,
     )
 
     if eoq_units is not None:
@@ -385,8 +427,25 @@ def _analyze_sku(history: SkuHistory, config: Config, abc: str, value: float) ->
         quantity, quantity_source = forecast * config.order_cover, "cover"
     else:
         quantity, quantity_source = 1.0, "minimum"
-        notes.append("forecast is zero: order quantity set to 1 unit for the replay")
-    simulation = simulate(series, policy.reorder_point, quantity, lead)
+        if config.policy == "sQ":
+            notes.append("forecast is zero: order quantity set to 1 unit for the replay")
+
+    levels: tuple[float, ...] = ()
+    next_levels: tuple[float, ...] = ()
+    if config.dynamic_levels:
+        ahead = horizon if horizon is not None else (config.effective_season_length or 1)
+        steps = max(int(lead + config.review_period + 0.5), 1)
+        span = len(series) + ahead + steps
+        if method_name in fits:
+            forecasts = fits[method_name].calendar_forecasts(len(series), span)
+        else:
+            forecasts = (forecast,) * span
+            notes.append("level forecast picked: dynamic levels equal the static level")
+        every = dynamic_levels(
+            forecasts, len(series) + ahead, lead, config.review_period, policy.safety_stock
+        )
+        levels, next_levels = every[: len(series)], every[len(series) :]
+    simulation = replay_policy(series, policy, quantity, levels)
 
     return SkuResult(
         sku=history.sku,
@@ -409,6 +468,8 @@ def _analyze_sku(history: SkuHistory, config: Config, abc: str, value: float) ->
         simulation=simulation,
         notes=tuple(notes),
         forecast_parameters=parameters,
+        levels=levels,
+        next_levels=next_levels,
     )
 
 

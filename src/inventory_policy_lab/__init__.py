@@ -5,13 +5,15 @@ Standard library only. The main entry points are :func:`analyze_file` (or
 and :func:`render_json`. ``Config(test_periods=N)`` adds an out-of-sample replay
 (:func:`out_of_sample_replay`) to the report, and ``Config(trend_seasonal=True)``
 adds damped Holt and Holt-Winters to the forecast candidates.
+``Config(policy="RS")`` replays a periodic-review, order-up-to policy, and
+``dynamic_levels=True`` lets its levels follow the forecast period by period.
 """
 
 from __future__ import annotations
 
 __version__ = "0.3.0"
 
-from .analysis import Config, Report, SkuResult, analyze, analyze_file
+from .analysis import Config, Report, SkuResult, analyze, analyze_file, replay_policy
 from .classify import (
     DemandProfile,
     abc_classes,
@@ -27,10 +29,17 @@ from .errors import (
     InventoryPolicyError,
 )
 from .forecast import BacktestResult, backtest, croston, moving_average, naive, sba, ses
-from .policy import Policy, bootstrap_safety_stock, build_policy, eoq, safety_stock
+from .policy import (
+    Policy,
+    bootstrap_safety_stock,
+    build_policy,
+    dynamic_levels,
+    eoq,
+    safety_stock,
+)
 from .reader import DemandData, SkuHistory, parse_rows, read_demand
 from .render import render_json, render_markdown, report_to_dict
-from .simulate import SimulationResult, simulate
+from .simulate import SimulationResult, simulate, simulate_periodic
 from .smoothing import (
     FitError,
     SmoothingFit,
@@ -81,6 +90,7 @@ __all__ = [
     "coefficient_of_variation",
     "croston",
     "demand_profile",
+    "dynamic_levels",
     "eoq",
     "fit_holt_damped",
     "fit_holt_winters",
@@ -95,11 +105,13 @@ __all__ = [
     "read_demand",
     "render_json",
     "render_markdown",
+    "replay_policy",
     "report_to_dict",
     "safety_stock",
     "sba",
     "ses",
     "simulate",
+    "simulate_periodic",
     "train_history",
     "xyz_class",
 ]

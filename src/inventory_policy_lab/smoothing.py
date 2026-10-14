@@ -81,6 +81,26 @@ class SmoothingFit:
         steps = max(horizon, 1)
         return math.fsum(self.forecast(h) for h in range(1, steps + 1)) / steps
 
+    def calendar_forecasts(self, fitted_periods: int, periods: int) -> tuple[float, ...]:
+        """Forecast of each period ``0 .. periods - 1`` of a calendar the fit started at.
+
+        The fit saw periods ``0 .. fitted_periods - 1``. A later period ``i`` gets
+        the real forecast ``i - fitted_periods + 1`` steps ahead. An earlier one,
+        replayed in-sample, gets the forecast of the next period in the same
+        season position (``1`` to ``m`` steps ahead; ``1`` step for damped Holt):
+        the seasonal profile at the final level and trend, the same way the
+        in-sample replay of a static policy applies the final level to the
+        whole history (ADR 0007).
+        """
+        season = len(self.seasonals) or 1
+        values = []
+        for i in range(periods):
+            horizon = i - fitted_periods + 1
+            if horizon < 1:
+                horizon = (horizon - 1) % season + 1
+            values.append(self.forecast(horizon))
+        return tuple(values)
+
     def parameters(self) -> dict[str, float]:
         values = {"alpha": self.alpha, "beta": self.beta, "phi": self.phi}
         if self.gamma is not None:

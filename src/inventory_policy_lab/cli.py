@@ -91,7 +91,27 @@ def build_parser() -> argparse.ArgumentParser:
         "--review-period",
         type=float,
         default=1.0,
-        help="periods between inventory reviews, added to the protection interval (1)",
+        help=(
+            "periods between inventory reviews, added to the protection interval; "
+            "a whole number of at least 1 with --policy RS (1)"
+        ),
+    )
+    group.add_argument(
+        "--policy",
+        choices=("sQ", "RS"),
+        default="sQ",
+        help=(
+            "sQ: reorder point s and fixed quantity Q, checked every period; RS: periodic "
+            "review every R periods, ordering up to S (sQ)"
+        ),
+    )
+    group.add_argument(
+        "--dynamic-levels",
+        action="store_true",
+        help=(
+            "let s or S follow a trend or seasonal forecast period by period instead of one "
+            "level for the whole year (needs --trend-seasonal)"
+        ),
     )
     group.add_argument(
         "--ordering-cost", type=float, help="cost per order, for EOQ (needs --holding-rate)"
@@ -196,6 +216,8 @@ def config_from_args(args: argparse.Namespace) -> Config:
         test_periods=args.test_periods,
         trend_seasonal=args.trend_seasonal,
         season_length=args.season_length,
+        policy=args.policy,
+        dynamic_levels=args.dynamic_levels,
     )
 
 
