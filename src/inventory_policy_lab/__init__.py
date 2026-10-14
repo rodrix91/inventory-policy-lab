@@ -11,7 +11,7 @@ adds damped Holt and Holt-Winters to the forecast candidates.
 
 from __future__ import annotations
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 from .analysis import Config, Report, SkuResult, analyze, analyze_file, replay_policy
 from .classify import (

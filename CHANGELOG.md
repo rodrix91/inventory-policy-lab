@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-14
+
 ### Added
 
 - Periodic-review, order-up-to policy, opt-in with `--policy RS` (`Config.policy`): the position is reviewed every `--review-period R` periods (a whole number of at least 1) and an order brings it back up to `S = D x (L + R) + SS`, the reorder-point formula with the same safety stock. Works with the normal and bootstrap safety stock and with the in-sample and out-of-sample replays. The Markdown policy table shows `Order-up-to (S)` and `Review (R)`; the JSON policy has `kind`, `order_up_to`, and null `reorder_point` and `order_quantity` (ADR 0007).
@@ -51,7 +53,8 @@ First public version (alpha).
 - Synthetic, seeded example dataset (`examples/demand_synthetic.csv`, `scripts/generate_example.py`), a hand-checked worked example (`examples/worked_example.csv`, verified in `tests/test_worked_example.py`) and an ABC Pareto chart drawn as SVG with the standard library (`docs/abc-pareto.svg`).
 - README samples generated from real runs and checked by the test suite; CI on Python 3.11, 3.12 and 3.13 with tests, 100% line and branch coverage, Ruff and strict mypy; a release workflow that builds and tests the sdist and wheel.
 
-[Unreleased]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/rodrix91/inventory-policy-lab/releases/tag/v0.1.0
