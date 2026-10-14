@@ -25,7 +25,8 @@ def test_reads_the_worked_example() -> None:
     assert w1.demand == (10, 12, 8, 10, 14, 6, 10, 14)
     assert w1.unit_cost == 2.0
     assert w1.lead_times == (2.0,)
-    assert w2.lead_times == ()
+    assert w1.lead_time_periods == ("1",)  # each lead time is dated by its row
+    assert w2.lead_times == () and w2.lead_time_periods == ()
     assert w1.filled_periods == 0
 
 

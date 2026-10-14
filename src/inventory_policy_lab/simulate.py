@@ -14,6 +14,12 @@ have achieved on this data, period by period:
 
 The lead time is rounded to whole periods (half up). The run starts with
 ``s + Q`` units on hand and nothing on order.
+
+With ``warmup = k`` the first ``k`` periods are replayed but not scored: the
+metrics cover only the periods after them, which start from the stock, the
+backorders and the orders on the way that the policy left at the end of the
+warm-up. The out-of-sample replay uses it to score a policy on the test
+periods only (ADR 0005).
 """
 
 from __future__ import annotations
@@ -38,11 +44,20 @@ class SimulationResult:
 
 
 def simulate(
-    demand: Sequence[float], reorder_point: float, order_quantity: float, lead_time: float
+    demand: Sequence[float],
+    reorder_point: float,
+    order_quantity: float,
+    lead_time: float,
+    warmup: int = 0,
 ) -> SimulationResult:
-    """Replay ``demand`` under the (s=``reorder_point``, Q=``order_quantity``) policy."""
+    """Replay ``demand`` under the (s=``reorder_point``, Q=``order_quantity``) policy.
+
+    The first ``warmup`` periods are replayed without being scored.
+    """
     if order_quantity <= 0:
         raise ValueError("order_quantity must be positive")
+    if not 0 <= warmup <= len(demand):
+        raise ValueError("warmup must be between 0 and the number of periods")
     lead = int(lead_time + 0.5)
     net = reorder_point + order_quantity
     arrivals: dict[int, float] = {}
@@ -52,28 +67,31 @@ def simulate(
     orders = 0
     max_backorder = 0.0
     for t, quantity in enumerate(demand):
+        scored = t >= warmup
         net += arrivals.pop(t, 0.0)
         served = min(max(net, 0.0), quantity)
-        served_total += served
-        if served < quantity - _EPSILON:
-            stockouts += 1
         net -= quantity
-        on_hand_sum += max(net, 0.0)
-        max_backorder = max(max_backorder, -net)
+        if scored:
+            served_total += served
+            if served < quantity - _EPSILON:
+                stockouts += 1
+            on_hand_sum += max(net, 0.0)
+            max_backorder = max(max_backorder, -net)
         position = net + sum(arrivals.values())
         while position <= reorder_point + _EPSILON:
             due = t + lead + 1
             arrivals[due] = arrivals.get(due, 0.0) + order_quantity
             position += order_quantity
-            orders += 1
-    total = float(sum(demand))
+            orders += int(scored)
+    periods = len(demand) - warmup
+    total = float(sum(demand[warmup:]))
     return SimulationResult(
-        periods=len(demand),
+        periods=periods,
         total_demand=total,
         served_from_stock=served_total,
         fill_rate=served_total / total if total > 0 else None,
         stockout_periods=stockouts,
-        average_on_hand=on_hand_sum / len(demand) if demand else 0.0,
+        average_on_hand=on_hand_sum / periods if periods else 0.0,
         orders_placed=orders,
         max_backorder=max_backorder,
         lead_time_periods=lead,

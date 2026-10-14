@@ -9,7 +9,8 @@ Expected columns (header names are case-insensitive and trimmed):
 - ``unit_cost`` (optional): cost of one unit; the most recent non-empty value per
   SKU is used.
 - ``lead_time`` (optional): an observed replenishment lead time in periods. All
-  non-empty values of a SKU are treated as lead-time observations.
+  non-empty values of a SKU are treated as lead-time observations, each dated
+  by the period of its row (the out-of-sample replay trains on the earlier ones).
 
 Several rows for the same SKU and period are summed (transaction lines). Each
 SKU's series starts at its first period in the file and runs to the last period
@@ -56,6 +57,7 @@ class SkuHistory:
     unit_cost: float | None
     lead_times: tuple[float, ...]
     filled_periods: int  # periods with no row, counted as demand zero
+    lead_time_periods: tuple[str, ...] = ()  # period of the row of each lead time
 
 
 @dataclass(frozen=True)
@@ -160,6 +162,7 @@ def parse_rows(rows: list[list[str]], source: str = "<rows>") -> DemandData:
     totals: dict[str, dict[str, float]] = {}
     costs: dict[str, float] = {}
     lead_times: dict[str, list[float]] = {}
+    lead_time_periods: dict[str, list[str]] = {}
     kinds: set[str] = set()
     data_rows = 0
 
@@ -210,6 +213,7 @@ def parse_rows(rows: list[list[str]], source: str = "<rows>") -> DemandData:
                 if lead < 0:
                     raise DataError(f"line {line}: negative lead_time {lead_text}")
                 lead_times.setdefault(sku, []).append(lead)
+                lead_time_periods.setdefault(sku, []).append(period)
 
     if not totals:
         raise DataError(f"{source} has a header but no data rows")
@@ -233,6 +237,7 @@ def parse_rows(rows: list[list[str]], source: str = "<rows>") -> DemandData:
                 unit_cost=costs.get(sku),
                 lead_times=tuple(lead_times.get(sku, ())),
                 filled_periods=len(periods) - len(per_period),
+                lead_time_periods=tuple(lead_time_periods.get(sku, ())),
             )
         )
     return DemandData(
