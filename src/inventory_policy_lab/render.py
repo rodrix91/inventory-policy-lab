@@ -13,6 +13,7 @@ if TYPE_CHECKING:  # pragma: no cover - imports for type hints only
     from .validation import OutOfSampleReport, ReplayTotals
 
 METHOD_ORDER = ("naive", "moving_average", "ses", "croston", "sba")
+TREND_SEASONAL_ORDER = ("holt_damped", "hw_additive", "hw_multiplicative")
 SIGMA_LABELS = {
     "demand": "standard deviation of demand per period",
     "rmse": "RMSE of the picked method on the holdout",
@@ -28,12 +29,45 @@ def _safety_stock_label(config: Config) -> str:
     return f"safety-stock sigma: {SIGMA_LABELS[config.sigma]}"
 
 
+def _trend_seasonal_label(config: Config) -> str:
+    from .smoothing import HOLT_MIN_HISTORY
+
+    season = config.effective_season_length
+    holt_winters = (
+        "no Holt-Winters (no season length)"
+        if season is None
+        else f"Holt-Winters additive and multiplicative (multiplicative only without "
+        f"zero-demand periods), season length {season}, from {2 * season} periods"
+    )
+    return (
+        "- Trend and seasonal candidates for smooth and erratic SKUs: damped Holt from "
+        f"{HOLT_MIN_HISTORY} periods before the first backtest origin; {holt_winters}; "
+        "a picked model's forecast is its mean over the protection interval"
+    )
+
+
 def _r(value: float | None, digits: int = 4) -> float | None:
     return None if value is None else round(value, digits)
 
 
 def _sku_dict(result: SkuResult) -> dict[str, Any]:
     policy, sim, profile = result.policy, result.simulation, result.profile
+    forecast: dict[str, Any] = {
+        "method": result.method,
+        "next_period": _r(result.forecast),
+        "backtest": [
+            {
+                "method": b.method,
+                "mae": _r(b.mae),
+                "rmse": _r(b.rmse),
+                "bias": _r(b.bias),
+                "mase": _r(b.mase),
+            }
+            for b in result.backtests
+        ],
+    }
+    if result.forecast_parameters is not None:
+        forecast["parameters"] = dict(result.forecast_parameters)
     return {
         "sku": result.sku,
         "periods": result.periods,
@@ -52,20 +86,7 @@ def _sku_dict(result: SkuResult) -> dict[str, Any]:
             "cv2": _r(profile.cv2),
             "nonzero_periods": profile.nonzero_periods,
         },
-        "forecast": {
-            "method": result.method,
-            "next_period": _r(result.forecast),
-            "backtest": [
-                {
-                    "method": b.method,
-                    "mae": _r(b.mae),
-                    "rmse": _r(b.rmse),
-                    "bias": _r(b.bias),
-                    "mase": _r(b.mase),
-                }
-                for b in result.backtests
-            ],
-        },
+        "forecast": forecast,
         "policy": {
             "service_level": policy.service_level,
             "z": _r(policy.z),
@@ -195,6 +216,8 @@ def report_to_dict(report: Report) -> dict[str, Any]:
             "bootstrap_samples": config.bootstrap_samples,
             "seed": config.seed,
             "test_periods": config.test_periods,
+            "trend_seasonal": config.trend_seasonal,
+            "season_length": config.effective_season_length if config.trend_seasonal else None,
         },
         "summary": {
             "skus": len(report.skus),
@@ -334,10 +357,10 @@ def render_markdown(report: Report) -> str:
         f"holdout: last {config.holdout} periods; "
         f"{_safety_stock_label(config)}",
         f"- Replayed fill rate, all SKUs: {_pct(report.overall_fill_rate())}",
-        "",
-        "## ABC-XYZ matrix",
-        "",
     ]
+    if config.trend_seasonal:
+        lines.append(_trend_seasonal_label(config))
+    lines += ["", "## ABC-XYZ matrix", ""]
     matrix = report.matrix()
     rows = [
         [f"**{cls}**", *(str(matrix[cls][v]) for v in "XYZ"), str(sum(matrix[cls].values()))]
@@ -384,20 +407,25 @@ def render_markdown(report: Report) -> str:
             for r in report.skus
         ],
     )
+    others = "naive, moving average and SES"
+    order: tuple[str, ...] = METHOD_ORDER
+    if config.trend_seasonal:
+        others = "naive, moving average, SES, damped Holt and Holt-Winters when the history allows"
+        order = METHOD_ORDER + TREND_SEASONAL_ORDER
     lines += [
         "",
         f"## Forecast backtest (MASE, last {config.holdout} periods)",
         "",
         "Lower is better; below 1 beats the in-sample naive forecast. "
         "Intermittent and lumpy SKUs are scored with SES, Croston and SBA; "
-        "the others with naive, moving average and SES.",
+        f"the others with {others}.",
         "",
     ]
     backtest_rows = []
     for r in report.skus:
         scores = {bt.method: bt for bt in r.backtests}
         cells = []
-        for name in METHOD_ORDER:
+        for name in order:
             result = scores.get(name)
             if result is None:
                 cells.append("-")
@@ -406,7 +434,7 @@ def render_markdown(report: Report) -> str:
                 cells.append(f"**{cell}**" if name == r.method else cell)
         bias = scores[r.method].bias if r.method in scores else None
         backtest_rows.append([r.sku, *cells, _num(bias, 2)])
-    lines += _table(["SKU", *METHOD_ORDER, "Bias of pick"], backtest_rows)
+    lines += _table(["SKU", *order, "Bias of pick"], backtest_rows)
     if report.out_of_sample is not None:
         lines += _out_of_sample_lines(report.out_of_sample)
     noted = [r for r in report.skus if r.notes]

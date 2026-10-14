@@ -161,3 +161,17 @@ def test_test_periods_option(capsys: pytest.CaptureFixture[str]) -> None:
     assert report["out_of_sample"]["summary"]["normal"]["out_of_sample"]["fill_rate"] == 0.9443
     assert main([synthetic, "--test-periods", "20"]) == 5
     assert "Lower --test-periods or --holdout" in capsys.readouterr().err
+
+
+def test_trend_seasonal_options(capsys: pytest.CaptureFixture[str]) -> None:
+    synthetic = str(EXAMPLES / "demand_synthetic.csv")
+    assert main([synthetic, "--trend-seasonal", "--format", "json"]) == 0
+    report = json.loads(capsys.readouterr().out)
+    assert (report["settings"]["trend_seasonal"], report["settings"]["season_length"]) == (True, 12)
+    sku_003 = next(s for s in report["skus"] if s["sku"] == "SKU-003")
+    assert sku_003["forecast"]["method"] == "holt_damped"
+    assert set(sku_003["forecast"]["parameters"]) == {"alpha", "beta", "phi"}
+    assert main([synthetic, "--trend-seasonal", "--season-length", "6"]) == 0
+    assert "season length 6, from 12 periods" in capsys.readouterr().out
+    assert main([WORKED, "--holdout", "2", "--season-length", "4"]) == 2
+    assert "only applies with trend_seasonal (--trend-seasonal)" in capsys.readouterr().err
