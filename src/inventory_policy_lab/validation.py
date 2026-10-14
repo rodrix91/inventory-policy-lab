@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING
 from .classify import abc_classes
 from .errors import HistoryError
 from .reader import DemandData, SkuHistory
-from .simulate import SimulationResult, simulate
+from .simulate import SimulationResult
 
 SAFETY_STOCK_METHODS = ("normal", "bootstrap")
 
@@ -41,10 +41,11 @@ class PolicyReplay:
 
     method: str  # "normal" or "bootstrap"
     safety_stock: float
-    reorder_point: float
+    reorder_point: float  # s of (s, Q), or the order-up-to level S of (R, S)
     order_quantity: float
     in_sample: SimulationResult  # the train periods (policy fitted on them)
     out_of_sample: SimulationResult  # the test periods only
+    test_levels: tuple[float, ...] = ()  # dynamic levels of the test periods; () when static
 
 
 @dataclass(frozen=True)
@@ -81,6 +82,7 @@ class OutOfSampleReport:
     test_calendar: tuple[str, ...]
     skus: tuple[SkuOutOfSample, ...]
     skipped: tuple[str, ...]  # SKUs with no demand history in the train periods
+    policy: str = "sQ"  # the policy kind replayed: "sQ" or "RS"
 
     def totals(self, method: str, sample: str) -> ReplayTotals:
         """Totals of ``method`` for ``sample`` ``"in_sample"`` or ``"out_of_sample"``."""
@@ -129,7 +131,7 @@ def out_of_sample_replay(data: DemandData, config: Config) -> OutOfSampleReport:
     Raises :class:`HistoryError` when the train periods are fewer than
     ``config.holdout + 2``, the minimum the forecast backtest needs.
     """
-    from .analysis import _analyze_sku  # analysis imports this module lazily too
+    from .analysis import _analyze_sku, replay_policy  # analysis imports this lazily too
 
     test_periods = config.test_periods
     train_length = len(data.calendar) - test_periods
@@ -168,14 +170,20 @@ def out_of_sample_replay(data: DemandData, config: Config) -> OutOfSampleReport:
         fitted = None
         for method in SAFETY_STOCK_METHODS:
             settings = replace(config, safety_stock_method=method)
-            fitted = _analyze_sku(train, settings, classes[history.sku], values[history.sku])
+            # Dynamic levels of the test periods come from the fit on train only:
+            # the real forecasts 1 to N steps after the end of training.
+            ahead = len(history.demand) - len(train.demand)
+            fitted = _analyze_sku(
+                train, settings, classes[history.sku], values[history.sku], horizon=ahead
+            )
             notes += [note for note in fitted.notes if note not in notes]
             policy = fitted.policy
-            test = simulate(
+            levels = fitted.levels + fitted.next_levels
+            test = replay_policy(
                 history.demand,
-                policy.reorder_point,
+                policy,
                 fitted.order_quantity,
-                policy.lead_time,
+                levels,
                 warmup=len(train.demand),
             )
             replays.append(
@@ -186,6 +194,7 @@ def out_of_sample_replay(data: DemandData, config: Config) -> OutOfSampleReport:
                     order_quantity=fitted.order_quantity,
                     in_sample=fitted.simulation,
                     out_of_sample=test,
+                    test_levels=fitted.next_levels,
                 )
             )
         assert fitted is not None  # SAFETY_STOCK_METHODS is not empty
@@ -208,4 +217,5 @@ def out_of_sample_replay(data: DemandData, config: Config) -> OutOfSampleReport:
         test_calendar=test_calendar,
         skus=tuple(results),
         skipped=tuple(skipped),
+        policy=config.policy,
     )
