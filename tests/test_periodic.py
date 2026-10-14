@@ -353,6 +353,12 @@ POLICIES = {
         "review_period": 3,
         "dynamic_levels": True,
     },
+    "RS dynamic, sigma rmse": {
+        "trend_seasonal": True,
+        "policy": "RS",
+        "dynamic_levels": True,
+        "sigma": "rmse",
+    },
 }
 
 
@@ -373,6 +379,7 @@ def test_48_month_series_results_quoted_in_the_readme() -> None:
         "sQ dynamic": {"normal": (1.0, 0, 269.9), "bootstrap": (0.988, 2, 174.8)},
         "RS static, R=3": {"normal": (0.996, 2, 589.1), "bootstrap": (0.924, 7, 389.3)},
         "RS dynamic, R=3": {"normal": (0.999, 1, 439.3), "bootstrap": (0.904, 10, 247.0)},
+        "RS dynamic, sigma rmse": {"normal": (0.892, 21, 14.3), "bootstrap": (0.893, 22, 41.0)},
     }
 
 
@@ -417,4 +424,5 @@ def test_synthetic_example_results_quoted_in_the_readme() -> None:
         "sQ dynamic": {"normal": (0.944, 11, 885.2), "bootstrap": (0.946, 12, 712.4)},
         "RS static, R=3": {"normal": (0.934, 11, 1306.6), "bootstrap": (0.942, 11, 1032.1)},
         "RS dynamic, R=3": {"normal": (0.934, 11, 1306.6), "bootstrap": (0.942, 11, 1032.1)},
+        "RS dynamic, sigma rmse": {"normal": (0.874, 23, 561.9), "bootstrap": (0.907, 17, 427.9)},
     }

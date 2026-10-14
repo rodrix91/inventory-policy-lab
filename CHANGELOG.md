@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- Periodic-review, order-up-to policy, opt-in with `--policy RS` (`Config.policy`): the position is reviewed every `--review-period R` periods (a whole number of at least 1) and an order brings it back up to `S = D x (L + R) + SS`, the reorder-point formula with the same safety stock. Works with the normal and bootstrap safety stock and with the in-sample and out-of-sample replays. The Markdown policy table shows `Order-up-to (S)` and `Review (R)`; the JSON policy has `kind`, `order_up_to`, and null `reorder_point` and `order_quantity` (ADR 0007).
+- Dynamic levels, opt-in with `--dynamic-levels` (`Config.dynamic_levels`, needs `--trend-seasonal`), for both policies: the level used at the end of period `t` is the mean forecast of the next `L + R` periods x (L + R) + SS, so a seasonal forecast moves s or S month by month instead of one level for the year. Out of sample the test levels are the training fit's forecasts 1 to N steps ahead, so the test periods cannot leak into them (tested). JSON: `levels`, `next_levels` and, out of sample, `test_levels`.
+- API: `simulate_periodic`, `replay_policy`, `dynamic_levels`, `SmoothingFit.calendar_forecasts`, `Policy.kind`, `Policy.order_up_to`, `SkuResult.levels`, `SkuResult.next_levels`, `PolicyReplay.test_levels`, `OutOfSampleReport.policy`; `simulate` accepts one reorder point per period.
+- JSON settings: `policy` and `dynamic_levels` (always present). Without the new options the Markdown report is unchanged.
+- Results (out of sample, normal safety stock): on the 48-month synthetic series, (R, S) with dynamic levels reaches 100% fill rate with no stockout period and 105.5 units of average stock, against 99.6% and 289.0 for the static (s, Q) with Holt-Winters; dynamic levels alone cut (R, S) stock by about 25%. The bootstrap does worse with (R, S) (85.5% static, 89.3% dynamic). On the 24-month example the dynamic levels change nothing (no seasonal model with 12 training months), and (R, S) with R = 1 gives 90.9% fill rate with 32% less stock than (s, Q) at 94.4%.
+
 ## [0.3.0] - 2026-10-14
 
 ### Added

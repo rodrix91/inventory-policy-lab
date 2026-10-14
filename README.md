@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/rodrix91/inventory-policy-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/rodrix91/inventory-policy-lab/actions/workflows/ci.yml)
 
-Turn a CSV of demand history per SKU into an inventory-policy report you can check: ABC-XYZ classes, demand patterns (smooth, erratic, intermittent, lumpy), backtested forecasts (including damped Holt and Holt-Winters on request), safety stock, reorder point, EOQ, and a replay of the resulting (s, Q) policy on the same history.
+Turn a CSV of demand history per SKU into an inventory-policy report you can check: ABC-XYZ classes, demand patterns (smooth, erratic, intermittent, lumpy), backtested forecasts (including damped Holt and Holt-Winters on request), safety stock, reorder point, EOQ, and a replay of the resulting (s, Q) policy on the same history. On request it replays a periodic-review, order-up-to (R, S) policy instead, with levels that can follow a seasonal forecast period by period.
 
 Python 3.11+, standard library only at runtime. Library and command line.
 
@@ -14,7 +14,7 @@ Most stock problems are policy problems: the same safety-stock rule applied to a
 
 - **Segment before you set policy.** ABC (value) and XYZ (variability) tell you where accuracy and service matter most; the Syntetos-Boylan classes tell you which forecasting methods even make sense.
 - **Test the forecast on data it has not seen.** Every candidate method is backtested on a holdout and scored with MASE, which works with zero-demand periods (MAPE does not). With `--trend-seasonal`, damped Holt and Holt-Winters compete too, with their parameters fitted only on the periods before each forecast.
-- **Verify the policy, not only the formula.** The (s, Q) policy is replayed period by period on the history, reporting the fill rate, stockout periods and average stock it would have produced. When the normal-distribution formula does not fit the item (lumpy demand, seasonality), the replay shows it. With `--test-periods N` the policy is also fitted on the earlier periods only and replayed on the last N, out of sample.
+- **Verify the policy, not only the formula.** The (s, Q) policy is replayed period by period on the history, reporting the fill rate, stockout periods and average stock it would have produced. When the normal-distribution formula does not fit the item (lumpy demand, seasonality), the replay shows it. With `--test-periods N` the policy is also fitted on the earlier periods only and replayed on the last N, out of sample. `--policy RS` replays a periodic-review, order-up-to policy, and `--dynamic-levels` lets the level follow a trend or seasonal forecast instead of staying fixed all year.
 
 It was written for teaching and analysis in operations management and logistics: every number in the report can be traced to a formula below, and the [worked example](#worked-example-checked-by-hand) is verified by hand in the test suite.
 
@@ -213,7 +213,7 @@ for sku in report.skus:
 markdown = render_markdown(report)  # or render_json(report) / report.to_dict()
 ```
 
-The building blocks are public too: `read_demand`, `abc_classes`, `xyz_class`, `demand_profile`, `naive`, `moving_average`, `ses`, `croston`, `sba`, `backtest`, `safety_stock`, `bootstrap_safety_stock`, `eoq`, `build_policy`, `simulate` (with `warmup=` to replay periods without scoring them), `train_history`, `out_of_sample_replay`, and the trend and seasonal models `holt_damped`, `holt_winters`, `fit_holt_damped` and `fit_holt_winters` (which return a `SmoothingFit` with `forecast(h)` and the parameters picked). `Config(trend_seasonal=True, season_length=12)` adds those models to the candidates of smooth and erratic SKUs. `Config(test_periods=12)` adds the out-of-sample replay to the report as `report.out_of_sample` (an `OutOfSampleReport`, with `totals(method, "in_sample" | "out_of_sample")`). Errors are subclasses of `InventoryPolicyError` with an `exit_code`.
+The building blocks are public too: `read_demand`, `abc_classes`, `xyz_class`, `demand_profile`, `naive`, `moving_average`, `ses`, `croston`, `sba`, `backtest`, `safety_stock`, `bootstrap_safety_stock`, `eoq`, `build_policy`, `simulate` (with `warmup=` to replay periods without scoring them), `train_history`, `out_of_sample_replay`, and the trend and seasonal models `holt_damped`, `holt_winters`, `fit_holt_damped` and `fit_holt_winters` (which return a `SmoothingFit` with `forecast(h)` and the parameters picked). `Config(trend_seasonal=True, season_length=12)` adds those models to the candidates of smooth and erratic SKUs. `Config(test_periods=12)` adds the out-of-sample replay to the report as `report.out_of_sample` (an `OutOfSampleReport`, with `totals(method, "in_sample" | "out_of_sample")`). `Config(policy="RS", review_period=1)` replays an (R, S) policy (`simulate_periodic`), and `Config(trend_seasonal=True, dynamic_levels=True)` gives each SKU one level per period (`SkuResult.levels`, `next_levels`; `PolicyReplay.test_levels` out of sample), built by `dynamic_levels` from `SmoothingFit.calendar_forecasts`; `replay_policy` replays any of them. Errors are subclasses of `InventoryPolicyError` with an `exit_code`.
 
 ## Options
 
@@ -224,7 +224,9 @@ The building blocks are public too: `read_demand`, `abc_classes`, `xyz_class`, `
 | `--service-level P` | 0.95 | Target cycle service level, 0.5 <= P < 1 |
 | `--class-service-levels A=0.99,B=0.95,C=0.9` | none | Service level per ABC class |
 | `--lead-time L`, `--lead-time-std S` | 1, 0 | Lead time (periods) for SKUs without `lead_time` values |
-| `--review-period R` | 1 | Periods between reviews, added to the protection interval; 0 = continuous review |
+| `--review-period R` | 1 | Periods between reviews, added to the protection interval; 0 = continuous review. A whole number of at least 1 with `--policy RS` |
+| `--policy sQ\|RS` | sQ | `sQ`: reorder point s and fixed order quantity Q, checked every period; `RS`: review every R periods and order up to S; see [ADR 0007](docs/decisions/0007-periodic-review-and-dynamic-levels.md) |
+| `--dynamic-levels` | off | Let s or S follow the picked trend or seasonal forecast period by period instead of one level for the whole history; needs `--trend-seasonal` |
 | `--ordering-cost S`, `--holding-rate h` | none | Cost per order and yearly holding cost as a fraction of unit cost; together they enable EOQ |
 | `--order-cover K` | 1 | Without EOQ, order quantity = forecast x K periods |
 | `--sigma demand\|rmse` | demand | Safety-stock sigma: standard deviation of demand per period, or RMSE of the picked forecast on the holdout |
@@ -311,7 +313,23 @@ The floor at zero keeps `s` from falling below the forecast over the interval (t
 
 **EOQ.** `Q* = sqrt(2 x A x S / H)` with `A = D x periods per year`, `S` the cost per order and `H = holding rate x unit cost`. Without EOQ settings, `Q = D x order cover`; with a zero forecast, Q = 1 unit so the replay can run (noted in the report).
 
-**Replay.** Starting with `s + Q` on hand: orders due arrive at the start of each period; demand is served from stock and the rest is backordered; at the end of the period, while the inventory position (net stock + on order) is at or below `s`, an order of `Q` is placed, arriving at the start of period `t + L + 1` (L rounded half up to whole periods). Fill rate = units served from stock when demanded / total demand; a stockout period is one whose demand was not fully served from stock; average on hand is the mean end-of-period stock.
+**Periodic review, order-up-to (R, S)** (`--policy RS`). The position is reviewed every `R` periods and an order brings it back up to `S`; the order must cover the `L + R` periods until the next review's order arrives, so `S` has the reorder-point formula and the same safety stock (Silver, Pyke & Thomas, 2017):
+
+```
+S = D x (L + R) + SS          order at a review = max(S - inventory position, 0)
+```
+
+**Dynamic levels** (`--dynamic-levels`, with `--trend-seasonal`). Instead of one level, each period gets its own, from the forecast of the periods it protects:
+
+```
+P    = L + R rounded half up (at least 1)
+D(t) = mean of the forecasts of periods t + 1 .. t + P
+s(t) or S(t) = D(t) x (L + R) + SS
+```
+
+A constant forecast gives exactly the static level. Periods after the fitted history get the model's real forecast `h` steps ahead; in the out-of-sample replay that fit uses the training periods only. Periods inside the fitted history (the in-sample replay) get the forecast of the same season position at the final level and trend, the way the static replay applies the final level to the whole history. The safety stock stays static. See [ADR 0007](docs/decisions/0007-periodic-review-and-dynamic-levels.md).
+
+**Replay.** Starting with `s + Q` on hand: orders due arrive at the start of each period; demand is served from stock and the rest is backordered; at the end of the period, while the inventory position (net stock + on order) is at or below `s`, an order of `Q` is placed, arriving at the start of period `t + L + 1` (L rounded half up to whole periods). With `--policy RS` the run starts with `S` on hand, the position is reviewed only at the end of periods `R - 1, 2R - 1, ...`, and an order of `S - position` is placed when the position is below `S`, with the same arrival timing. With dynamic levels the level of each period replaces the fixed one. Fill rate = units served from stock when demanded / total demand; a stockout period is one whose demand was not fully served from stock; average on hand is the mean end-of-period stock.
 
 ## Bootstrap safety stock on the example
 
@@ -370,7 +388,42 @@ With enough history the models do get picked. On a 48-month synthetic series wit
 | normal | 97.5% / 99.6% | 3 / 1 | 189.8 / 289.0 |
 | bootstrap | 96.6% / 97.6% | 5 / 4 | 172.4 / 196.4 |
 
-Service improves, but mostly by holding more stock (52% more with the normal formula): the policy is static, so a seasonal forecast can only raise the one reorder point it sets for the whole year. The trending item keeps naive there as well. All numbers above are from real runs, pinned in `tests/test_smoothing.py`.
+Service improves, but mostly by holding more stock (52% more with the normal formula): the policy is static, so a seasonal forecast can only raise the one reorder point it sets for the whole year. The trending item keeps naive there as well. All numbers above are from real runs, pinned in `tests/test_smoothing.py`. The next section lets the level follow the season instead.
+
+## Periodic review and dynamic levels
+
+`--policy RS` replays a periodic-review, order-up-to policy, and `--dynamic-levels` lets the level follow the forecast period by period ([ADR 0007](docs/decisions/0007-periodic-review-and-dynamic-levels.md)). All numbers below are out of sample (the 12 test periods only), from real runs, pinned in [`tests/test_periodic.py`](tests/test_periodic.py). Average stock is summed over the SKUs; normal and bootstrap are the safety-stock methods, with the default sigma unless stated.
+
+On the 48-month series of the previous section (36 training months, so Holt-Winters is picked for the seasonal items):
+
+| Policy | Fill rate test, normal / bootstrap | Stockout periods test, normal / bootstrap | Avg on hand test, normal / bootstrap |
+|---|---|---|---|
+| (s, Q), level forecasts only (0.2.0) | 97.5% / 96.6% | 3 / 5 | 189.8 / 172.4 |
+| (s, Q) static, `--trend-seasonal` (0.3.0) | 99.6% / 97.6% | 1 / 4 | 289.0 / 196.4 |
+| (s, Q) dynamic | 100.0% / 98.8% | 0 / 2 | 269.9 / 174.8 |
+| (R, S) static, R = 1 | 97.4% / 85.5% | 4 / 19 | 140.0 / 79.4 |
+| (R, S) dynamic, R = 1 | 100.0% / 89.3% | 0 / 22 | 105.5 / 41.0 |
+| (R, S) static, R = 3 | 99.6% / 92.4% | 2 / 7 | 589.1 / 389.3 |
+| (R, S) dynamic, R = 3 | 99.9% / 90.4% | 1 / 10 | 439.3 / 247.0 |
+| (R, S) dynamic, R = 1, `--sigma rmse` | 89.2% / 89.3% | 21 / 22 | 14.3 / 41.0 |
+
+With the normal safety stock, (R, S) with dynamic levels reaches 100% fill rate and no stockout period with 105.5 units of average stock, 63% less than the static (s, Q) with Holt-Winters (289.0) and 44% less than the 0.2.0 policy. Part of that is the policy type: (s, Q) carries about `Q / 2` of cycle stock above its reorder point, which (R, S) with R = 1 does not. The dynamic levels alone, for the same policy, raise service and cut stock by about a quarter for (R, S) (140.0 to 105.5 with R = 1, 589.1 to 439.3 with R = 3) and by 7% for (s, Q).
+
+Two results go the other way. The **bootstrap** loses service with (R, S): on the trending item, whose forecast is naive, the bootstrap quantile of a rising history is below the forecast over the interval, the safety stock is floored at zero, and that item reaches only 78.4% with 12 stockout periods; the cycle stock of (s, Q) used to hide it. And **`--sigma rmse`**, which in theory pairs better with levels that already carry the season, gives 89.2%: the RMSE of a 6-period holdout is too small a sample for a 95% safety stock.
+
+On the 24-month synthetic example (`--test-periods 12`):
+
+```bash
+python -m inventory_policy_lab examples/demand_synthetic.csv --test-periods 12 --trend-seasonal --policy RS --dynamic-levels
+```
+
+| Policy | Fill rate test, normal / bootstrap | Stockout periods test, normal / bootstrap | Avg on hand test, normal / bootstrap |
+|---|---|---|---|
+| (s, Q) static (with or without `--trend-seasonal`) | 94.4% / 94.6% | 11 / 12 | 885.2 / 712.4 |
+| (R, S) static or dynamic, R = 1 | 90.9% / 90.7% | 20 / 17 | 598.6 / 427.9 |
+| (R, S) static or dynamic, R = 3 | 93.4% / 94.2% | 11 / 11 | 1,306.6 / 1,032.1 |
+
+**Here the dynamic levels change nothing**: with 12 training months no SKU gets a seasonal model, every pick is a level method, and a level forecast gives the static level (the report notes it per SKU). (R, S) with R = 1 holds 32% less stock than (s, Q) but loses 3.5 points of fill rate; R = 3 nearly matches (s, Q) service with about 48% more stock. Which policy is better depends on what an order and a unit of stock cost, which this comparison does not price.
 
 ## Architecture
 
@@ -382,7 +435,7 @@ flowchart LR
         classify[classify: ABC, XYZ, Syntetos-Boylan]
         forecast[forecast: methods, backtest, MASE pick; smoothing: Holt, Holt-Winters]
         policy[policy: SS, ROP, EOQ]
-        simulate[simulate: replay of s, Q]
+        simulate[simulate: replay of s, Q or R, S]
         validation[validation: out-of-sample replay, with --test-periods]
         classify --> forecast --> policy --> simulate
         simulate -.-> validation
@@ -399,7 +452,7 @@ Data flows one way: `reader` returns plain data, `analysis` returns a `Report`, 
 ## Limitations
 
 - **Normal approximation by default.** The default safety stock assumes independent, normally distributed demand per period and lead time, which fits poorly for lumpy and slow-moving items. `--safety-stock bootstrap` drops the normal assumption but still draws periods independently (no autocorrelation or trend) and can only reproduce demand sizes already in the history.
-- **Trend and seasonality are opt-in and need history.** By default every forecast is a level forecast, and a seasonal or trending item gets a sigma inflated by the pattern. `--trend-seasonal` adds damped Holt and Holt-Winters, but Holt-Winters needs two full seasons before the first holdout origin (30 months of monthly data with the default holdout), parameters come from a coarse grid, and a short holdout can still prefer a level method. The policy stays static, so a seasonal forecast sets one reorder point for the whole year.
+- **Trend and seasonality are opt-in and need history.** By default every forecast is a level forecast, and a seasonal or trending item gets a sigma inflated by the pattern. `--trend-seasonal` adds damped Holt and Holt-Winters, but Holt-Winters needs two full seasons before the first holdout origin (30 months of monthly data with the default holdout), parameters come from a coarse grid, and a short holdout can still prefer a level method. Without `--dynamic-levels` the policy is static, so a seasonal forecast sets one level for the whole year; with it the level follows the forecast, but the safety stock stays static (it still includes the seasonal swing with the default sigma).
 - **One policy for the whole history.** The main replay applies the reorder point computed from the end of the history to all of it, so it is in-sample: a check of the policy on the data, not an estimate of future service. `--test-periods` gives an out-of-sample estimate, but from a single split in time with a fixed policy through the test window (no rolling refit), which on short histories is a small sample.
 - **Selection by a per-period error measure.** MASE is the best-behaved of the usual accuracy measures on zeros, but Teunter & Duncan (2009) show that per-period error measures are a poor guide for intermittent items, where service and stock outcomes matter more. On intermittent and lumpy SKUs the pick among SES, Croston and SBA is a heuristic; the replay is the better judge.
 - **Cycle service level only.** The target is the probability of no stockout per cycle; a fill-rate target (expected units short, the loss function) is not solved for, only measured by the replay.
