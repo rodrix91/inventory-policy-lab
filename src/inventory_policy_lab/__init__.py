@@ -2,7 +2,8 @@
 
 Standard library only. The main entry points are :func:`analyze_file` (or
 :func:`read_demand` + :func:`analyze`) and the renderers :func:`render_markdown`
-and :func:`render_json`.
+and :func:`render_json`. ``Config(test_periods=N)`` adds an out-of-sample replay
+(:func:`out_of_sample_replay`) to the report.
 """
 
 from __future__ import annotations
@@ -29,6 +30,14 @@ from .policy import Policy, bootstrap_safety_stock, build_policy, eoq, safety_st
 from .reader import DemandData, SkuHistory, parse_rows, read_demand
 from .render import render_json, render_markdown, report_to_dict
 from .simulate import SimulationResult, simulate
+from .validation import (
+    OutOfSampleReport,
+    PolicyReplay,
+    ReplayTotals,
+    SkuOutOfSample,
+    out_of_sample_replay,
+    train_history,
+)
 
 __all__ = [
     "BacktestResult",
@@ -40,10 +49,14 @@ __all__ = [
     "HistoryError",
     "InputFileError",
     "InventoryPolicyError",
+    "OutOfSampleReport",
     "Policy",
+    "PolicyReplay",
+    "ReplayTotals",
     "Report",
     "SimulationResult",
     "SkuHistory",
+    "SkuOutOfSample",
     "SkuResult",
     "__version__",
     "abc_classes",
@@ -58,6 +71,7 @@ __all__ = [
     "eoq",
     "moving_average",
     "naive",
+    "out_of_sample_replay",
     "parse_rows",
     "read_demand",
     "render_json",
@@ -67,5 +81,6 @@ __all__ = [
     "sba",
     "ses",
     "simulate",
+    "train_history",
     "xyz_class",
 ]
