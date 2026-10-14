@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-14
+
 ### Added
 
 - Trend and seasonal forecasts, opt-in with `--trend-seasonal` (`Config.trend_seasonal`): damped Holt and additive and multiplicative Holt-Winters with a damped trend join the backtest of smooth and erratic SKUs, after the level methods, and are picked by the same lowest-MASE rule. Standard library only. Parameters come from a grid search on the squared one-step errors of the history each fit sees, so neither the holdout nor the `--test-periods` window can leak into them. A model is not a candidate without enough history (damped Holt: 4 periods before the first holdout origin; Holt-Winters: two full seasons; multiplicative: demand in every period). When one is picked, the policy uses its mean forecast over the protection interval `L + R`. API: `holt_damped`, `holt_winters`, `fit_holt_damped`, `fit_holt_winters`, `holt_damped_fit`, `holt_winters_fit`, `SmoothingFit`, `FitError` (ADR 0006).
@@ -41,6 +43,7 @@ First public version (alpha).
 - Synthetic, seeded example dataset (`examples/demand_synthetic.csv`, `scripts/generate_example.py`), a hand-checked worked example (`examples/worked_example.csv`, verified in `tests/test_worked_example.py`) and an ABC Pareto chart drawn as SVG with the standard library (`docs/abc-pareto.svg`).
 - README samples generated from real runs and checked by the test suite; CI on Python 3.11, 3.12 and 3.13 with tests, 100% line and branch coverage, Ruff and strict mypy; a release workflow that builds and tests the sdist and wheel.
 
-[Unreleased]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/rodrix91/inventory-policy-lab/releases/tag/v0.1.0
