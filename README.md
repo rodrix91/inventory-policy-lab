@@ -14,7 +14,7 @@ Most stock problems are policy problems: the same safety-stock rule applied to a
 
 - **Segment before you set policy.** ABC (value) and XYZ (variability) tell you where accuracy and service matter most; the Syntetos-Boylan classes tell you which forecasting methods even make sense.
 - **Test the forecast on data it has not seen.** Every candidate method is backtested on a holdout and scored with MASE, which works with zero-demand periods (MAPE does not).
-- **Verify the policy, not only the formula.** The (s, Q) policy is replayed period by period on the history, reporting the fill rate, stockout periods and average stock it would have produced. When the normal-distribution formula does not fit the item (lumpy demand, seasonality), the replay shows it.
+- **Verify the policy, not only the formula.** The (s, Q) policy is replayed period by period on the history, reporting the fill rate, stockout periods and average stock it would have produced. When the normal-distribution formula does not fit the item (lumpy demand, seasonality), the replay shows it. With `--test-periods N` the policy is also fitted on the earlier periods only and replayed on the last N, out of sample.
 
 It was written for teaching and analysis in operations management and logistics: every number in the report can be traced to a formula below, and the [worked example](#worked-example-checked-by-hand) is verified by hand in the test suite.
 
@@ -213,7 +213,7 @@ for sku in report.skus:
 markdown = render_markdown(report)  # or render_json(report) / report.to_dict()
 ```
 
-The building blocks are public too: `read_demand`, `abc_classes`, `xyz_class`, `demand_profile`, `naive`, `moving_average`, `ses`, `croston`, `sba`, `backtest`, `safety_stock`, `bootstrap_safety_stock`, `eoq`, `build_policy` and `simulate`. Errors are subclasses of `InventoryPolicyError` with an `exit_code`.
+The building blocks are public too: `read_demand`, `abc_classes`, `xyz_class`, `demand_profile`, `naive`, `moving_average`, `ses`, `croston`, `sba`, `backtest`, `safety_stock`, `bootstrap_safety_stock`, `eoq`, `build_policy`, `simulate` (with `warmup=` to replay periods without scoring them), `train_history` and `out_of_sample_replay`. `Config(test_periods=12)` adds the out-of-sample replay to the report as `report.out_of_sample` (an `OutOfSampleReport`, with `totals(method, "in_sample" | "out_of_sample")`). Errors are subclasses of `InventoryPolicyError` with an `exit_code`.
 
 ## Options
 
@@ -230,13 +230,14 @@ The building blocks are public too: `read_demand`, `abc_classes`, `xyz_class`, `
 | `--sigma demand\|rmse` | demand | Safety-stock sigma: standard deviation of demand per period, or RMSE of the picked forecast on the holdout |
 | `--safety-stock normal\|bootstrap` | normal | Safety stock from the normal formula, or from a bootstrap of protection-interval demand |
 | `--bootstrap-samples N`, `--seed S` | 2000, 0 | Draws per SKU (at least 100) and random seed of the bootstrap; the same seed gives the same report |
+| `--test-periods N` | 0 (off) | Also fit normal and bootstrap policies on all but the last N periods and replay them out of sample on those N; the training window needs at least holdout + 2 periods |
 | `--abc-thresholds a,b` | 0.8,0.95 | Cumulative value shares that end classes A and B |
 | `--xyz-thresholds x,y` | 0.5,1.0 | CV limits of X and Y |
 | `--periods-per-year N` | 12 | To annualize demand (52 for weeks) |
 | `--holdout H` | 6 | Periods held out for the backtest |
 | `--ma-window W`, `--ses-alpha a`, `--croston-alpha a` | 3, 0.2, 0.1 | Method parameters |
 
-Exit codes: `0` report written, `2` invalid option or value, `3` input file missing, unreadable or not UTF-8 (or output not writable), `4` invalid data, `5` history too short for the holdout (needs at least holdout + 2 periods).
+Exit codes: `0` report written, `2` invalid option or value, `3` input file missing, unreadable or not UTF-8 (or output not writable), `4` invalid data, `5` history too short for the holdout (needs at least holdout + 2 periods, in the training window with `--test-periods`).
 
 ## Methods
 
@@ -306,7 +307,24 @@ The same synthetic file with `--safety-stock bootstrap` (2000 draws, seed 0), ag
 | SKU-012 | lumpy | 72.5% | 100.0% | 22.6 | 33.1 |
 | All 12 SKUs | | 99.4% | 99.8% | 1,257.5 (sum) | 1,065.4 (sum) |
 
-The lumpy SKU-012 goes from 72.5% to 100%, and the erratic SKU-005 keeps 100% with 43% less stock, because a few large months inflate its standard deviation far more than its 95% quantile. SKU-010 barely moves: one or two large orders in 24 months are too rare for any 95% quantile of single months to cover. **Caveat:** this replay is in-sample. The bootstrap resamples the same history the replay runs on, which flatters it; an out-of-sample comparison is on the roadmap.
+The lumpy SKU-012 goes from 72.5% to 100%, and the erratic SKU-005 keeps 100% with 43% less stock, because a few large months inflate its standard deviation far more than its 95% quantile. SKU-010 barely moves: one or two large orders in 24 months are too rare for any 95% quantile of single months to cover. **Caveat:** this replay is in-sample. The bootstrap resamples the same history the replay runs on, which flatters it; the [out-of-sample replay](#out-of-sample-replay-on-the-example) below shows how much of the advantage is left on periods the fit has not seen.
+
+## Out-of-sample replay on the example
+
+`--test-periods N` splits the calendar in time: every SKU is fitted on all but the last N periods (ABC on the training demand, demand pattern, forecast backtest and pick, sigma, the lead times observed in training, and the bootstrap draws), and both the normal and the bootstrap policy are replayed over the whole history. The training periods are scored as the in-sample result; the last N are scored as the out-of-sample result, starting from the stock and open orders the policy left at the end of training. See [ADR 0005](docs/decisions/0005-out-of-sample-replay.md).
+
+```bash
+python -m inventory_policy_lab examples/demand_synthetic.csv --test-periods 12
+```
+
+This adds an "Out-of-sample replay" section to the report (and an `out_of_sample` key to the JSON). With 12 test periods the example trains on 2024-01 to 2024-12 and tests on 2025-01 to 2025-12; SKU-011 starts in 2025-03 and is skipped. Numbers from real runs, pinned in `tests/test_validation.py`:
+
+| Safety stock | Fill rate, full history (in-sample, ADR 0004) | Fill rate, train (in-sample) | Fill rate, test (out-of-sample) | Stockout periods, train / test | Avg on hand (sum), train / test |
+|---|---|---|---|---|---|
+| normal | 99.4% | 98.8% | 94.4% | 4 / 11 | 1,042.4 / 885.2 |
+| bootstrap | 99.8% | 99.9% | 94.6% | 1 / 12 | 864.4 / 712.4 |
+
+The full-history column covers all 12 SKUs and 24 periods; the other columns cover the 11 SKUs with training history. Out of sample both methods fall below 95%, and the bootstrap's in-sample lead almost disappears: 94.6% against 94.4%, with one stockout period more, although it holds about 20% less stock. Most of the loss comes from two items a level forecast cannot follow: the trending SKU-004 (79.7% normal, 67.7% bootstrap) and the seasonal SKU-003 (82.9% normal, 94.4% bootstrap). The intermittent SKU-008 is the clearest gain for the bootstrap (85.9% to 100%). One 12-period test window is a small sample, so read these as an indication, not a verdict on either method; the normal formula stays the default.
 
 ## Architecture
 
@@ -319,7 +337,9 @@ flowchart LR
         forecast[forecast: methods, backtest, MASE pick]
         policy[policy: SS, ROP, EOQ]
         simulate[simulate: replay of s, Q]
+        validation[validation: out-of-sample replay, with --test-periods]
         classify --> forecast --> policy --> simulate
+        simulate -.-> validation
     end
     analysis -->|Report| render
     render --> MD[Markdown]
@@ -334,7 +354,7 @@ Data flows one way: `reader` returns plain data, `analysis` returns a `Report`, 
 
 - **Normal approximation by default.** The default safety stock assumes independent, normally distributed demand per period and lead time, which fits poorly for lumpy and slow-moving items. `--safety-stock bootstrap` drops the normal assumption but still draws periods independently (no autocorrelation or trend) and can only reproduce demand sizes already in the history.
 - **Stationary methods.** No trend or seasonal models (Holt, Holt-Winters). A seasonal or trending item gets a level forecast and a sigma inflated by the pattern.
-- **One policy for the whole history.** The replay applies the reorder point computed from the end of the history to all of it, so it is in-sample: a check of the policy on the data, not an out-of-sample estimate of future service.
+- **One policy for the whole history.** The main replay applies the reorder point computed from the end of the history to all of it, so it is in-sample: a check of the policy on the data, not an estimate of future service. `--test-periods` gives an out-of-sample estimate, but from a single split in time with a fixed policy through the test window (no rolling refit), which on short histories is a small sample.
 - **Selection by a per-period error measure.** MASE is the best-behaved of the usual accuracy measures on zeros, but Teunter & Duncan (2009) show that per-period error measures are a poor guide for intermittent items, where service and stock outcomes matter more. On intermittent and lumpy SKUs the pick among SES, Croston and SBA is a heuristic; the replay is the better judge.
 - **Cycle service level only.** The target is the probability of no stockout per cycle; a fill-rate target (expected units short, the loss function) is not solved for, only measured by the replay.
 - **Lead time in whole periods in the replay**, rounded half up; no partial deliveries, order minimums, pack sizes or capacity limits.
