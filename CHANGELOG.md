@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-15
+
 ### Added
 
 - Bootstrap of forecast residuals, opt-in with `--bootstrap-source residuals` (`Config.bootstrap_source`; the default stays `demand`): the bootstrap resamples the rolling-origin errors of the picked forecast over the protection interval `L + R` (each from a forecast refitted on the periods before its origin, from origin 2) instead of demand per period, so a trend or season the forecast follows is not counted as uncertainty. It applies to `--safety-stock bootstrap` and to the bootstrap replay of `--test-periods`, where only training periods are used (tested by replacing the test periods with zeros). Without enough history for any error the SKU falls back to the demand bootstrap, with a note; the report lists how many errors each SKU used (ADR 0008).
@@ -61,7 +63,8 @@ First public version (alpha).
 - Synthetic, seeded example dataset (`examples/demand_synthetic.csv`, `scripts/generate_example.py`), a hand-checked worked example (`examples/worked_example.csv`, verified in `tests/test_worked_example.py`) and an ABC Pareto chart drawn as SVG with the standard library (`docs/abc-pareto.svg`).
 - README samples generated from real runs and checked by the test suite; CI on Python 3.11, 3.12 and 3.13 with tests, 100% line and branch coverage, Ruff and strict mypy; a release workflow that builds and tests the sdist and wheel.
 
-[Unreleased]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.1.0...v0.2.0
