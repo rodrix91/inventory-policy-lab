@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 import random
 import statistics
@@ -31,7 +32,20 @@ from .forecast import (
     sba,
     ses,
 )
-from .policy import POLICY_KINDS, Policy, bootstrap_safety_stock, build_policy, dynamic_levels, eoq
+from .policy import (
+    BOOTSTRAP_SOURCES,
+    POLICY_KINDS,
+    IntervalForecaster,
+    Policy,
+    bootstrap_safety_stock,
+    build_policy,
+    dynamic_levels,
+    eoq,
+    interval_forecast_errors,
+    period_safety_stocks,
+    protection_periods,
+    residual_bootstrap_quantile,
+)
 from .reader import DemandData, SkuHistory, read_demand
 from .simulate import SimulationResult, simulate, simulate_periodic
 from .smoothing import (
@@ -81,6 +95,8 @@ class Config:
     season_length: int | None = None  # None: periods_per_year when it is a whole number
     policy: str = "sQ"  # "sQ" (reorder point, fixed quantity) or "RS" (order-up-to, ADR 0007)
     dynamic_levels: bool = False  # levels that follow a trend or seasonal forecast (ADR 0007)
+    bootstrap_source: str = "demand"  # bootstrap "demand" or forecast "residuals" (ADR 0008)
+    period_safety_stock: bool = False  # safety stock per period with dynamic levels (ADR 0008)
 
     @property
     def effective_season_length(self) -> int | None:
@@ -164,6 +180,26 @@ class Config:
                 "dynamic levels follow a trend or seasonal forecast and need "
                 "trend_seasonal (--trend-seasonal)"
             )
+        if self.bootstrap_source not in BOOTSTRAP_SOURCES:
+            raise ConfigError(
+                f"bootstrap source must be 'demand' or 'residuals', got {self.bootstrap_source!r}"
+            )
+        if (
+            self.bootstrap_source == "residuals"
+            and self.safety_stock_method != "bootstrap"
+            and not self.test_periods
+        ):
+            raise ConfigError(
+                "the residual bootstrap only applies to a bootstrap safety stock "
+                "(--safety-stock bootstrap, or the bootstrap replay of --test-periods)"
+            )
+        if self.period_safety_stock and not (
+            self.dynamic_levels and self.bootstrap_source == "residuals"
+        ):
+            raise ConfigError(
+                "a safety stock per period needs dynamic levels and the residual bootstrap "
+                "(--dynamic-levels --bootstrap-source residuals)"
+            )
 
     def methods(self, category: str) -> dict[str, Method]:
         """Candidate forecasting methods for a demand category, in tie-break order."""
@@ -216,6 +252,96 @@ def _one_step(fitter: Fitter) -> Method:
         return fitter(history).forecast(1)
 
     return method
+
+
+def _level_interval(method: Method) -> IntervalForecaster:
+    """Total forecast of the next ``P`` periods of a level method: ``P`` times its forecast."""
+
+    def forecaster(history: Sequence[float], periods: int) -> float | None:
+        return periods * method(history)
+
+    return forecaster
+
+
+def _fit_interval(fitter: Fitter) -> IntervalForecaster:
+    """Total forecast of the next ``P`` periods of a model refitted on ``history``.
+
+    ``None`` (origin skipped) when the history is too short for the model or no
+    valid fit exists, the same condition that keeps the model out of a backtest.
+    """
+
+    def forecaster(history: Sequence[float], periods: int) -> float | None:
+        try:
+            fit = fitter(history)
+        except ValueError:  # too short, or FitError (a ValueError) for no valid fit
+            return None
+        return math.fsum(fit.forecast(h) for h in range(1, periods + 1))
+
+    return forecaster
+
+
+# The earliest origin of the residual errors: the two training periods the
+# backtest needs; models that need more history skip the origins before it.
+RESIDUAL_START = 2
+
+
+@dataclass(frozen=True)
+class _Residuals:
+    """The safety stock from the residual bootstrap and how it was obtained."""
+
+    safety_stock: float  # static, floored at zero
+    relative: float | None  # quantile of relative errors, with a safety stock per period
+    notes: tuple[str, ...]
+
+
+def _residual_safety_stock(
+    series: Sequence[float],
+    forecaster: IntervalForecaster,
+    forecast: float,
+    lead: float,
+    lead_times: Sequence[float],
+    level: float,
+    config: Config,
+    rng: random.Random,
+    per_period: bool = False,
+) -> _Residuals | None:
+    """Bootstrap of the rolling-origin forecast errors over ``L + R``; ``None`` without errors.
+
+    With ``per_period`` the errors are relative to the forecast and the static
+    safety stock is that quantile times the forecast over the interval; when no
+    origin has a positive forecast it falls back to the absolute errors, with a
+    note.
+    """
+    lengths = {protection_periods(t, config.review_period) for t in lead_times or (lead,)}
+    protection = lead + config.review_period
+    for relative in (True, False) if per_period else (False,):
+        errors = {
+            p: interval_forecast_errors(series, forecaster, p, RESIDUAL_START, relative)
+            for p in lengths
+        }
+        try:
+            quantile = residual_bootstrap_quantile(
+                errors,
+                level,
+                lead,
+                config.review_period,
+                lead_times,
+                config.bootstrap_samples,
+                rng,
+            )
+        except ValueError:
+            continue
+        counts = ", ".join(f"{len(errors[p])} over {p}" for p in sorted(lengths) if p)
+        kind = "relative forecast errors" if relative else "forecast errors"
+        notes = [f"residual bootstrap: rolling-origin {kind} ({counts} period(s))"]
+        if relative != per_period:
+            notes.append("no positive forecast at any origin: one safety stock for every period")
+        if quantile < 0:
+            notes.append("residual quantile below zero: safety stock floored at 0")
+        if relative:
+            return _Residuals(max(quantile, 0.0) * forecast * protection, quantile, tuple(notes))
+        return _Residuals(max(quantile, 0.0), None, tuple(notes))
+    return None
 
 
 def _trend_seasonal_candidate(
@@ -273,6 +399,8 @@ class SkuResult:
     forecast_parameters: Mapping[str, float] | None = None  # smoothing parameters picked
     levels: tuple[float, ...] = ()  # dynamic levels of the replayed periods; () when static
     next_levels: tuple[float, ...] = ()  # dynamic levels of the periods after the history
+    safety_stocks: tuple[float, ...] = ()  # per-period safety stocks of the replayed periods
+    next_safety_stocks: tuple[float, ...] = ()  # per-period safety stocks after the history
 
     @property
     def abc_xyz(self) -> str:
@@ -337,6 +465,7 @@ def _analyze_sku(
     backtests: tuple[BacktestResult, ...] = ()
     method_name = "ses" if profile.category in INTERMITTENT else "moving_average"
     fits: dict[str, SmoothingFit] = {}
+    fitters: dict[str, Fitter] = {}
     if len(series) >= config.holdout + 2:
         backtests = tuple(
             backtest(series, name, method, config.holdout) for name, method in candidates.items()
@@ -390,10 +519,43 @@ def _analyze_sku(
         )
     level = config.class_service_levels.get(abc, config.service_level)
     bootstrap_units = None
+    relative_error: float | None = None
+    residuals: _Residuals | None = None
+    # One generator per SKU, seeded by the run seed and the SKU name, so a
+    # SKU's result does not depend on which other SKUs are in the file.
+    rng = random.Random(f"{config.seed}:{history.sku}")
     if config.safety_stock_method == "bootstrap":
-        # One generator per SKU, seeded by the run seed and the SKU name, so a
-        # SKU's result does not depend on which other SKUs are in the file.
-        rng = random.Random(f"{config.seed}:{history.sku}")
+        if config.bootstrap_source == "residuals":
+            forecaster = (
+                _fit_interval(fitters[method_name])
+                if method_name in fits
+                else _level_interval(candidates[method_name])
+            )
+            # A safety stock per period only where the levels move: with a level
+            # forecast every period has the same forecast, so it stays one number.
+            per_period = config.period_safety_stock and method_name in fits
+            if config.period_safety_stock and not per_period:
+                notes.append("level forecast picked: one safety stock for every period")
+            residuals = _residual_safety_stock(
+                series,
+                forecaster,
+                forecast,
+                lead,
+                history.lead_times,
+                level,
+                config,
+                rng,
+                per_period,
+            )
+            if residuals is None:
+                notes.append(
+                    "too little history for forecast errors over the protection interval: "
+                    "bootstrap of demand used"
+                )
+            else:
+                notes += residuals.notes
+                bootstrap_units, relative_error = residuals.safety_stock, residuals.relative
+    if config.safety_stock_method == "bootstrap" and residuals is None:
         quantile, bootstrap_units = bootstrap_safety_stock(
             series,
             level,
@@ -432,6 +594,8 @@ def _analyze_sku(
 
     levels: tuple[float, ...] = ()
     next_levels: tuple[float, ...] = ()
+    stocks: tuple[float, ...] = ()
+    next_stocks: tuple[float, ...] = ()
     if config.dynamic_levels:
         ahead = horizon if horizon is not None else (config.effective_season_length or 1)
         steps = max(int(lead + config.review_period + 0.5), 1)
@@ -441,9 +605,14 @@ def _analyze_sku(
         else:
             forecasts = (forecast,) * span
             notes.append("level forecast picked: dynamic levels equal the static level")
-        every = dynamic_levels(
-            forecasts, len(series) + ahead, lead, config.review_period, policy.safety_stock
-        )
+        periods = len(series) + ahead
+        safety: float | tuple[float, ...] = policy.safety_stock
+        if relative_error is not None:
+            safety = period_safety_stocks(
+                forecasts, periods, lead, config.review_period, relative_error
+            )
+            stocks, next_stocks = safety[: len(series)], safety[len(series) :]
+        every = dynamic_levels(forecasts, periods, lead, config.review_period, safety)
         levels, next_levels = every[: len(series)], every[len(series) :]
     simulation = replay_policy(series, policy, quantity, levels)
 
@@ -470,6 +639,8 @@ def _analyze_sku(
         forecast_parameters=parameters,
         levels=levels,
         next_levels=next_levels,
+        safety_stocks=stocks,
+        next_safety_stocks=next_stocks,
     )
 
 
