@@ -140,6 +140,24 @@ def build_parser() -> argparse.ArgumentParser:
         help="normal formula, or bootstrap quantile of protection-interval demand (normal)",
     )
     group.add_argument(
+        "--bootstrap-source",
+        choices=("demand", "residuals"),
+        default="demand",
+        help=(
+            "what the bootstrap resamples: demand per period, or the rolling-origin errors "
+            "of the picked forecast over the protection interval; applies to "
+            "--safety-stock bootstrap and to the bootstrap replay of --test-periods (demand)"
+        ),
+    )
+    group.add_argument(
+        "--period-safety-stock",
+        action="store_true",
+        help=(
+            "with --dynamic-levels and --bootstrap-source residuals, give each period its own "
+            "safety stock, proportional to the forecast it protects"
+        ),
+    )
+    group.add_argument(
         "--bootstrap-samples",
         type=int,
         default=2000,
@@ -218,6 +236,8 @@ def config_from_args(args: argparse.Namespace) -> Config:
         season_length=args.season_length,
         policy=args.policy,
         dynamic_levels=args.dynamic_levels,
+        bootstrap_source=args.bootstrap_source,
+        period_safety_stock=args.period_safety_stock,
     )
 
 

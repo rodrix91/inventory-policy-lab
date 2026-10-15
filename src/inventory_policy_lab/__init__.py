@@ -7,6 +7,9 @@ and :func:`render_json`. ``Config(test_periods=N)`` adds an out-of-sample replay
 adds damped Holt and Holt-Winters to the forecast candidates.
 ``Config(policy="RS")`` replays a periodic-review, order-up-to policy, and
 ``dynamic_levels=True`` lets its levels follow the forecast period by period.
+``bootstrap_source="residuals"`` bootstraps the forecast errors instead of the
+demand, and ``period_safety_stock=True`` gives each dynamic level its own
+safety stock.
 """
 
 from __future__ import annotations
@@ -35,6 +38,11 @@ from .policy import (
     build_policy,
     dynamic_levels,
     eoq,
+    interval_demands,
+    interval_forecast_errors,
+    period_safety_stocks,
+    protection_periods,
+    residual_bootstrap_quantile,
     safety_stock,
 )
 from .reader import DemandData, SkuHistory, parse_rows, read_demand
@@ -86,6 +94,11 @@ __all__ = [
     "analyze_file",
     "backtest",
     "bootstrap_safety_stock",
+    "interval_demands",
+    "interval_forecast_errors",
+    "period_safety_stocks",
+    "protection_periods",
+    "residual_bootstrap_quantile",
     "build_policy",
     "coefficient_of_variation",
     "croston",

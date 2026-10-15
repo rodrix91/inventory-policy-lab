@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- Bootstrap of forecast residuals, opt-in with `--bootstrap-source residuals` (`Config.bootstrap_source`; the default stays `demand`): the bootstrap resamples the rolling-origin errors of the picked forecast over the protection interval `L + R` (each from a forecast refitted on the periods before its origin, from origin 2) instead of demand per period, so a trend or season the forecast follows is not counted as uncertainty. It applies to `--safety-stock bootstrap` and to the bootstrap replay of `--test-periods`, where only training periods are used (tested by replacing the test periods with zeros). Without enough history for any error the SKU falls back to the demand bootstrap, with a note; the report lists how many errors each SKU used (ADR 0008).
+- Safety stock per period, opt-in with `--period-safety-stock` (`Config.period_safety_stock`, needs `--dynamic-levels` and the residual bootstrap): with a damped Holt or Holt-Winters forecast, each period gets `SS(t) = q x D(t) x (L + R)`, with `q` the bootstrap quantile of the relative forecast errors, so the levels follow the season without counting it twice. SKUs with a level forecast keep one safety stock, with a note.
+- API: `interval_forecast_errors`, `residual_bootstrap_quantile`, `period_safety_stocks`, `interval_demands`, `protection_periods`; `dynamic_levels` accepts one safety stock per period; `SkuResult.safety_stocks`, `SkuResult.next_safety_stocks`, `PolicyReplay.test_safety_stocks`, `OutOfSampleReport.bootstrap_source`.
+- JSON, only with the new options: `bootstrap_source` and `period_safety_stock` in the settings, `safety_stocks` and `next_safety_stocks` in the policy, `test_safety_stocks` out of sample. Without them the Markdown and JSON reports are unchanged, byte for byte.
+- Results (out of sample, bootstrap): on the 48-month synthetic series, (R, S) with dynamic levels and R = 1 goes from 89.3% fill rate and 22 stockout periods (demand bootstrap) to 95.4% and 18 (residuals) and 96.3% and 16 (per period); the trending item from a safety stock of 0 and 78.4% to 22.0 units and 93.3%. The normal formula still does better there (100%). On the 24-month example with 12 training months the residual bootstrap is worse in every policy (for (s, Q), 94.6% to 92.2% with 37% more stock), so it stays opt-in.
+
 ## [0.4.0] - 2026-10-14
 
 ### Added

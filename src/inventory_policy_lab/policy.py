@@ -4,11 +4,16 @@ from __future__ import annotations
 
 import math
 import random
-from collections.abc import Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from statistics import NormalDist
 
 POLICY_KINDS = ("sQ", "RS")
+BOOTSTRAP_SOURCES = ("demand", "residuals")
+
+# Forecast of the total demand of the next ``periods`` periods from ``history``;
+# ``None`` when the method cannot forecast from that history (the origin is skipped).
+IntervalForecaster = Callable[[Sequence[float], int], float | None]
 
 
 @dataclass(frozen=True)
@@ -103,6 +108,78 @@ def bootstrap_safety_stock(
     return quantile, max(quantile - expected, 0.0)
 
 
+def protection_periods(lead_time: float, review_period: float) -> int:
+    """The protection interval ``L + R`` in whole periods, rounded half up (may be 0)."""
+    return int(lead_time + review_period + 0.5)
+
+
+def interval_forecast_errors(
+    series: Sequence[float],
+    forecaster: IntervalForecaster,
+    periods: int,
+    start: int,
+    relative: bool = False,
+) -> tuple[float, ...]:
+    """Rolling-origin errors of the forecast of the next ``periods`` periods.
+
+    For every origin ``t`` from ``start`` to ``len(series) - periods``, the
+    forecaster sees ``series[:t]`` only and forecasts the total demand of
+    periods ``t`` to ``t + periods - 1``; the error is the actual total minus
+    that forecast (positive: demand above the forecast). With ``relative`` the
+    error is divided by the forecast, and origins with a forecast of zero or
+    less are skipped. Origins where the forecaster returns ``None`` are skipped.
+    ``periods = 0`` gives no errors: there is no interval to protect.
+    """
+    if start < 1:
+        raise ValueError(f"start must be at least 1, got {start}")
+    errors: list[float] = []
+    if periods < 1:
+        return ()
+    for t in range(start, len(series) - periods + 1):
+        forecast = forecaster(series[:t], periods)
+        if forecast is None or (relative and forecast <= 0):
+            continue
+        error = math.fsum(series[t : t + periods]) - forecast
+        errors.append(error / forecast if relative else error)
+    return tuple(errors)
+
+
+def residual_bootstrap_quantile(
+    errors: Mapping[int, Sequence[float]],
+    service_level: float,
+    lead_time: float,
+    review_period: float = 0.0,
+    lead_times: Sequence[float] = (),
+    samples: int = 2000,
+    rng: random.Random | None = None,
+) -> float:
+    """The ``service_level`` quantile of bootstrapped protection-interval forecast errors.
+
+    ``errors[P]`` holds the errors of the forecast of ``P`` whole periods (from
+    :func:`interval_forecast_errors`). Each of ``samples`` draws takes a lead
+    time from ``lead_times`` (or ``lead_time``), turns ``L + R`` into whole
+    periods ``P`` (half up) and draws one error from ``errors[P]``; ``P = 0``
+    draws 0. The quantile (nearest rank) is the safety stock that covered the
+    forecast error in that share of draws, before any floor (ADR 0008).
+    Raises ``ValueError`` when an interval length that can be drawn has no errors.
+    """
+    if samples < 1:
+        raise ValueError("samples must be at least 1")
+    candidates = tuple(lead_times) if lead_times else (lead_time,)
+    for lead in candidates:
+        periods = protection_periods(lead, review_period)
+        if periods and not errors.get(periods):
+            raise ValueError(f"no forecast errors over {periods} period(s)")
+    rng = rng or random.Random(0)
+    draws: list[float] = []
+    for _ in range(samples):
+        lead = rng.choice(lead_times) if lead_times else lead_time
+        periods = protection_periods(lead, review_period)
+        draws.append(rng.choice(errors[periods]) if periods else 0.0)
+    draws.sort()
+    return draws[max(math.ceil(service_level * samples), 1) - 1]
+
+
 def eoq(annual_demand: float, ordering_cost: float, holding_cost: float) -> float | None:
     """Economic order quantity ``sqrt(2 * D * S / H)``; ``None`` when it is undefined.
 
@@ -162,7 +239,7 @@ def dynamic_levels(
     periods: int,
     lead_time: float,
     review_period: float,
-    safety_stock: float,
+    safety_stock: float | Sequence[float],
 ) -> tuple[float, ...]:
     """Levels that follow the forecast: one per period, ``D(t) * (L + R) + SS``.
 
@@ -172,14 +249,58 @@ def dynamic_levels(
     rounded half up (at least 1). ``forecasts`` must cover ``periods + P``
     periods. With a constant forecast ``D`` every level is the static
     ``D * (L + R) + SS`` of :func:`build_policy` (ADR 0007).
+
+    ``safety_stock`` is one number for every period, or one per period (from
+    :func:`period_safety_stocks`, ADR 0008).
     """
-    protection = lead_time + review_period
-    steps = max(int(protection + 0.5), 1)
+    stocks = _per_period(safety_stock, periods)
+    return tuple(
+        demand * (lead_time + review_period) + stock
+        for demand, stock in zip(
+            interval_demands(forecasts, periods, lead_time, review_period), stocks, strict=True
+        )
+    )
+
+
+def _per_period(value: float | Sequence[float], periods: int) -> tuple[float, ...]:
+    if isinstance(value, int | float):
+        return (float(value),) * periods
+    if len(value) != periods:
+        raise ValueError(f"safety_stock needs one value per period: {len(value)} for {periods}")
+    return tuple(float(v) for v in value)
+
+
+def interval_demands(
+    forecasts: Sequence[float], periods: int, lead_time: float, review_period: float
+) -> tuple[float, ...]:
+    """``D(t)`` of :func:`dynamic_levels`: the mean forecast of the ``P`` periods after ``t``."""
+    steps = max(protection_periods(lead_time, review_period), 1)
     if len(forecasts) < periods + steps:
         raise ValueError(
             f"forecasts must cover {periods} periods plus {steps} ahead, got {len(forecasts)}"
         )
+    return tuple(math.fsum(forecasts[t + 1 : t + 1 + steps]) / steps for t in range(periods))
+
+
+def period_safety_stocks(
+    forecasts: Sequence[float],
+    periods: int,
+    lead_time: float,
+    review_period: float,
+    relative_error: float,
+) -> tuple[float, ...]:
+    """One safety stock per period, proportional to the forecast it protects.
+
+    ``SS(t) = max(q, 0) * D(t) * (L + R)``, where ``q`` is a quantile of the
+    relative forecast errors over the protection interval (error / forecast,
+    from :func:`interval_forecast_errors` with ``relative=True``) and ``D(t)``
+    is the mean forecast of the periods after ``t``, as in :func:`dynamic_levels`.
+    A peak month gets more safety stock than a trough, and the seasonal swing
+    itself, which the levels already follow, is not counted again (ADR 0008).
+    """
+    ratio = max(relative_error, 0.0)
+    protection = lead_time + review_period
     return tuple(
-        math.fsum(forecasts[t + 1 : t + 1 + steps]) / steps * protection + safety_stock
-        for t in range(periods)
+        ratio * demand * protection
+        for demand in interval_demands(forecasts, periods, lead_time, review_period)
     )

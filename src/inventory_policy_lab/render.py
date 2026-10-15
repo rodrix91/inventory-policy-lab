@@ -22,6 +22,14 @@ SIGMA_LABELS = {
 
 
 def _safety_stock_label(config: Config) -> str:
+    if config.safety_stock_method == "bootstrap" and config.bootstrap_source == "residuals":
+        label = (
+            "safety stock: bootstrap of rolling-origin forecast errors over the protection "
+            f"interval ({config.bootstrap_samples} samples, seed {config.seed})"
+        )
+        if config.period_safety_stock:
+            label += "; one safety stock per period, proportional to the forecast"
+        return label
     if config.safety_stock_method == "bootstrap":
         return (
             "safety stock: bootstrap of protection-interval demand "
@@ -143,6 +151,7 @@ def _sku_dict(result: SkuResult) -> dict[str, Any]:
             "eoq": _r(policy.eoq),
             **_level_dict(policy, result.order_quantity, result.order_quantity_source),
             **_dynamic_dict(result.levels, result.next_levels),
+            **_period_stock_dict(result.safety_stocks, result.next_safety_stocks),
         },
         "simulation": _simulation_dict(sim),
         "notes": list(result.notes),
@@ -153,6 +162,12 @@ def _dynamic_dict(levels: tuple[float, ...], next_levels: tuple[float, ...]) -> 
     if not levels and not next_levels:
         return {}
     return {"levels": _rs(levels), "next_levels": _rs(next_levels)}
+
+
+def _period_stock_dict(stocks: tuple[float, ...], following: tuple[float, ...]) -> dict[str, Any]:
+    if not stocks and not following:
+        return {}
+    return {"safety_stocks": _rs(stocks), "next_safety_stocks": _rs(following)}
 
 
 def _simulation_dict(sim: SimulationResult) -> dict[str, Any]:
@@ -191,6 +206,8 @@ def _replay_level_dict(replay: PolicyReplay, kind: str) -> dict[str, Any]:
         }
     if replay.test_levels:
         values["test_levels"] = _rs(replay.test_levels)
+    if replay.test_safety_stocks:
+        values["test_safety_stocks"] = _rs(replay.test_safety_stocks)
     return values
 
 
@@ -242,6 +259,16 @@ def _out_of_sample_dict(oos: OutOfSampleReport) -> dict[str, Any]:
     }
 
 
+def _bootstrap_source_dict(config: Config) -> dict[str, Any]:
+    """Settings of ADR 0008, only when used, so the default JSON stays that of 0.4.0."""
+    if config.bootstrap_source == "demand":
+        return {}
+    return {
+        "bootstrap_source": config.bootstrap_source,
+        "period_safety_stock": config.period_safety_stock,
+    }
+
+
 def report_to_dict(report: Report) -> dict[str, Any]:
     """A JSON-ready dictionary with every number rounded to 4 decimals."""
     data, config = report.data, report.config
@@ -282,6 +309,7 @@ def report_to_dict(report: Report) -> dict[str, Any]:
             "season_length": config.effective_season_length if config.trend_seasonal else None,
             "policy": config.policy,
             "dynamic_levels": config.dynamic_levels,
+            **_bootstrap_source_dict(config),
         },
         "summary": {
             "skus": len(report.skus),
@@ -333,7 +361,7 @@ def _out_of_sample_lines(oos: OutOfSampleReport) -> list[str]:
         inside, outside = (oos.totals(method, s) for s in ("in_sample", "out_of_sample"))
         rows.append(
             [
-                method,
+                _method_label(method, oos),
                 _pct(inside.fill_rate),
                 _pct(outside.fill_rate),
                 str(inside.stockout_periods),
@@ -391,6 +419,20 @@ def _out_of_sample_lines(oos: OutOfSampleReport) -> list[str]:
             f"{', '.join(oos.skipped)}.",
         ]
     return lines
+
+
+def _method_label(method: str, oos: OutOfSampleReport) -> str:
+    if method == "bootstrap" and oos.bootstrap_source == "residuals":
+        return "bootstrap (forecast residuals)"
+    return method
+
+
+def _safety_stock_cell(result: SkuResult) -> str:
+    stock = _num(result.policy.safety_stock)
+    if not result.next_safety_stocks:
+        return stock
+    low, high = min(result.next_safety_stocks), max(result.next_safety_stocks)
+    return f"{stock} ({_num(low)} to {_num(high)})"
 
 
 def _level_cell(result: SkuResult) -> str:
@@ -474,7 +516,7 @@ def render_markdown(report: Report) -> str:
                 r.method,
                 _num(r.forecast),
                 _pct(r.policy.service_level, 0),
-                _num(r.policy.safety_stock),
+                _safety_stock_cell(r),
                 _level_cell(r),
                 (
                     f"{r.policy.review_period:g}"
@@ -495,6 +537,11 @@ def render_markdown(report: Report) -> str:
             "history and, in parentheses, the lowest and highest level of the next "
             f"{len(report.skus[0].next_levels)} period(s); the JSON report lists every one.",
         ]
+        if any(r.next_safety_stocks for r in report.skus):
+            lines[-1] += (
+                " A safety stock per period is shown the same way: at the end of the history "
+                "and, in parentheses, its range over those periods."
+            )
     others = "naive, moving average and SES"
     order: tuple[str, ...] = METHOD_ORDER
     if config.trend_seasonal:

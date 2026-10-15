@@ -46,6 +46,7 @@ class PolicyReplay:
     in_sample: SimulationResult  # the train periods (policy fitted on them)
     out_of_sample: SimulationResult  # the test periods only
     test_levels: tuple[float, ...] = ()  # dynamic levels of the test periods; () when static
+    test_safety_stocks: tuple[float, ...] = ()  # per-period safety stocks of the test periods
 
 
 @dataclass(frozen=True)
@@ -83,6 +84,7 @@ class OutOfSampleReport:
     skus: tuple[SkuOutOfSample, ...]
     skipped: tuple[str, ...]  # SKUs with no demand history in the train periods
     policy: str = "sQ"  # the policy kind replayed: "sQ" or "RS"
+    bootstrap_source: str = "demand"  # what the bootstrap replay resamples (ADR 0008)
 
     def totals(self, method: str, sample: str) -> ReplayTotals:
         """Totals of ``method`` for ``sample`` ``"in_sample"`` or ``"out_of_sample"``."""
@@ -195,6 +197,7 @@ def out_of_sample_replay(data: DemandData, config: Config) -> OutOfSampleReport:
                     in_sample=fitted.simulation,
                     out_of_sample=test,
                     test_levels=fitted.next_levels,
+                    test_safety_stocks=fitted.next_safety_stocks,
                 )
             )
         assert fitted is not None  # SAFETY_STOCK_METHODS is not empty
@@ -218,4 +221,5 @@ def out_of_sample_replay(data: DemandData, config: Config) -> OutOfSampleReport:
         skus=tuple(results),
         skipped=tuple(skipped),
         policy=config.policy,
+        bootstrap_source=config.bootstrap_source,
     )
