@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- Faster damped Holt and Holt-Winters fits, with identical results: `fit_holt_damped` and `fit_holt_winters` keep recent fits in a bounded cache keyed on the exact history, and on a miss score each parameter set once over the whole history, which gives the best fit of every prefix at the cost of one grid search (the backtest, the residual errors and the rolling origins fit those prefixes again and again). On the 48-month series, `--test-periods 12 --trend-seasonal --bootstrap-source residuals --rolling-origin` goes from 10.1 s to 0.22 s, and the fixed origin from 1.0 s to 0.15 s. Markdown and JSON reports are byte for byte those of 0.6.0, checked against the plain grid search kept in the tests (ADR 0010).
+
+### Added
+
+- API: `fit_cache_info()`, `clear_fit_cache()`, `FitCacheInfo`.
+
 ## [0.6.0] - 2026-10-15
 
 ### Added
