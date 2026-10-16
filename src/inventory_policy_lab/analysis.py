@@ -33,7 +33,7 @@ from .forecast import (
     sba,
     ses,
 )
-from .optimize import DEFAULT_SAMPLES, OPTIMIZABLE
+from .optimize import DEFAULT_SAMPLES, OPTIMIZABLE, PATH_KINDS, bootstrap_histories
 from .policy import (
     BOOTSTRAP_SOURCES,
     POLICY_KINDS,
@@ -109,6 +109,7 @@ class Config:
     optimize_cost: bool = False  # also search SS and Q for cost on train (ADR 0015)
     optimize_samples: int = DEFAULT_SAMPLES  # demand paths of that search (ADR 0015)
     optimize_fill_floor: float | None = None  # least expected fill rate of a pick (ADR 0016)
+    optimize_paths: str = "forecast"  # "forecast" or "refit" demand paths (ADR 0017)
 
     @property
     def cost_rates(self) -> CostRates | None:
@@ -309,6 +310,13 @@ class Config:
                 )
             if not (math.isfinite(floor) and 0 < floor <= 1):
                 raise ConfigError(f"the fill-rate floor must be in (0, 1], got {floor}")
+        if self.optimize_paths not in PATH_KINDS:
+            raise ConfigError(
+                f"optimize paths must be one of {', '.join(PATH_KINDS)}, "
+                f"got {self.optimize_paths!r}"
+            )
+        if self.optimize_paths != "forecast" and not self.optimize_cost:
+            raise ConfigError("refit demand paths feed the cost search and need --optimize-cost")
 
     def methods(self, category: str) -> dict[str, Method]:
         """Candidate forecasting methods for a demand category, in tie-break order."""
@@ -517,6 +525,10 @@ class SkuResult:
     # Inputs of the cost search (ADR 0015), only with optimize_inputs and a horizon:
     next_forecasts: tuple[float, ...] = ()  # forecast of each period after the history
     forecast_errors: tuple[float, ...] = ()  # one-step rolling-origin errors of the history
+    # With optimize_paths="refit" (ADR 0017): the forecast of each period after the
+    # history from the method refitted on each bootstrapped history, one per path.
+    refit_forecasts: tuple[tuple[float, ...], ...] = ()
+    refit_failures: int = 0  # refits without a valid fit: the training forecast is used
 
     @property
     def abc_xyz(self) -> str:
@@ -743,6 +755,8 @@ def _analyze_sku(
 
     next_forecasts: tuple[float, ...] = ()
     errors: tuple[float, ...] = ()
+    refits: tuple[tuple[float, ...], ...] = ()
+    refit_failures = 0
     if optimize_inputs and horizon is not None:
         if method_name in fits:
             every_forecast = fits[method_name].calendar_forecasts(
@@ -754,6 +768,16 @@ def _analyze_sku(
             next_forecasts = (forecast,) * horizon
             one_step = _level_interval(candidates[method_name])
         errors = interval_forecast_errors(series, one_step, 1, RESIDUAL_START)
+        if config.optimize_paths == "refit":
+            refits, refit_failures = _refit_forecasts(
+                series,
+                one_step,
+                fitters.get(method_name),
+                None if method_name in fits else candidates[method_name],
+                next_forecasts,
+                config.optimize_samples,
+                random.Random(f"{config.seed}:{history.sku}:optimize:refit"),
+            )
 
     return SkuResult(
         sku=history.sku,
@@ -782,7 +806,51 @@ def _analyze_sku(
         next_safety_stocks=next_stocks,
         next_forecasts=next_forecasts,
         forecast_errors=errors,
+        refit_forecasts=refits,
+        refit_failures=refit_failures,
     )
+
+
+def _refit_forecasts(
+    series: Sequence[float],
+    one_step: IntervalForecaster,
+    fitter: Fitter | None,
+    level_method: Method | None,
+    forecasts: tuple[float, ...],
+    samples: int,
+    rng: random.Random,
+) -> tuple[tuple[tuple[float, ...], ...], int]:
+    """The forecasts of ``len(forecasts)`` periods after ``series`` from the picked
+    method refitted on each of ``samples`` bootstrapped histories (ADR 0017).
+
+    A trend or seasonal model (``fitter``) is refitted with its own parameter
+    search; a level method (``level_method``, which then replaces it) is applied
+    to the history. A refit without a valid fit keeps ``forecasts`` and is counted.
+    With fewer than two one-step forecasts nothing is refitted: ``()``.
+    """
+    points = []
+    for t in range(RESIDUAL_START, len(series)):
+        value = one_step(series[:t], 1)
+        if value is not None:
+            points.append((t, value))
+    if len(points) < 2:
+        return (), 0
+    horizon = len(forecasts)
+    results: list[tuple[float, ...]] = []
+    failures = 0
+    for history in bootstrap_histories(series, points, samples, rng):
+        if level_method is not None:
+            results.append((level_method(history),) * horizon)
+            continue
+        assert fitter is not None  # a smoothing method has its fitter
+        try:
+            fit = fitter(history)
+        except ValueError:  # FitError: no valid fit on this history
+            failures += 1
+            results.append(forecasts)
+            continue
+        results.append(tuple(fit.forecast(h) for h in range(1, horizon + 1)))
+    return tuple(results), failures
 
 
 def analyze(data: DemandData, config: Config | None = None) -> Report:

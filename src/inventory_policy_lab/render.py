@@ -427,6 +427,8 @@ def _optimize_setting(config: Config) -> dict[str, Any]:
     settings: dict[str, Any] = {"optimize_cost": True, "optimize_samples": config.optimize_samples}
     if config.optimize_fill_floor is not None:  # ADR 0016, only when set
         settings["optimize_fill_floor"] = config.optimize_fill_floor
+    if config.optimize_paths != "forecast":  # ADR 0017, only when set
+        settings["optimize_paths"] = config.optimize_paths
     return settings
 
 
@@ -460,6 +462,9 @@ def _optimized_dict(oos: OutOfSampleReport) -> dict[str, Any]:
             item["heuristic_expected_fill_rate"] = _r(search.heuristic_fill)
             item["feasible"] = search.feasible
             item["fell_back"] = search.fell_back
+        if oos.optimize_paths != "forecast":  # ADR 0017
+            item["paths"] = found.paths
+            item["refit_failures"] = found.refit_failures
         skus.append(item)
     searches = [s.optimized.search for s in oos.skus if s.optimized is not None]
     summary: dict[str, Any] = {
@@ -476,6 +481,19 @@ def _optimized_dict(oos: OutOfSampleReport) -> dict[str, Any]:
     if oos.optimize_fill_floor is not None:  # ADR 0016
         optimized["fill_floor"] = oos.optimize_fill_floor
         summary["fell_back"] = sum(x.fell_back for x in searches)
+    if oos.optimize_paths != "forecast":  # ADR 0017
+        from .optimize import block_length
+
+        found_all = [s.optimized for s in oos.skus if s.optimized is not None]
+        optimized["paths"] = {
+            "kind": oos.optimize_paths,
+            "refitted_skus": sum(x.paths == "refit" for x in found_all),
+            "block_length": {
+                s.sku: block_length(s.optimized.errors)
+                for s in oos.skus
+                if s.optimized is not None and s.optimized.paths == "refit"
+            },
+        }
     optimized["summary"] = summary
     optimized["skus"] = skus
     return {"optimized": optimized}
@@ -744,6 +762,8 @@ def _optimized_lines(oos: OutOfSampleReport) -> list[str]:
         "left at the end of training, and the test demand is used only to score.",
         "",
     ]
+    if oos.optimize_paths == "refit":  # ADR 0017
+        lines[-1:-1] = ["", _refit_text(oos)]
     floor = oos.optimize_fill_floor
     if floor is not None:  # ADR 0016
         fell_back = sum(s.optimized.search.fell_back for s in oos.skus if s.optimized is not None)
@@ -802,6 +822,26 @@ def _optimized_lines(oos: OutOfSampleReport) -> list[str]:
         headers.insert(4, "Expected fill rate on training paths, normal / optimised")
     lines += _table(headers, sku_rows)
     return lines
+
+
+def _refit_text(oos: OutOfSampleReport) -> str:
+    """How the refit demand paths of ADR 0017 were built, and where they could not be."""
+    found = [s.optimized for s in oos.skus if s.optimized is not None]
+    refitted = [f for f in found if f.paths == "refit"]
+    failures = sum(f.refit_failures for f in refitted)
+    text = (
+        "Refit paths: instead, each path rebuilds the training history as its one-step "
+        "forecasts plus a moving-block bootstrap of their errors (blocks of about the cube "
+        "root of the error count), refits the picked forecast method on it, and adds a "
+        "resampled one-step error to that refit's forecast of each test period, so the "
+        "paths also carry the uncertainty of the model's level, trend and season "
+        f"({len(refitted)} of {len(found)} SKU(s) refitted"
+    )
+    if len(refitted) < len(found):
+        text += "; the others had fewer than two one-step errors and keep the plain paths"
+    if failures:
+        text += f"; {failures} refit(s) without a valid fit kept the training forecast"
+    return text + ")."
 
 
 def _fill_pair(search: CostSearch) -> str:

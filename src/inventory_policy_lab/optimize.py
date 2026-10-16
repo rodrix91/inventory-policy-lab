@@ -33,6 +33,12 @@ policy is made of are chosen for cost instead, on the training window only:
   from stock over units demanded, summed over the paths) is at least the floor;
   the cheapest accepted pair wins, and when no pair qualifies the heuristic
   pair is kept.
+- **Paths that refit the forecast** (ADR 0017), opt-in: each path first
+  rebuilds the training history as the one-step forecasts plus a moving-block
+  bootstrap of their errors (:func:`bootstrap_histories`), refits the
+  forecast on it, and adds a resampled error to that refit's forecasts. The
+  spread between refits carries the uncertainty of the model's own level,
+  trend and season, which the plain paths leave out.
 """
 
 from __future__ import annotations
@@ -55,6 +61,7 @@ FORECAST_SHARES = tuple(0.1 * i for i in range(1, 11))  # 0.1 to 1.0
 COVER_PERIODS = (0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 8.0, 10.0, 12.0)
 REFINE_STEPS = (-4, -3, -2, -1, 1, 2, 3, 4)  # quarter-sigma steps around the best safety stock
 DEFAULT_SAMPLES = 100
+PATH_KINDS = ("forecast", "refit")  # demand paths of the search (ADR 0015, ADR 0017)
 
 
 @dataclass(frozen=True)
@@ -110,6 +117,56 @@ def demand_paths(
     if not errors:
         raise ValueError("demand paths need at least one error to resample")
     return tuple(tuple(max(f + rng.choice(errors), 0.0) for f in forecasts) for _ in range(samples))
+
+
+def block_length(errors: int) -> int:
+    """Block length of the moving-block bootstrap: the cube root of the number of
+    errors, rounded, at least 1 (the usual rate for a block bootstrap)."""
+    return max(1, round(math.pow(errors, 1 / 3)))
+
+
+def block_bootstrap(
+    errors: Sequence[float], length: int, block: int, rng: random.Random
+) -> tuple[float, ...]:
+    """``length`` errors made of consecutive blocks of ``block`` errors from ``errors``,
+    each starting at a random position (moving-block bootstrap), the last one cut."""
+    if not errors:
+        raise ValueError("a block bootstrap needs at least one error")
+    block = min(max(block, 1), len(errors))
+    drawn: list[float] = []
+    while len(drawn) < length:
+        start = rng.randrange(len(errors) - block + 1)
+        drawn.extend(errors[start : start + block])
+    return tuple(drawn[:length])
+
+
+def bootstrap_histories(
+    series: Sequence[float],
+    one_step: Sequence[tuple[int, float]],
+    samples: int,
+    rng: random.Random,
+) -> tuple[tuple[float, ...], ...]:
+    """``samples`` versions of ``series`` rebuilt from its one-step forecasts.
+
+    ``one_step`` holds ``(t, forecast of period t from the periods before it)``
+    in increasing ``t``; its errors ``series[t] - forecast`` are resampled in
+    blocks of :func:`block_length` and each period ``t`` becomes its forecast
+    plus the error drawn for it, floored at zero. Periods without a forecast keep
+    their value. The forecasts are those of the real history (a fixed-design
+    residual bootstrap), so only the errors move.
+    """
+    if len(one_step) < 2:
+        raise ValueError("bootstrapped histories need at least two one-step forecasts")
+    errors = [series[t] - forecast for t, forecast in one_step]
+    block = block_length(len(errors))
+    histories = []
+    for _ in range(samples):
+        values = list(series)
+        drawn = block_bootstrap(errors, len(errors), block, rng)
+        for (t, forecast), error in zip(one_step, drawn, strict=True):
+            values[t] = max(forecast + error, 0.0)
+        histories.append(tuple(values))
+    return tuple(histories)
 
 
 _Step = Callable[[_Ledger, int, float, float], None]

@@ -263,6 +263,17 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    group.add_argument(
+        "--optimize-paths",
+        choices=("forecast", "refit"),
+        default="forecast",
+        help=(
+            "demand paths of that search: the training forecast plus resampled errors "
+            "(forecast), or a forecast refitted on each block-bootstrapped training "
+            "history, which adds the model's own uncertainty (refit); see ADR 0017 (forecast)"
+        ),
+    )
+
     group = parser.add_argument_group("classification and forecasting")
     group.add_argument(
         "--abc-thresholds", type=_pair, default=(0.8, 0.95), help="cumulative shares (0.8,0.95)"
@@ -336,6 +347,7 @@ def config_from_args(args: argparse.Namespace) -> Config:
         optimize_cost=args.optimize_cost,
         optimize_samples=args.optimize_samples,
         optimize_fill_floor=args.optimize_fill_floor,
+        optimize_paths=args.optimize_paths,
     )
 
 
