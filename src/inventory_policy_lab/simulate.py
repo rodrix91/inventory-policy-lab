@@ -23,7 +23,11 @@ periods only (ADR 0005).
 
 The level can be one number for the whole history or one number per period
 (dynamic levels, ADR 0007): then the level compared at the end of period ``t``
-is the ``t``-th one, and the run starts from the first.
+is the ``t``-th one, and the run starts from the first. The order quantity of
+(s, Q) can also be one per period (the rolling-origin replay of ADR 0009
+refits it every period): the orders placed at the end of period ``t`` are of
+the ``t``-th quantity, and the run starts with the first level plus the first
+quantity on hand.
 
 :func:`simulate_periodic` replays a periodic-review, order-up-to (R, S)
 policy with the same timing, except for step 3: the inventory position is
@@ -119,28 +123,31 @@ class _Ledger:
 def simulate(
     demand: Sequence[float],
     reorder_point: float | Sequence[float],
-    order_quantity: float,
+    order_quantity: float | Sequence[float],
     lead_time: float,
     warmup: int = 0,
 ) -> SimulationResult:
     """Replay ``demand`` under the (s=``reorder_point``, Q=``order_quantity``) policy.
 
     ``reorder_point`` is one level, or one per period (the level checked at the
-    end of that period). The first ``warmup`` periods are replayed without
-    being scored.
+    end of that period); ``order_quantity`` likewise is one quantity, or one per
+    period (the quantity ordered at the end of that period). The first
+    ``warmup`` periods are replayed without being scored.
     """
-    if order_quantity <= 0:
+    given = [order_quantity] if isinstance(order_quantity, int | float) else order_quantity
+    if any(q <= 0 for q in given):
         raise ValueError("order_quantity must be positive")
+    first, quantities = _levels(order_quantity, len(demand), "order_quantity")
     _check_warmup(demand, warmup)
     start, levels = _levels(reorder_point, len(demand), "reorder_point")
     lead = int(lead_time + 0.5)
-    ledger = _Ledger(net=start + order_quantity, warmup=warmup, arrivals={})
+    ledger = _Ledger(net=start + first, warmup=warmup, arrivals={})
     for t, quantity in enumerate(demand):
         ledger.serve(t, quantity)
         position = ledger.position()
         while position <= levels[t] + _EPSILON:
-            ledger.order(t, t + lead + 1, order_quantity)
-            position += order_quantity
+            ledger.order(t, t + lead + 1, quantities[t])
+            position += quantities[t]
     return ledger.result(demand, lead)
 
 

@@ -11,7 +11,7 @@ if TYPE_CHECKING:  # pragma: no cover - imports for type hints only
     from .analysis import Config, Report, SkuResult
     from .policy import Policy
     from .simulate import SimulationResult
-    from .validation import OutOfSampleReport, PolicyReplay, ReplayTotals
+    from .validation import OutOfSampleReport, PolicyReplay, ReplayTotals, RollingReplay
 
 METHOD_ORDER = ("naive", "moving_average", "ses", "croston", "sba")
 TREND_SEASONAL_ORDER = ("holt_damped", "hw_additive", "hw_multiplicative")
@@ -211,6 +211,40 @@ def _replay_level_dict(replay: PolicyReplay, kind: str) -> dict[str, Any]:
     return values
 
 
+def _rolling_policy_dict(replay: RollingReplay, kind: str) -> dict[str, Any]:
+    values: dict[str, Any] = {
+        "forecast_methods": list(replay.forecast_methods),
+        "safety_stocks": _rs(replay.safety_stocks),
+        ("order_up_to_levels" if kind == "RS" else "reorder_points"): _rs(replay.levels),
+    }
+    if kind == "sQ":
+        values["order_quantities"] = _rs(replay.order_quantities)
+    values["out_of_sample"] = _simulation_dict(replay.out_of_sample)
+    return values
+
+
+def _rolling_dict(oos: OutOfSampleReport) -> dict[str, Any]:
+    """The rolling-origin replay (ADR 0009); only present with the option."""
+    from .validation import SAFETY_STOCK_METHODS
+
+    if not oos.rolling_origin:
+        return {}
+    return {
+        "rolling_origin": {
+            "summary": {
+                method: _totals_dict(oos.rolling_totals(method)) for method in SAFETY_STOCK_METHODS
+            },
+            "skus": [
+                {
+                    "sku": s.sku,
+                    "policies": {r.method: _rolling_policy_dict(r, oos.policy) for r in s.rolling},
+                }
+                for s in oos.skus
+            ],
+        }
+    }
+
+
 def _out_of_sample_dict(oos: OutOfSampleReport) -> dict[str, Any]:
     from .validation import SAFETY_STOCK_METHODS
 
@@ -256,6 +290,7 @@ def _out_of_sample_dict(oos: OutOfSampleReport) -> dict[str, Any]:
             }
             for s in oos.skus
         ],
+        **_rolling_dict(oos),
     }
 
 
@@ -267,6 +302,11 @@ def _bootstrap_source_dict(config: Config) -> dict[str, Any]:
         "bootstrap_source": config.bootstrap_source,
         "period_safety_stock": config.period_safety_stock,
     }
+
+
+def _rolling_setting(config: Config) -> dict[str, Any]:
+    """Setting of ADR 0009, only when used, so the default JSON stays that of 0.5.0."""
+    return {"rolling_origin": True} if config.rolling_origin else {}
 
 
 def report_to_dict(report: Report) -> dict[str, Any]:
@@ -310,6 +350,7 @@ def report_to_dict(report: Report) -> dict[str, Any]:
             "policy": config.policy,
             "dynamic_levels": config.dynamic_levels,
             **_bootstrap_source_dict(config),
+            **_rolling_setting(config),
         },
         "summary": {
             "skus": len(report.skus),
@@ -418,6 +459,72 @@ def _out_of_sample_lines(oos: OutOfSampleReport) -> list[str]:
             f"Not in the out-of-sample replay (no history before {test[0]}): "
             f"{', '.join(oos.skipped)}.",
         ]
+    if oos.rolling_origin:
+        lines += _rolling_lines(oos)
+    return lines
+
+
+def _picks(methods: tuple[str, ...]) -> str:
+    """``naive x 8, ses x 4``: the forecasts picked at the origins, in order of first pick."""
+    counts: dict[str, int] = {}
+    for method in methods:
+        counts[method] = counts.get(method, 0) + 1
+    return ", ".join(f"{method} x {count}" for method, count in counts.items())
+
+
+def _rolling_lines(oos: OutOfSampleReport) -> list[str]:
+    from .validation import SAFETY_STOCK_METHODS
+
+    test = oos.test_calendar
+    lines = [
+        "",
+        f"### Rolling origin (test {test[0]} to {test[-1]})",
+        "",
+        "At the start of every test period each SKU is refitted on the periods before it "
+        "only (training plus the test periods already observed): classes, forecast pick, "
+        "sigma, lead times, bootstrap draws, safety stock, level and order quantity. Both "
+        "replays enter the test from the same stock; the fixed origin keeps the policy "
+        "fitted at the end of training.",
+        "",
+    ]
+    rows = []
+    for method in SAFETY_STOCK_METHODS:
+        fixed, rolling = oos.totals(method, "out_of_sample"), oos.rolling_totals(method)
+        rows.append(
+            [
+                _method_label(method, oos),
+                f"{_pct(fixed.fill_rate)} / {_pct(rolling.fill_rate)}",
+                f"{fixed.stockout_periods} / {rolling.stockout_periods}",
+                f"{_num(fixed.average_on_hand)} / {_num(rolling.average_on_hand)}",
+            ]
+        )
+    lines += _table(
+        [
+            "Safety stock",
+            "Fill rate out, fixed / rolling",
+            "Stockout periods out, fixed / rolling",
+            "Avg on hand out (sum), fixed / rolling",
+        ],
+        rows,
+    )
+    lines += [""]
+    sku_rows = []
+    for s in oos.skus:
+        cells = [s.sku, _picks(s.rolling_replay("normal").forecast_methods)]
+        for method in SAFETY_STOCK_METHODS:
+            fixed_rate = s.replay(method).out_of_sample.fill_rate
+            rolling_rate = s.rolling_replay(method).out_of_sample.fill_rate
+            cells.append(f"{_pct(fixed_rate)} / {_pct(rolling_rate)}")
+        sku_rows.append(cells)
+    lines += _table(
+        [
+            "SKU",
+            "Forecasts picked at the origins",
+            "Fill rate normal, fixed / rolling",
+            "Fill rate bootstrap, fixed / rolling",
+        ],
+        sku_rows,
+    )
     return lines
 
 

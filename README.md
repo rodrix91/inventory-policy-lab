@@ -213,7 +213,7 @@ for sku in report.skus:
 markdown = render_markdown(report)  # or render_json(report) / report.to_dict()
 ```
 
-The building blocks are public too: `read_demand`, `abc_classes`, `xyz_class`, `demand_profile`, `naive`, `moving_average`, `ses`, `croston`, `sba`, `backtest`, `safety_stock`, `bootstrap_safety_stock`, `eoq`, `build_policy`, `simulate` (with `warmup=` to replay periods without scoring them), `train_history`, `out_of_sample_replay`, and the trend and seasonal models `holt_damped`, `holt_winters`, `fit_holt_damped` and `fit_holt_winters` (which return a `SmoothingFit` with `forecast(h)` and the parameters picked). `Config(trend_seasonal=True, season_length=12)` adds those models to the candidates of smooth and erratic SKUs. `Config(test_periods=12)` adds the out-of-sample replay to the report as `report.out_of_sample` (an `OutOfSampleReport`, with `totals(method, "in_sample" | "out_of_sample")`). `Config(policy="RS", review_period=1)` replays an (R, S) policy (`simulate_periodic`), and `Config(trend_seasonal=True, dynamic_levels=True)` gives each SKU one level per period (`SkuResult.levels`, `next_levels`; `PolicyReplay.test_levels` out of sample), built by `dynamic_levels` from `SmoothingFit.calendar_forecasts`; `replay_policy` replays any of them. `Config(bootstrap_source="residuals")` bootstraps forecast errors (`interval_forecast_errors`, `residual_bootstrap_quantile`), and with dynamic levels `period_safety_stock=True` gives each period its own safety stock (`period_safety_stocks`; `SkuResult.safety_stocks`, `next_safety_stocks`; `PolicyReplay.test_safety_stocks`). Errors are subclasses of `InventoryPolicyError` with an `exit_code`.
+The building blocks are public too: `read_demand`, `abc_classes`, `xyz_class`, `demand_profile`, `naive`, `moving_average`, `ses`, `croston`, `sba`, `backtest`, `safety_stock`, `bootstrap_safety_stock`, `eoq`, `build_policy`, `simulate` (with `warmup=` to replay periods without scoring them), `train_history`, `out_of_sample_replay`, and the trend and seasonal models `holt_damped`, `holt_winters`, `fit_holt_damped` and `fit_holt_winters` (which return a `SmoothingFit` with `forecast(h)` and the parameters picked). `Config(trend_seasonal=True, season_length=12)` adds those models to the candidates of smooth and erratic SKUs. `Config(test_periods=12)` adds the out-of-sample replay to the report as `report.out_of_sample` (an `OutOfSampleReport`, with `totals(method, "in_sample" | "out_of_sample")`). `Config(policy="RS", review_period=1)` replays an (R, S) policy (`simulate_periodic`), and `Config(trend_seasonal=True, dynamic_levels=True)` gives each SKU one level per period (`SkuResult.levels`, `next_levels`; `PolicyReplay.test_levels` out of sample), built by `dynamic_levels` from `SmoothingFit.calendar_forecasts`; `replay_policy` replays any of them. `Config(bootstrap_source="residuals")` bootstraps forecast errors (`interval_forecast_errors`, `residual_bootstrap_quantile`), and with dynamic levels `period_safety_stock=True` gives each period its own safety stock (`period_safety_stocks`; `SkuResult.safety_stocks`, `next_safety_stocks`; `PolicyReplay.test_safety_stocks`). `Config(test_periods=12, rolling_origin=True)` also refits every SKU at each test period (`SkuOutOfSample.rolling`, one `RollingReplay` per safety-stock method, and `OutOfSampleReport.rolling_totals(method)`); `simulate` accepts one order quantity per period. Errors are subclasses of `InventoryPolicyError` with an `exit_code`.
 
 ## Options
 
@@ -235,6 +235,7 @@ The building blocks are public too: `read_demand`, `abc_classes`, `xyz_class`, `
 | `--period-safety-stock` | off | With `--dynamic-levels` and `--bootstrap-source residuals`: one safety stock per period, proportional to the forecast it protects (only for SKUs with a damped Holt or Holt-Winters forecast) |
 | `--bootstrap-samples N`, `--seed S` | 2000, 0 | Draws per SKU (at least 100) and random seed of the bootstrap; the same seed gives the same report |
 | `--test-periods N` | 0 (off) | Also fit normal and bootstrap policies on all but the last N periods and replay them out of sample on those N; the training window needs at least holdout + 2 periods |
+| `--rolling-origin` | off | With `--test-periods`: also replay the test window refitting forecast, safety stock, level and order quantity at the start of every test period from the periods before it, next to the fixed-origin replay; see [ADR 0009](docs/decisions/0009-rolling-origin-replay.md) |
 | `--trend-seasonal` | off | Also backtest damped Holt and Holt-Winters (additive, multiplicative) on smooth and erratic SKUs when the history allows; see [ADR 0006](docs/decisions/0006-trend-and-seasonal-forecasts.md) |
 | `--season-length M` | `--periods-per-year` | Season of Holt-Winters in periods (12 for months); only with `--trend-seasonal` |
 | `--abc-thresholds a,b` | 0.8,0.95 | Cumulative value shares that end classes A and B |
@@ -478,6 +479,30 @@ python -m inventory_policy_lab examples/demand_synthetic.csv --test-periods 12 -
 
 **Here the residual bootstrap is worse in every policy**: lower fill rate, more stockout periods and more stock. Twelve training months give each SKU only 6 to 9 errors, some from forecasts fitted on 2 periods; the erratic SKU-005 gets a much larger safety stock, the lumpy SKU-007 a quantile below zero, and the seasonal SKU-003 falls from 94.4% to 69.8%. Only the trending SKU-004 improves (67.7% to 82.0%). No SKU gets a seasonal model in 12 months, so the safety stock per period changes nothing. That is why the demand bootstrap stays the default: the residual bootstrap needs a few years of history to pay off.
 
+## Rolling-origin replay
+
+`--test-periods` keeps the policy fitted at the end of training for the whole test window, which is pessimistic for an operation that recomputes its policy every period. `--rolling-origin` adds a second replay of the test window ([ADR 0009](docs/decisions/0009-rolling-origin-replay.md)): at the start of every test period each SKU is refitted on the periods before it only (training plus the test periods already observed), with the same steps as on train (class, pattern, forecast pick, sigma, lead times, bootstrap draws, safety stock, level and order quantity), and that refit decides the end of the period. Both replays enter the test from the same stock and share the first decision, and a later test period can never change an earlier decision (tested by zeroing the last 8 months of the 48-month series). The numbers below are out of sample, from real runs pinned in [`tests/test_rolling.py`](tests/test_rolling.py); each cell is fill rate / stockout periods / average stock on hand summed over the SKUs.
+
+```bash
+python -m inventory_policy_lab examples/demand_synthetic.csv --test-periods 12 --trend-seasonal --bootstrap-source residuals --rolling-origin
+```
+
+On the 48-month series (36 training months):
+
+| Policy | Normal, fixed origin | Normal, rolling origin | Bootstrap residuals, fixed | Bootstrap residuals, rolling |
+|---|---|---|---|---|
+| (s, Q) static, `--trend-seasonal` | 99.6% / 1 / 289.0 | 100.0% / 0 / 321.6 | 98.4% / 3 / 185.5 | 99.6% / 1 / 220.9 |
+| (R, S) dynamic, R = 1 | 100.0% / 0 / 105.5 | 100.0% / 0 / 149.3 | 95.4% / 18 / 13.1 | 99.4% / 4 / 36.4 |
+
+On the 24-month synthetic example (12 training months, the command above; add `--policy RS --dynamic-levels` for the second row):
+
+| Policy | Normal, fixed origin | Normal, rolling origin | Bootstrap residuals, fixed | Bootstrap residuals, rolling |
+|---|---|---|---|---|
+| (s, Q) static, `--trend-seasonal` | 94.4% / 11 / 885.2 | 99.8% / 4 / 932.4 | 92.2% / 15 / 975.8 | 98.5% / 9 / 913.7 |
+| (R, S) dynamic, R = 1 | 90.9% / 20 / 598.6 | 97.3% / 10 / 627.5 | 88.5% / 23 / 690.9 | 96.0% / 14 / 678.2 |
+
+The rolling origin raises the fill rate and cuts stockout periods in every cell, but it is not free everywhere. **On the 24-month example the gain is large and cheap**: 5 to 8 points of fill rate, with about 5% more stock for the normal formula and 2% to 6% less for the residual bootstrap, which gains errors at every refit. It comes from the trending SKU-004 (normal (s, Q): 79.7% to 99.4%) and the seasonal SKU-003 (82.9% to 99.8%), whose forecasts the fixed policy froze for a year; the lumpy SKU-007 and the intermittent SKU-006 do not improve. **On the 48-month series it mostly buys stock**: where the fixed origin already served 100% (normal, (R, S) R = 1) the rolling origin keeps 100% with 42% more stock, because the demand sigma recomputed on a longer trending history grows (item T: 50.8 to 63.1 units of safety stock over the test year); the residual bootstrap under (R, S) goes from 95.4% to 99.4%, but from 13.1 to 36.4 units of stock. The rolling origin is a fairer estimate of a policy that is recomputed every period, not a better policy; it costs one full refit per test period and SKU (about 10 seconds instead of 1 on the 48-month series with the residual bootstrap).
+
 ## Architecture
 
 ```mermaid
@@ -489,7 +514,7 @@ flowchart LR
         forecast[forecast: methods, backtest, MASE pick; smoothing: Holt, Holt-Winters]
         policy[policy: SS, ROP, EOQ]
         simulate[simulate: replay of s, Q or R, S]
-        validation[validation: out-of-sample replay, with --test-periods]
+        validation[validation: out-of-sample replay, fixed or rolling origin, with --test-periods]
         classify --> forecast --> policy --> simulate
         simulate -.-> validation
     end
@@ -506,7 +531,7 @@ Data flows one way: `reader` returns plain data, `analysis` returns a `Report`, 
 
 - **Normal approximation by default.** The default safety stock assumes independent, normally distributed demand per period and lead time, which fits poorly for lumpy and slow-moving items. `--safety-stock bootstrap` drops the normal assumption but, by default, still draws periods independently (no autocorrelation or trend) and can only reproduce demand sizes already in the history; `--bootstrap-source residuals` resamples forecast errors instead, from as many origins as the history allows (11 to 33 on the 48-month series, 6 to 9 on the 24-month example), so its 95% quantile is often close to the largest error seen.
 - **Trend and seasonality are opt-in and need history.** By default every forecast is a level forecast, and a seasonal or trending item gets a sigma inflated by the pattern. `--trend-seasonal` adds damped Holt and Holt-Winters, but Holt-Winters needs two full seasons before the first holdout origin (30 months of monthly data with the default holdout), parameters come from a coarse grid, and a short holdout can still prefer a level method. Without `--dynamic-levels` the policy is static, so a seasonal forecast sets one level for the whole year; with it the level follows the forecast, but the normal safety stock stays static (it still includes the seasonal swing with the default sigma). `--bootstrap-source residuals` and `--period-safety-stock` protect the forecast error instead, but they need history: with about a year of data they did worse than the demand bootstrap on the example.
-- **One policy for the whole history.** The main replay applies the reorder point computed from the end of the history to all of it, so it is in-sample: a check of the policy on the data, not an estimate of future service. `--test-periods` gives an out-of-sample estimate, but from a single split in time with a fixed policy through the test window (no rolling refit), which on short histories is a small sample.
+- **One policy for the whole history.** The main replay applies the reorder point computed from the end of the history to all of it, so it is in-sample: a check of the policy on the data, not an estimate of future service. `--test-periods` gives an out-of-sample estimate, but from a single split in time, which on short histories is a small sample; the policy is fixed through the test window unless `--rolling-origin` refits it every test period.
 - **Selection by a per-period error measure.** MASE is the best-behaved of the usual accuracy measures on zeros, but Teunter & Duncan (2009) show that per-period error measures are a poor guide for intermittent items, where service and stock outcomes matter more. On intermittent and lumpy SKUs the pick among SES, Croston and SBA is a heuristic; the replay is the better judge.
 - **Cycle service level only.** The target is the probability of no stockout per cycle; a fill-rate target (expected units short, the loss function) is not solved for, only measured by the replay.
 - **Lead time in whole periods in the replay**, rounded half up; no partial deliveries, order minimums, pack sizes or capacity limits.
@@ -528,6 +553,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). In short: `python -m pytest`, `coverage 
 - Winters, P. R. (1960). Forecasting sales by exponentially weighted moving averages. *Management Science*, 6(3), 324-342.
 - Hyndman, R. J., & Athanasopoulos, G. (2021). *Forecasting: Principles and Practice* (3rd ed.). OTexts. https://otexts.com/fpp3/
 - Trapero, J. R., Cardós, M., & Kourentzes, N. (2019). Empirical safety stock estimation based on kernel and GARCH models. *Omega*, 84, 199-211. https://doi.org/10.1016/j.omega.2018.05.004
+- Tashman, L. J. (2000). Out-of-sample tests of forecasting accuracy: an analysis and review. *International Journal of Forecasting*, 16(4), 437-450.
 - Teunter, R. H., & Duncan, L. (2009). Forecasting intermittent demand: a comparative study. *Journal of the Operational Research Society*, 60(3), 321-329.
 
 ## License
