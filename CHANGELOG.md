@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- Rolling-origin out-of-sample replay, opt-in with `--rolling-origin` (`Config.rolling_origin`, needs `--test-periods`): at the start of every test period each SKU is refitted, with the same steps as on train, on the periods before it only (training plus the test periods already observed), and its safety stock, level and order quantity decide the end of that period. It is reported next to the fixed-origin replay of ADR 0005, which is unchanged; both enter the test from the same stock and share the first decision. No leak, tested two ways: no out-of-sample fit ever receives the period it decides, and zeroing later test periods leaves the earlier decisions unchanged (ADR 0009).
+- `simulate` accepts one order quantity per period. API: `RollingReplay`, `SkuOutOfSample.rolling`, `SkuOutOfSample.rolling_replay`, `OutOfSampleReport.rolling_origin`, `OutOfSampleReport.rolling_totals`.
+- Markdown: a "Rolling origin" table (fixed / rolling) and the forecasts picked at the origins per SKU. JSON, only with the option: `rolling_origin` in the settings and in `out_of_sample` (summary and, per SKU and method, `forecast_methods`, `safety_stocks`, `reorder_points` or `order_up_to_levels`, `order_quantities`, `out_of_sample`). Without it the Markdown and JSON reports are unchanged, byte for byte.
+- Results (out of sample, `--trend-seasonal --bootstrap-source residuals`): on the 24-month example the rolling origin raises the fill rate of (s, Q) from 94.4% to 99.8% (normal, 5% more stock) and from 92.2% to 98.5% (residual bootstrap, 6% less stock), and of (R, S) dynamic R = 1 from 90.9% to 97.3% and from 88.5% to 96.0%. On the 48-month series it mostly buys stock: the normal (R, S) stays at 100% with 42% more stock, and the residual bootstrap under (R, S) goes from 95.4% to 99.4% with stock from 13.1 to 36.4 units.
+
 ## [0.5.0] - 2026-10-15
 
 ### Added
