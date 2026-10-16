@@ -6,7 +6,7 @@ Turn a CSV of demand history per SKU into an inventory-policy report you can che
 
 Python 3.11+, standard library only at runtime. Library and command line.
 
-**Status: alpha, version 0.7.0.** The methods are textbook methods, implemented and tested carefully, but the tool has not been used on many real datasets yet. Read [Limitations](#limitations) before using its numbers for real orders.
+**Status: alpha, version 0.8.0.** The methods are textbook methods, implemented and tested carefully, but the tool has not been used on many real datasets yet. Read [Limitations](#limitations) before using its numbers for real orders.
 
 ## Why it matters for operations
 
@@ -23,7 +23,7 @@ It was written for teaching and analysis in operations management and logistics:
 Not on PyPI. Install from GitHub (or from a clone with `pip install .`):
 
 ```bash
-python -m pip install "git+https://github.com/rodrix91/inventory-policy-lab@v0.7.0"
+python -m pip install "git+https://github.com/rodrix91/inventory-policy-lab@v0.8.0"
 inventory-policy-lab --help
 ```
 

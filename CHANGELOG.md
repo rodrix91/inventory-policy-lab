@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-15
+
 ### Added
 
 - Cost of the out-of-sample replay, opt-in with `--order-cost`, `--holding-cost` and `--stockout-cost` (`Config.order_cost`, `holding_cost`, `stockout_cost`; need `--test-periods`): every replay of the test periods (normal and bootstrap, fixed and rolling origin) is priced at C per order placed, C per unit on hand at the end of a period, and C per unit of demand not served from stock in its period (backordered); a rate left out counts as 0. The Markdown report adds a "Cost of the test periods" section with totals per method and origin (orders, unit-periods held, units short, ordering, holding, stockout, total) and the same per SKU; JSON adds the rates to the settings and `out_of_sample.costs`. The rates do not change the policy (the EOQ inputs stay separate). Without them the Markdown and JSON reports are byte for byte those of 0.7.0 (ADR 0012).
@@ -91,7 +93,8 @@ First public version (alpha).
 - Synthetic, seeded example dataset (`examples/demand_synthetic.csv`, `scripts/generate_example.py`), a hand-checked worked example (`examples/worked_example.csv`, verified in `tests/test_worked_example.py`) and an ABC Pareto chart drawn as SVG with the standard library (`docs/abc-pareto.svg`).
 - README samples generated from real runs and checked by the test suite; CI on Python 3.11, 3.12 and 3.13 with tests, 100% line and branch coverage, Ruff and strict mypy; a release workflow that builds and tests the sdist and wheel.
 
-[Unreleased]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.4.0...v0.5.0
