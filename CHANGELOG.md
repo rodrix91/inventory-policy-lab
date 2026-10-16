@@ -10,6 +10,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- `--refit-every K` (`Config.refit_every`, default 1; needs `--rolling-origin`): the rolling origin refits only at the start of every K-th test period, and each refit decides its own period and the next K - 1 (same safety stock and order quantity; with dynamic levels, its forecasts 1 to K steps ahead). K = 1 gives the 0.6.0 reports byte for byte; K at least the test window reproduces the fixed origin; no refit sees a period it decides (tested). JSON: `refit_every` in the settings when it is not 1; API: `OutOfSampleReport.refit_every` (ADR 0011).
+- Results with `--test-periods 12 --trend-seasonal --bootstrap-source residuals`, K = 1, 3, 6, 12: the fill rate never rises with K. On the 48-month series, (R, S) R = 1 with the normal formula serves 100% at every K with stock from 149.3 (monthly) to 105.5 (yearly); with the residual bootstrap it goes from 99.4% to 95.4%. On the 24-month example, (s, Q) normal with a quarterly refit (K = 3) keeps 97.7% of fill rate against 99.8% monthly and 94.4% fixed, with the same stock as monthly. Each run takes 0.13 to 0.33 s.
 - API: `fit_cache_info()`, `clear_fit_cache()`, `FitCacheInfo`.
 
 ## [0.6.0] - 2026-10-15

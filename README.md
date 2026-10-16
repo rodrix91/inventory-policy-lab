@@ -213,7 +213,7 @@ for sku in report.skus:
 markdown = render_markdown(report)  # or render_json(report) / report.to_dict()
 ```
 
-The building blocks are public too: `read_demand`, `abc_classes`, `xyz_class`, `demand_profile`, `naive`, `moving_average`, `ses`, `croston`, `sba`, `backtest`, `safety_stock`, `bootstrap_safety_stock`, `eoq`, `build_policy`, `simulate` (with `warmup=` to replay periods without scoring them), `train_history`, `out_of_sample_replay`, and the trend and seasonal models `holt_damped`, `holt_winters`, `fit_holt_damped` and `fit_holt_winters` (which return a `SmoothingFit` with `forecast(h)` and the parameters picked; `fit_cache_info()` and `clear_fit_cache()` inspect and empty their cache). `Config(trend_seasonal=True, season_length=12)` adds those models to the candidates of smooth and erratic SKUs. `Config(test_periods=12)` adds the out-of-sample replay to the report as `report.out_of_sample` (an `OutOfSampleReport`, with `totals(method, "in_sample" | "out_of_sample")`). `Config(policy="RS", review_period=1)` replays an (R, S) policy (`simulate_periodic`), and `Config(trend_seasonal=True, dynamic_levels=True)` gives each SKU one level per period (`SkuResult.levels`, `next_levels`; `PolicyReplay.test_levels` out of sample), built by `dynamic_levels` from `SmoothingFit.calendar_forecasts`; `replay_policy` replays any of them. `Config(bootstrap_source="residuals")` bootstraps forecast errors (`interval_forecast_errors`, `residual_bootstrap_quantile`), and with dynamic levels `period_safety_stock=True` gives each period its own safety stock (`period_safety_stocks`; `SkuResult.safety_stocks`, `next_safety_stocks`; `PolicyReplay.test_safety_stocks`). `Config(test_periods=12, rolling_origin=True)` also refits every SKU at each test period (`SkuOutOfSample.rolling`, one `RollingReplay` per safety-stock method, and `OutOfSampleReport.rolling_totals(method)`); `simulate` accepts one order quantity per period. Errors are subclasses of `InventoryPolicyError` with an `exit_code`.
+The building blocks are public too: `read_demand`, `abc_classes`, `xyz_class`, `demand_profile`, `naive`, `moving_average`, `ses`, `croston`, `sba`, `backtest`, `safety_stock`, `bootstrap_safety_stock`, `eoq`, `build_policy`, `simulate` (with `warmup=` to replay periods without scoring them), `train_history`, `out_of_sample_replay`, and the trend and seasonal models `holt_damped`, `holt_winters`, `fit_holt_damped` and `fit_holt_winters` (which return a `SmoothingFit` with `forecast(h)` and the parameters picked; `fit_cache_info()` and `clear_fit_cache()` inspect and empty their cache). `Config(trend_seasonal=True, season_length=12)` adds those models to the candidates of smooth and erratic SKUs. `Config(test_periods=12)` adds the out-of-sample replay to the report as `report.out_of_sample` (an `OutOfSampleReport`, with `totals(method, "in_sample" | "out_of_sample")`). `Config(policy="RS", review_period=1)` replays an (R, S) policy (`simulate_periodic`), and `Config(trend_seasonal=True, dynamic_levels=True)` gives each SKU one level per period (`SkuResult.levels`, `next_levels`; `PolicyReplay.test_levels` out of sample), built by `dynamic_levels` from `SmoothingFit.calendar_forecasts`; `replay_policy` replays any of them. `Config(bootstrap_source="residuals")` bootstraps forecast errors (`interval_forecast_errors`, `residual_bootstrap_quantile`), and with dynamic levels `period_safety_stock=True` gives each period its own safety stock (`period_safety_stocks`; `SkuResult.safety_stocks`, `next_safety_stocks`; `PolicyReplay.test_safety_stocks`). `Config(test_periods=12, rolling_origin=True)` also refits every SKU at each test period (`SkuOutOfSample.rolling`, one `RollingReplay` per safety-stock method, and `OutOfSampleReport.rolling_totals(method)`); `refit_every=3` refits every third test period only (`OutOfSampleReport.refit_every`). `simulate` accepts one order quantity per period. Errors are subclasses of `InventoryPolicyError` with an `exit_code`.
 
 ## Options
 
@@ -236,6 +236,7 @@ The building blocks are public too: `read_demand`, `abc_classes`, `xyz_class`, `
 | `--bootstrap-samples N`, `--seed S` | 2000, 0 | Draws per SKU (at least 100) and random seed of the bootstrap; the same seed gives the same report |
 | `--test-periods N` | 0 (off) | Also fit normal and bootstrap policies on all but the last N periods and replay them out of sample on those N; the training window needs at least holdout + 2 periods |
 | `--rolling-origin` | off | With `--test-periods`: also replay the test window refitting forecast, safety stock, level and order quantity at the start of every test period from the periods before it, next to the fixed-origin replay; see [ADR 0009](docs/decisions/0009-rolling-origin-replay.md) |
+| `--refit-every K` | 1 | With `--rolling-origin`: refit only at the start of every K-th test period (the first, then every K) and keep that refit's safety stock, order quantity and, with dynamic levels, its forecasts 1 to K steps ahead until the next; 1 is the monthly refit, K at least `--test-periods` gives the fixed origin; see [ADR 0011](docs/decisions/0011-refit-every-k-periods.md) |
 | `--trend-seasonal` | off | Also backtest damped Holt and Holt-Winters (additive, multiplicative) on smooth and erratic SKUs when the history allows; see [ADR 0006](docs/decisions/0006-trend-and-seasonal-forecasts.md) |
 | `--season-length M` | `--periods-per-year` | Season of Holt-Winters in periods (12 for months); only with `--trend-seasonal` |
 | `--abc-thresholds a,b` | 0.8,0.95 | Cumulative value shares that end classes A and B |
@@ -502,6 +503,45 @@ On the 24-month synthetic example (12 training months, the command above; add `-
 | (R, S) dynamic, R = 1 | 90.9% / 20 / 598.6 | 97.3% / 10 / 627.5 | 88.5% / 23 / 690.9 | 96.0% / 14 / 678.2 |
 
 The rolling origin raises the fill rate and cuts stockout periods in every cell, but it is not free everywhere. **On the 24-month example the gain is large and cheap**: 5 to 8 points of fill rate, with about 5% more stock for the normal formula and 2% to 6% less for the residual bootstrap, which gains errors at every refit. It comes from the trending SKU-004 (normal (s, Q): 79.7% to 99.4%) and the seasonal SKU-003 (82.9% to 99.8%), whose forecasts the fixed policy froze for a year; the lumpy SKU-007 and the intermittent SKU-006 do not improve. **On the 48-month series it mostly buys stock**: where the fixed origin already served 100% (normal, (R, S) R = 1) the rolling origin keeps 100% with 42% more stock, because the demand sigma recomputed on a longer trending history grows (item T: 50.8 to 63.1 units of safety stock over the test year); the residual bootstrap under (R, S) goes from 95.4% to 99.4%, but from 13.1 to 36.4 units of stock. The rolling origin is a fairer estimate of a policy that is recomputed every period, not a better policy; it costs one full refit per test period and SKU, which the fit cache of [ADR 0010](docs/decisions/0010-fit-cache-and-prefix-grid.md) makes cheap (0.22 s instead of 10.1 s in 0.6.0 on the 48-month series with the residual bootstrap).
+
+### Refitting every K periods
+
+An operation rarely recomputes its policy every month. `--refit-every K` refits at the start of test periods 1, 1 + K, 1 + 2K, ... only; each refit sees the periods before it and decides its own period and the next K - 1 with the same safety stock and order quantity (with dynamic levels, the level follows that refit's forecasts 1 to K steps ahead, as the fixed origin follows the training fit's forecasts for the whole test). K = 1 is the rolling origin above (identical reports, tested) and K = 12 reproduces the fixed origin exactly (tested). No refit sees a period it decides (tested by hand and by zeroing periods 40 to 47).
+
+Out of sample, `--test-periods 12 --trend-seasonal --bootstrap-source residuals --rolling-origin --refit-every K` (and `--policy RS --dynamic-levels` for (R, S), R = 1); cells are fill rate / stockout periods / average stock on hand summed over the SKUs, pinned in [`tests/test_refit_every.py`](tests/test_refit_every.py). The time is the wall time of one command, which computes both columns (best of 3, Python 3.12, interpreter start included, with the fit cache of ADR 0010); it is not pinned.
+
+On the 48-month series (36 training months):
+
+| Policy | K | Normal | Bootstrap residuals | Time |
+|---|---|---|---|---|
+| (s, Q) static | 1 | 100.0% / 0 / 321.6 | 99.6% / 1 / 220.9 | 0.23 s |
+| (s, Q) static | 3 | 99.6% / 1 / 306.1 | 98.7% / 2 / 195.4 | 0.17 s |
+| (s, Q) static | 6 | 99.6% / 1 / 302.3 | 98.7% / 2 / 188.3 | 0.16 s |
+| (s, Q) static | 12 | 99.6% / 1 / 289.0 | 98.4% / 3 / 185.5 | 0.15 s |
+| (R, S) dynamic, R = 1 | 1 | 100.0% / 0 / 149.3 | 99.4% / 4 / 36.4 | 0.22 s |
+| (R, S) dynamic, R = 1 | 3 | 100.0% / 0 / 139.9 | 98.8% / 7 / 29.2 | 0.18 s |
+| (R, S) dynamic, R = 1 | 6 | 100.0% / 0 / 126.5 | 97.8% / 13 / 22.5 | 0.16 s |
+| (R, S) dynamic, R = 1 | 12 | 100.0% / 0 / 105.5 | 95.4% / 18 / 13.1 | 0.16 s |
+
+On the 24-month synthetic example (12 training months):
+
+| Policy | K | Normal | Bootstrap residuals | Time |
+|---|---|---|---|---|
+| (s, Q) static | 1 | 99.8% / 4 / 932.4 | 98.5% / 9 / 913.7 | 0.32 s |
+| (s, Q) static | 3 | 97.7% / 6 / 930.7 | 95.7% / 10 / 1,026.2 | 0.18 s |
+| (s, Q) static | 6 | 97.0% / 8 / 941.6 | 94.6% / 12 / 1,004.9 | 0.15 s |
+| (s, Q) static | 12 | 94.4% / 11 / 885.2 | 92.2% / 15 / 975.8 | 0.13 s |
+| (R, S) dynamic, R = 1 | 1 | 97.3% / 10 / 627.5 | 96.0% / 14 / 678.2 | 0.33 s |
+| (R, S) dynamic, R = 1 | 3 | 95.6% / 12 / 626.1 | 93.7% / 16 / 708.1 | 0.18 s |
+| (R, S) dynamic, R = 1 | 6 | 93.9% / 18 / 617.8 | 91.3% / 22 / 702.1 | 0.15 s |
+| (R, S) dynamic, R = 1 | 12 | 90.9% / 20 / 598.6 | 88.5% / 23 / 690.9 | 0.13 s |
+
+What the numbers say, and what they do not:
+
+- **Service never improves with a longer refit period**: for every policy and safety stock in both tables the fill rate stays the same or drops as K grows, and the stockout periods stay the same or rise.
+- **On the 48-month series a slower refit mostly saves stock.** Under (R, S) with the normal formula every K serves 100%, and stock falls from 149.3 (monthly) to 105.5 (yearly): there the monthly refit buys nothing measurable. With the residual bootstrap the same move costs service (99.4% to 95.4%, 4 to 18 stockout periods), a plain trade-off.
+- **On the 24-month example a quarterly refit keeps part of the gain.** For (s, Q) with the normal formula, K = 3 keeps 3.3 of the 5.4 points the monthly refit adds over the fixed origin, with the same stock (930.7 against 932.4). The residual bootstrap is not monotone in stock: K = 3 and 6 hold more stock than both K = 1 and the fixed origin with worse service than K = 1, because a refit from a handful of errors can set a high quantile that is then kept for K periods.
+- **Time is no longer a reason to pick K.** With the fit cache a monthly refit costs at most 0.2 s more than a yearly one on these files. K is for matching the replay to how often the policy is actually recomputed (quarterly, half-yearly), not for speed. Three SKUs and seven SKUs over one test year are small samples, so these are indications for this data, not general rules.
 
 ## Architecture
 
