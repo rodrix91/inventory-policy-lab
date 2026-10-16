@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "inventory-policy-lab"
-version = "0.7.0"
+version = "0.8.0"
 description = "From demand history per SKU to a verified inventory policy: ABC-XYZ, intermittency, backtested forecasts, safety stock, reorder point, EOQ and a replay (standard library only)."
 readme = "README.md"
 requires-python = ">=3.11"
