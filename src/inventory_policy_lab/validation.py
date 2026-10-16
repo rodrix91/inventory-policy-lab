@@ -38,7 +38,8 @@ least the test window gives the fixed-origin replay.
 from __future__ import annotations
 
 import statistics
-from dataclasses import dataclass, replace
+from collections.abc import Mapping
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING
 
 from .classify import abc_classes
@@ -128,6 +129,19 @@ class OutOfSampleReport:
     rolling_origin: bool = False  # SKUs also carry rolling-origin replays (ADR 0009)
     refit_every: int = 1  # the rolling origin refits every K test periods (ADR 0011)
     costs: CostRates | None = None  # cost rates that score the test periods (ADR 0012)
+    # Each SKU's own rates when some rate depends on the SKU (ADR 0014); empty otherwise.
+    sku_rates: Mapping[str, CostRates] = field(default_factory=dict)
+    holding_cost_rate: float | None = None  # yearly holding rate of the unit cost (ADR 0014)
+    cost_columns: bool = False  # order_cost and stockout_cost columns read (ADR 0014)
+
+    def rates_of(self, sku: str) -> CostRates:
+        """The cost rates of ``sku``: its own (ADR 0014), else the shared ones.
+
+        Raises ``ValueError`` when the report has no cost rates.
+        """
+        if self.costs is None:
+            raise ValueError("this report has no cost rates (Config order, holding, stockout)")
+        return self.sku_rates.get(sku, self.costs)
 
     def totals(self, method: str, sample: str) -> ReplayTotals:
         """Totals of ``method`` for ``sample`` ``"in_sample"`` or ``"out_of_sample"``."""
@@ -140,12 +154,11 @@ class OutOfSampleReport:
     def sku_cost(self, sku: SkuOutOfSample, method: str, origin: str = "fixed") -> CostBreakdown:
         """Cost of the test periods of ``sku`` under ``method``, origin ``"fixed"`` or
         ``"rolling"``. Raises ``ValueError`` when the report has no cost rates."""
-        if self.costs is None:
-            raise ValueError("this report has no cost rates (Config order, holding, stockout)")
+        rates = self.rates_of(sku.sku)
         if origin not in ORIGINS:
             raise ValueError(f"origin must be 'fixed' or 'rolling', got {origin!r}")
         replay = sku.replay(method) if origin == "fixed" else sku.rolling_replay(method)
-        return replay_cost(replay.out_of_sample, self.costs)
+        return replay_cost(replay.out_of_sample, rates)
 
     def cost(self, method: str, origin: str = "fixed") -> CostBreakdown:
         """Cost of the test periods of ``method`` summed over the SKUs."""
@@ -252,6 +265,7 @@ def out_of_sample_replay(data: DemandData, config: Config) -> OutOfSampleReport:
         else []
     )
 
+    by_sku = {h.sku: h for h in data.skus}
     results = []
     for history in data.skus:
         train = trains.get(history.sku)
@@ -331,6 +345,13 @@ def out_of_sample_replay(data: DemandData, config: Config) -> OutOfSampleReport:
         rolling_origin=config.rolling_origin,
         refit_every=config.refit_every,
         costs=config.cost_rates,
+        sku_rates=(
+            {s.sku: config.sku_cost_rates(by_sku[s.sku]) for s in results}
+            if config.per_sku_costs
+            else {}
+        ),
+        holding_cost_rate=config.holding_cost_rate,
+        cost_columns=config.cost_columns,
     )
 
 

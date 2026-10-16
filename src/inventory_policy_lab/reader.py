@@ -11,6 +11,11 @@ Expected columns (header names are case-insensitive and trimmed):
 - ``lead_time`` (optional): an observed replenishment lead time in periods. All
   non-empty values of a SKU are treated as lead-time observations, each dated
   by the period of its row (the out-of-sample replay trains on the earlier ones).
+- ``order_cost`` and ``stockout_cost`` (optional, read only with
+  ``cost_columns=True``, the ``--cost-columns`` option): the cost per order
+  placed and per unit short of the SKU, to price the out-of-sample replay
+  (ADR 0014); the most recent non-empty value per SKU is used, like ``unit_cost``.
+  Without the option these columns are ignored like any other extra column.
 
 Several rows for the same SKU and period are summed (transaction lines). Each
 SKU's series starts at its first period in the file and runs to the last period
@@ -41,6 +46,7 @@ COLUMN_ALIASES: dict[str, tuple[str, ...]] = {
     "lead_time": ("lead_time",),
 }
 REQUIRED = ("sku", "period", "quantity")
+COST_COLUMNS = ("order_cost", "stockout_cost")  # read only with cost_columns (ADR 0014)
 
 _MONTH = re.compile(r"^(\d{4})-(\d{2})$")
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -58,6 +64,8 @@ class SkuHistory:
     lead_times: tuple[float, ...]
     filled_periods: int  # periods with no row, counted as demand zero
     lead_time_periods: tuple[str, ...] = ()  # period of the row of each lead time
+    order_cost: float | None = None  # order_cost column, with cost_columns (ADR 0014)
+    stockout_cost: float | None = None  # stockout_cost column, with cost_columns (ADR 0014)
 
 
 @dataclass(frozen=True)
@@ -71,6 +79,8 @@ class DemandData:
     has_unit_cost: bool
     has_lead_time: bool
     skus: tuple[SkuHistory, ...]
+    has_order_cost: bool = False  # read with cost_columns and the column is present
+    has_stockout_cost: bool = False
 
 
 def _period_kind(value: str) -> str:
@@ -118,10 +128,13 @@ def _number(text: str, column: str, line: int) -> float:
     return value
 
 
-def _resolve_columns(header: list[str]) -> dict[str, int]:
+def _resolve_columns(header: list[str], cost_columns: bool = False) -> dict[str, int]:
     normalized = [name.strip().lower() for name in header]
     found: dict[str, int] = {}
-    for field, aliases in COLUMN_ALIASES.items():
+    aliases_of = dict(COLUMN_ALIASES)
+    if cost_columns:
+        aliases_of.update((name, (name,)) for name in COST_COLUMNS)
+    for field, aliases in aliases_of.items():
         for alias in aliases:
             if alias in normalized:
                 found[field] = normalized.index(alias)
@@ -135,8 +148,12 @@ def _resolve_columns(header: list[str]) -> dict[str, int]:
     return found
 
 
-def read_demand(path: str | os.PathLike[str]) -> DemandData:
-    """Read ``path`` and return its demand history, one :class:`SkuHistory` per SKU."""
+def read_demand(path: str | os.PathLike[str], cost_columns: bool = False) -> DemandData:
+    """Read ``path`` and return its demand history, one :class:`SkuHistory` per SKU.
+
+    With ``cost_columns`` the optional ``order_cost`` and ``stockout_cost``
+    columns are read too (ADR 0014).
+    """
     file = Path(path)
     try:
         with file.open(encoding="utf-8-sig", newline="") as handle:
@@ -149,20 +166,23 @@ def read_demand(path: str | os.PathLike[str]) -> DemandData:
         raise InputFileError(
             f"{file} is not valid UTF-8 (byte {exc.start}); re-save it as UTF-8"
         ) from None
-    return parse_rows(rows, source=str(file))
+    return parse_rows(rows, source=str(file), cost_columns=cost_columns)
 
 
-def parse_rows(rows: list[list[str]], source: str = "<rows>") -> DemandData:
+def parse_rows(
+    rows: list[list[str]], source: str = "<rows>", cost_columns: bool = False
+) -> DemandData:
     """Parse already-split CSV rows (header first). Used by :func:`read_demand`."""
     if not rows:
         raise DataError(f"{source} is empty")
-    columns = _resolve_columns(rows[0])
+    columns = _resolve_columns(rows[0], cost_columns)
     width = max(columns.values()) + 1
 
     totals: dict[str, dict[str, float]] = {}
     costs: dict[str, float] = {}
     lead_times: dict[str, list[float]] = {}
     lead_time_periods: dict[str, list[str]] = {}
+    sku_costs: dict[str, dict[str, float]] = {name: {} for name in COST_COLUMNS}
     kinds: set[str] = set()
     data_rows = 0
 
@@ -214,6 +234,14 @@ def parse_rows(rows: list[list[str]], source: str = "<rows>") -> DemandData:
                     raise DataError(f"line {line}: negative lead_time {lead_text}")
                 lead_times.setdefault(sku, []).append(lead)
                 lead_time_periods.setdefault(sku, []).append(period)
+        for name in COST_COLUMNS:
+            if name in columns:
+                text = row[columns[name]].strip()
+                if text:
+                    value = _number(text, name, line)
+                    if value < 0:
+                        raise DataError(f"line {line}: negative {name} {text}")
+                    sku_costs[name][sku] = value  # the most recent row wins
 
     if not totals:
         raise DataError(f"{source} has a header but no data rows")
@@ -238,6 +266,8 @@ def parse_rows(rows: list[list[str]], source: str = "<rows>") -> DemandData:
                 lead_times=tuple(lead_times.get(sku, ())),
                 filled_periods=len(periods) - len(per_period),
                 lead_time_periods=tuple(lead_time_periods.get(sku, ())),
+                order_cost=sku_costs["order_cost"].get(sku),
+                stockout_cost=sku_costs["stockout_cost"].get(sku),
             )
         )
     return DemandData(
@@ -248,4 +278,6 @@ def parse_rows(rows: list[list[str]], source: str = "<rows>") -> DemandData:
         has_unit_cost="unit_cost" in columns,
         has_lead_time="lead_time" in columns,
         skus=tuple(histories),
+        has_order_cost="order_cost" in columns,
+        has_stockout_cost="stockout_cost" in columns,
     )

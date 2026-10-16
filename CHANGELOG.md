@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- Cost rates per SKU for the out-of-sample replay (ADR 0014). `--holding-cost-rate RATE` (`Config.holding_cost_rate`) prices holding as a yearly fraction of each SKU's `unit_cost`, so a unit held one period costs `RATE x unit_cost / --periods-per-year` (needs a `unit_cost` column; excludes `--holding-cost`; separate from the EOQ `--holding-rate`). `--cost-columns` (`Config.cost_columns`) reads optional `order_cost` and `stockout_cost` columns, the most recent non-empty value per SKU, which replace `--order-cost` / `--stockout-cost` for that SKU. Markdown adds each SKU's rates to the cost section; JSON adds the settings, `holding_rate_of_unit_cost` / `cost_columns` to `out_of_sample.costs.rates` and `rates` to each SKU. API: `Config.sku_cost_rates`, `Config.per_sku_costs`, `OutOfSampleReport.sku_rates`, `OutOfSampleReport.rates_of`, `SkuHistory.order_cost` / `stockout_cost`, `DemandData.has_order_cost` / `has_stockout_cost`, `read_demand(..., cost_columns=True)`, `parse_rows(..., cost_columns=True)`. Without the new options the Markdown and JSON reports are byte for byte those of 0.8.0 (104 outputs compared).
+- Result on the 24-month example (`--test-periods 12 --trend-seasonal --dynamic-levels --bootstrap-source residuals --rolling-origin`, 50 per order, 10 per unit short): with holding at 25% a year of unit cost instead of 1 per unit and month, holding falls by about three quarters and (R, s, S) with a monthly review becomes the cheapest policy in all four columns (6,941 normal fixed, 5,903 residual bootstrap rolling); README "Holding priced per SKU".
+
 ## [0.8.0] - 2026-10-15
 
 ### Added

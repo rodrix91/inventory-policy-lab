@@ -9,7 +9,7 @@ from . import __version__
 
 if TYPE_CHECKING:  # pragma: no cover - imports for type hints only
     from .analysis import Config, Report, SkuResult
-    from .costs import CostBreakdown
+    from .costs import CostBreakdown, CostRates
     from .policy import Policy
     from .simulate import SimulationResult
     from .validation import OutOfSampleReport, PolicyReplay, ReplayTotals, RollingReplay
@@ -281,6 +281,18 @@ def _origins(oos: OutOfSampleReport) -> tuple[str, ...]:
     return ("fixed", "rolling") if oos.rolling_origin else ("fixed",)
 
 
+def _rates_dict(rates: CostRates) -> dict[str, Any]:
+    return {"order": rates.order, "holding": rates.holding, "stockout": rates.stockout}
+
+
+def _sku_rates_dict(oos: OutOfSampleReport, sku: str) -> dict[str, Any]:
+    """A SKU's own rates (ADR 0014), only when some rate depends on the SKU."""
+    if not oos.sku_rates:
+        return {}
+    rates = oos.sku_rates[sku]
+    return {"rates": {k: _r(v) for k, v in _rates_dict(rates).items()}}
+
+
 def _costs_dict(oos: OutOfSampleReport) -> dict[str, Any]:
     """The cost of the test periods (ADR 0012); only present with a cost rate."""
     from .validation import SAFETY_STOCK_METHODS
@@ -288,13 +300,15 @@ def _costs_dict(oos: OutOfSampleReport) -> dict[str, Any]:
     if oos.costs is None:
         return {}
     origins = _origins(oos)
+    rates = _rates_dict(oos.costs)
+    if oos.holding_cost_rate is not None:
+        rates["holding"] = None
+        rates["holding_rate_of_unit_cost"] = oos.holding_cost_rate
+    if oos.cost_columns:
+        rates["cost_columns"] = True
     return {
         "costs": {
-            "rates": {
-                "order": oos.costs.order,
-                "holding": oos.costs.holding,
-                "stockout": oos.costs.stockout,
-            },
+            "rates": rates,
             "summary": {
                 method: {origin: _cost_dict(oos.cost(method, origin)) for origin in origins}
                 for method in SAFETY_STOCK_METHODS
@@ -302,6 +316,7 @@ def _costs_dict(oos: OutOfSampleReport) -> dict[str, Any]:
             "skus": [
                 {
                     "sku": s.sku,
+                    **_sku_rates_dict(oos, s.sku),
                     "policies": {
                         method: {
                             origin: _cost_dict(oos.sku_cost(s, method, origin))
@@ -390,11 +405,17 @@ def _cost_setting(config: Config) -> dict[str, Any]:
     """Settings of ADR 0012, only when a cost is set, so the default JSON stays that of 0.7.0."""
     if config.cost_rates is None:
         return {}
-    return {
+    settings: dict[str, Any] = {
         "order_cost": config.order_cost,
         "holding_cost": config.holding_cost,
         "stockout_cost": config.stockout_cost,
     }
+    # ADR 0014, only when used, so the JSON with the shared rates stays that of 0.8.0.
+    if config.holding_cost_rate is not None:
+        settings["holding_cost_rate"] = config.holding_cost_rate
+    if config.cost_columns:
+        settings["cost_columns"] = True
+    return settings
 
 
 def report_to_dict(report: Report) -> dict[str, Any]:
@@ -559,18 +580,30 @@ def _cost_lines(oos: OutOfSampleReport) -> list[str]:
     from .validation import SAFETY_STOCK_METHODS
 
     assert oos.costs is not None  # only called with cost rates
-    rates, test = oos.costs, oos.test_calendar
+    test = oos.test_calendar
     origins = _origins(oos)
     lines = [
         "",
         f"### Cost of the test periods ({test[0]} to {test[-1]})",
         "",
-        f"Rates: {rates.order:g} per order placed, {rates.holding:g} per unit on hand at "
-        f"the end of a period, {rates.stockout:g} per unit of demand not served from stock "
-        "in its period (backordered). The policies are the same as without costs; the "
+        f"Rates: {_rates_text(oos)}. The policies are the same as without costs; the "
         "cost only scores what each replay did in the test periods.",
         "",
     ]
+    if oos.sku_rates:
+        lines += _table(
+            ["SKU", "Per order", "Per unit held a period", "Per unit short"],
+            [
+                [
+                    s.sku,
+                    _num(oos.sku_rates[s.sku].order, 2),
+                    _num(oos.sku_rates[s.sku].holding, 4),
+                    _num(oos.sku_rates[s.sku].stockout, 2),
+                ]
+                for s in oos.skus
+            ],
+        )
+        lines += [""]
     rows = []
     for method in SAFETY_STOCK_METHODS:
         for origin in origins:
@@ -623,6 +656,28 @@ def _cost_lines(oos: OutOfSampleReport) -> list[str]:
         ["SKU", "Safety stock", "Origin", "Ordering", "Holding", "Stockout", "Total"], sku_rows
     )
     return lines
+
+
+def _rates_text(oos: OutOfSampleReport) -> str:
+    """The rates sentence: the 0.8.0 wording with shared rates, the sources with per-SKU ones."""
+    rates = oos.costs
+    assert rates is not None  # only called with cost rates
+    order = f"{rates.order:g} per order placed"
+    stockout = f"{rates.stockout:g} per unit of demand not served from stock in its period"
+    if oos.cost_columns:
+        order += " (or the SKU's order_cost)"
+        stockout += " (or the SKU's stockout_cost)"
+    if oos.holding_cost_rate is None:
+        holding = f"{rates.holding:g} per unit on hand at the end of a period"
+    else:
+        holding = (
+            f"{oos.holding_cost_rate:g} a year of the SKU's unit_cost per unit on hand at "
+            "the end of a period (that rate x unit_cost / periods per year, each period)"
+        )
+    text = f"{order}, {holding}, {stockout} (backordered)"
+    if oos.sku_rates:
+        text += "; each SKU's rates are in the first table"
+    return text
 
 
 def _picks(methods: tuple[str, ...]) -> str:

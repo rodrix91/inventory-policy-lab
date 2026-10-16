@@ -103,17 +103,52 @@ class Config:
     order_cost: float | None = None  # cost per order placed, to score replays (ADR 0012)
     holding_cost: float | None = None  # cost per unit on hand per period (ADR 0012)
     stockout_cost: float | None = None  # cost per unit not served from stock (ADR 0012)
+    holding_cost_rate: float | None = None  # yearly holding cost / unit_cost (ADR 0014)
+    cost_columns: bool = False  # order_cost, stockout_cost per SKU from the CSV (ADR 0014)
 
     @property
     def cost_rates(self) -> CostRates | None:
         """The cost rates of the out-of-sample replay; ``None`` when no cost is set.
 
-        A cost left unset counts as 0 once another one is set.
+        A cost left unset counts as 0 once another one is set. These are the
+        rates shared by every SKU; :meth:`sku_cost_rates` gives a SKU's own,
+        which differ with ``holding_cost_rate`` or ``cost_columns`` (ADR 0014).
         """
         rates = (self.order_cost, self.holding_cost, self.stockout_cost)
-        if all(rate is None for rate in rates):
+        if all(rate is None for rate in rates) and not self.per_sku_costs:
             return None
         order, holding, stockout = (rate or 0.0 for rate in rates)
+        return CostRates(order=order, holding=holding, stockout=stockout)
+
+    @property
+    def per_sku_costs(self) -> bool:
+        """Whether some cost rate depends on the SKU (ADR 0014)."""
+        return self.holding_cost_rate is not None or self.cost_columns
+
+    def sku_cost_rates(self, history: SkuHistory) -> CostRates:
+        """The cost rates of one SKU (ADR 0014).
+
+        Holding is ``holding_cost_rate x unit_cost / periods_per_year`` per unit
+        and period when the rate is set, else ``holding_cost``. With
+        ``cost_columns`` the SKU's ``order_cost`` and ``stockout_cost`` values
+        replace ``order_cost`` and ``stockout_cost`` where the file gives them.
+        Raises ``ValueError`` without cost rates, or for a holding rate on a SKU
+        without a unit cost.
+        """
+        rates = self.cost_rates
+        if rates is None:
+            raise ValueError("no cost rates are set (order, holding, stockout cost)")
+        holding = rates.holding
+        if self.holding_cost_rate is not None:
+            if history.unit_cost is None:
+                raise ValueError(f"sku {history.sku!r} has no unit cost for the holding rate")
+            holding = self.holding_cost_rate * history.unit_cost / self.periods_per_year
+        order, stockout = rates.order, rates.stockout
+        if self.cost_columns:
+            if history.order_cost is not None:
+                order = history.order_cost
+            if history.stockout_cost is not None:
+                stockout = history.stockout_cost
         return CostRates(order=order, holding=holding, stockout=stockout)
 
     @property
@@ -235,9 +270,15 @@ class Config:
             "holding cost": self.holding_cost,
             "stockout cost": self.stockout_cost,
         }
+        costs["holding cost rate"] = self.holding_cost_rate
         for label, cost in costs.items():
             if cost is not None and not (math.isfinite(cost) and cost >= 0):
                 raise ConfigError(f"{label} must be a finite number of at least 0, got {cost}")
+        if self.holding_cost_rate is not None and self.holding_cost is not None:
+            raise ConfigError(
+                "give the holding cost either per unit and period (--holding-cost) or as "
+                "a yearly rate of the unit cost (--holding-cost-rate), not both"
+            )
         if self.cost_rates is not None and not self.test_periods:
             raise ConfigError(
                 "order, holding and stockout costs score the out-of-sample replay and "
@@ -705,6 +746,15 @@ def analyze(data: DemandData, config: Config | None = None) -> Report:
         raise DataError(f"unit_cost is empty for every row of sku(s): {', '.join(without_cost)}")
     if config.ordering_cost is not None and not data.has_unit_cost:
         raise DataError("EOQ needs a unit_cost column to turn the holding rate into a cost")
+    if config.holding_cost_rate is not None and not data.has_unit_cost:
+        raise DataError(
+            "a holding cost rate needs a unit_cost column to turn it into a cost per unit"
+        )
+    if config.cost_columns and not (data.has_order_cost or data.has_stockout_cost):
+        raise DataError(
+            "cost columns need an order_cost or stockout_cost column, read with "
+            "cost_columns (--cost-columns)"
+        )
 
     basis = "value" if data.has_unit_cost else "quantity"
     values = {
@@ -726,5 +776,10 @@ def analyze(data: DemandData, config: Config | None = None) -> Report:
 
 
 def analyze_file(path: str | os.PathLike[str], config: Config | None = None) -> Report:
-    """Read ``path`` with :func:`read_demand` and :func:`analyze` it."""
-    return analyze(read_demand(path), config)
+    """Read ``path`` with :func:`read_demand` and :func:`analyze` it.
+
+    The ``order_cost`` and ``stockout_cost`` columns are read when
+    ``config.cost_columns`` is set (ADR 0014).
+    """
+    cost_columns = config is not None and config.cost_columns
+    return analyze(read_demand(path, cost_columns=cost_columns), config)

@@ -213,6 +213,25 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="C",
         help="cost per unit of demand not served from stock in its period (backordered)",
     )
+    group.add_argument(
+        "--holding-cost-rate",
+        type=float,
+        metavar="RATE",
+        help=(
+            "instead of --holding-cost: yearly holding cost as a fraction of each SKU's "
+            "unit_cost (e.g. 0.25), so a unit held one period costs RATE x unit_cost / "
+            "--periods-per-year; needs a unit_cost column"
+        ),
+    )
+    group.add_argument(
+        "--cost-columns",
+        action="store_true",
+        help=(
+            "read a cost per order and per unit short of each SKU from the optional "
+            "order_cost and stockout_cost columns (most recent non-empty value); a SKU "
+            "without a value uses --order-cost and --stockout-cost"
+        ),
+    )
 
     group = parser.add_argument_group("classification and forecasting")
     group.add_argument(
@@ -282,6 +301,8 @@ def config_from_args(args: argparse.Namespace) -> Config:
         order_cost=args.order_cost,
         holding_cost=args.holding_cost,
         stockout_cost=args.stockout_cost,
+        holding_cost_rate=args.holding_cost_rate,
+        cost_columns=args.cost_columns,
     )
 
 
