@@ -26,14 +26,27 @@ additive (``+ S``) or multiplicative (``x S``)::
 The multiplicative form divides by ``S`` and ``L`` instead of subtracting them
 and starts with ``S(i) = y(i) / L(m)``; it needs demand above zero in every
 period. Forecasts are floored at zero, because demand cannot be negative.
+
+A grid fit depends only on the history it is given, and the backtest, the
+residual errors and every rolling origin refit the same prefixes of a series
+again and again. :func:`fit_holt_damped` and :func:`fit_holt_winters` therefore
+keep the fits of recent histories in a bounded cache keyed on the exact values
+(their types and ``repr``, so ``10`` and ``10.0`` or ``0.0`` and ``-0.0`` are
+different keys) and return the stored :class:`SmoothingFit`, which is frozen.
+A history with no valid fit is cached as that :class:`FitError` message. The
+results are the same as without the cache, bit for bit (ADR 0010).
 """
 
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+import threading
+from collections import OrderedDict
+from collections.abc import Callable, Hashable, Sequence
 from dataclasses import dataclass
+from functools import partial
 from itertools import product
+from typing import Union
 
 # Grids of the parameter search. Phi stays below 1 on purpose: an undamped
 # trend extrapolated over a lead time is the classic way to overshoot, and the
@@ -49,6 +62,85 @@ SEASONAL_KINDS = ("additive", "multiplicative")
 
 class FitError(ValueError):
     """No parameter set in the grid gives a valid fit (multiplicative level not positive)."""
+
+
+FIT_CACHE_SIZE = 4096  # grid fits kept, least recently used dropped first
+
+_Entry = Union["SmoothingFit", str]  # a fit, or the FitError message of a history with none
+
+
+@dataclass(frozen=True)
+class FitCacheInfo:
+    """Counters of the fit cache: requests answered from it, requests that ran a grid."""
+
+    hits: int
+    misses: int
+    size: int
+    max_size: int
+
+
+class _FitCache:
+    """A bounded, thread-safe LRU store of grid fits keyed on the exact history."""
+
+    def __init__(self, max_size: int) -> None:
+        self.max_size = max_size
+        self._data: OrderedDict[Hashable, _Entry] = OrderedDict()
+        self._lock = threading.Lock()
+        self.hits = 0
+        self.misses = 0
+
+    def get(self, key: Hashable) -> _Entry | None:
+        """The stored entry of a requested history, counted as a hit or a miss."""
+        with self._lock:
+            found = self._data.get(key)
+            if found is None:
+                self.misses += 1
+            else:
+                self._data.move_to_end(key)
+                self.hits += 1
+            return found
+
+    def __contains__(self, key: Hashable) -> bool:
+        with self._lock:
+            return key in self._data
+
+    def put(self, entries: Sequence[tuple[Hashable, _Entry]]) -> None:
+        """Store ``entries`` in order (the last one is the most recently used)."""
+        with self._lock:
+            for key, entry in entries:
+                self._data[key] = entry
+                self._data.move_to_end(key)
+            while len(self._data) > self.max_size:
+                self._data.popitem(last=False)
+
+    def clear(self) -> None:
+        with self._lock:
+            self._data.clear()
+            self.hits = self.misses = 0
+
+    def info(self) -> FitCacheInfo:
+        with self._lock:
+            return FitCacheInfo(self.hits, self.misses, len(self._data), self.max_size)
+
+
+_CACHE = _FitCache(FIT_CACHE_SIZE)
+
+
+def _history_key(history: Sequence[float]) -> tuple[frozenset[type], str]:
+    """Exact identity of a history: the value types and the ``repr`` of every value."""
+    values = tuple(history)
+    return frozenset(map(type, values)), repr(values)
+
+
+def fit_cache_info() -> FitCacheInfo:
+    """Hits, misses and size of the cache behind :func:`fit_holt_damped` and
+    :func:`fit_holt_winters`."""
+    return _CACHE.info()
+
+
+def clear_fit_cache() -> None:
+    """Empty the fit cache and reset its counters."""
+    _CACHE.clear()
 
 
 @dataclass(frozen=True)
@@ -173,17 +265,86 @@ def holt_winters_fit(
     return SmoothingFit(model, alpha, beta, phi, gamma, level, trend, tuple(seasonals), sse)
 
 
+def _cached_grid(
+    tag: tuple[Hashable, ...],
+    history: Sequence[float],
+    shortest: int,
+    grid: Callable[[tuple[float, ...], list[int]], dict[int, _Entry]],
+) -> SmoothingFit:
+    """The grid fit of ``history``, from the cache or from one pass over every prefix.
+
+    On a miss, ``grid`` scores every parameter set once over the whole history,
+    which gives the SSE of every prefix of at least ``shortest`` periods at the
+    cost of a single fit, and returns the best fit of each prefix not cached yet;
+    all of them are stored, because the backtest and the rolling origins ask for
+    those prefixes next.
+    """
+    values = tuple(history)
+    found = _CACHE.get((*tag, _history_key(values)))
+    if found is None:
+        keys = {k: (*tag, _history_key(values[:k])) for k in range(shortest, len(values) + 1)}
+        wanted = [k for k, key in keys.items() if k == len(values) or key not in _CACHE]
+        computed = grid(values, wanted)
+        _CACHE.put([(keys[k], computed[k]) for k in wanted])
+        found = computed[len(values)]
+    if isinstance(found, str):
+        raise FitError(found)
+    return found
+
+
+def _best_by_prefix(
+    rows: Sequence[tuple[tuple[float, ...], Sequence[float]]], wanted: Sequence[int], offset: int
+) -> dict[int, tuple[float, ...] | None]:
+    """For each prefix length in ``wanted``, the first parameter set of lowest SSE.
+
+    ``rows`` holds, in grid order, each parameter set and the SSE after each
+    step, the step that ends a prefix of ``k`` periods at index ``k - offset``
+    (shorter when the set became invalid). Strictly lower wins, as in a plain
+    grid search, so ties keep the first set.
+    """
+    best: dict[int, tuple[float, ...] | None] = {}
+    for k in wanted:
+        index = k - offset
+        params: tuple[float, ...] | None = None
+        lowest = 0.0
+        for candidate, sses in rows:
+            if index < len(sses) and (params is None or sses[index] < lowest):
+                params, lowest = candidate, sses[index]
+        best[k] = params
+    return best
+
+
 def fit_holt_damped(history: Sequence[float]) -> SmoothingFit:
     """Damped Holt with the grid parameters of lowest in-sample SSE (first on ties)."""
     if len(history) < HOLT_MIN_HISTORY:
         raise ValueError(f"damped Holt is fitted on at least {HOLT_MIN_HISTORY} periods")
-    best: SmoothingFit | None = None
+    return _cached_grid(("holt_damped",), history, HOLT_MIN_HISTORY, _grid_holt_damped)
+
+
+def _grid_holt_damped(values: tuple[float, ...], wanted: list[int]) -> dict[int, _Entry]:
+    """Best damped Holt fit of each prefix length in ``wanted``, from one pass per set.
+
+    The SSE recursion is the one of :func:`holt_damped_fit`, step for step, so
+    the SSE of a prefix is the same float a fit on that prefix computes.
+    """
+    rows = []
     for alpha, beta, phi in product(ALPHAS, BETAS, PHIS):
-        fit = holt_damped_fit(history, alpha, beta, phi)
-        if best is None or fit.sse < best.sse:
-            best = fit
-    assert best is not None  # the grids are not empty
-    return best
+        level, trend = values[1], values[1] - values[0]
+        sse = 0.0
+        sses = []
+        for value in values[2:]:
+            expected = level + phi * trend
+            sse += (value - expected) ** 2
+            new_level = alpha * value + (1 - alpha) * expected
+            trend = beta * (new_level - level) + (1 - beta) * phi * trend
+            level = new_level
+            sses.append(sse)
+        rows.append(((alpha, beta, phi), sses))
+    out: dict[int, _Entry] = {}
+    for k, params in _best_by_prefix(rows, wanted, 3).items():
+        assert params is not None  # damped Holt has no invalid parameter set
+        out[k] = holt_damped_fit(values[:k], *params)
+    return out
 
 
 def fit_holt_winters(
@@ -196,17 +357,67 @@ def fit_holt_winters(
     """
     if seasonal == "multiplicative" and min(history, default=0) <= 0:
         raise FitError("multiplicative Holt-Winters needs demand above zero in every period")
-    best: SmoothingFit | None = None
+    if seasonal not in SEASONAL_KINDS:
+        raise ValueError(f"seasonal must be 'additive' or 'multiplicative', got {seasonal!r}")
+    if season_length < 2 or len(history) < 2 * season_length:
+        raise ValueError("Holt-Winters needs a season length >= 2 and two full seasons")
+    return _cached_grid(
+        ("holt_winters", season_length, seasonal),
+        history,
+        2 * season_length,
+        partial(_grid_holt_winters, m=season_length, seasonal=seasonal),
+    )
+
+
+def _grid_holt_winters(
+    values: tuple[float, ...], wanted: list[int], m: int, seasonal: str
+) -> dict[int, _Entry]:
+    """Best Holt-Winters fit of each prefix length in ``wanted``, from one pass per set.
+
+    The start uses the first two seasons only, so it is the same for every
+    prefix, and the recursion is the one of :func:`holt_winters_fit`, step for
+    step. A multiplicative set whose level stops being positive at a step is
+    invalid for the prefixes that include that step and valid for the shorter ones.
+    """
+    multiplicative = seasonal == "multiplicative"
+    first = math.fsum(values[:m]) / m
+    second = math.fsum(values[m : 2 * m]) / m
+    start_level, start_trend = first, (second - first) / m
+    if multiplicative:
+        start_seasonals = [value / start_level for value in values[:m]]
+    else:
+        start_seasonals = [value - start_level for value in values[:m]]
+    rows = []
     for alpha, beta, gamma, phi in product(ALPHAS, BETAS, GAMMAS, PHIS):
-        try:
-            fit = holt_winters_fit(history, season_length, alpha, beta, gamma, phi, seasonal)
-        except FitError:
-            continue
-        if best is None or fit.sse < best.sse:
-            best = fit
-    if best is None:
-        raise FitError("no parameter set gives a positive multiplicative level")
-    return best
+        level, trend = start_level, start_trend
+        seasonals = list(start_seasonals)
+        sse = 0.0
+        sses = []
+        for value in values[m:]:
+            old = seasonals.pop(0)
+            base = level + phi * trend
+            if multiplicative:
+                sse += (value - base * old) ** 2
+                new_level = alpha * value / old + (1 - alpha) * base
+                if new_level <= 0:
+                    break
+                seasonals.append(gamma * value / new_level + (1 - gamma) * old)
+            else:
+                sse += (value - base - old) ** 2
+                new_level = alpha * (value - old) + (1 - alpha) * base
+                seasonals.append(gamma * (value - new_level) + (1 - gamma) * old)
+            trend = beta * (new_level - level) + (1 - beta) * phi * trend
+            level = new_level
+            sses.append(sse)
+        rows.append(((alpha, beta, gamma, phi), sses))
+    out: dict[int, _Entry] = {}
+    for k, params in _best_by_prefix(rows, wanted, m + 1).items():
+        if params is None:
+            out[k] = "no parameter set gives a positive multiplicative level"
+        else:
+            alpha, beta, gamma, phi = params
+            out[k] = holt_winters_fit(values[:k], m, alpha, beta, gamma, phi, seasonal)
+    return out
 
 
 def holt_damped(history: Sequence[float]) -> float:

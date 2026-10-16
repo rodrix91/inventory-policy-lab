@@ -49,8 +49,11 @@ from .reader import DemandData, SkuHistory, parse_rows, read_demand
 from .render import render_json, render_markdown, report_to_dict
 from .simulate import SimulationResult, simulate, simulate_periodic
 from .smoothing import (
+    FitCacheInfo,
     FitError,
     SmoothingFit,
+    clear_fit_cache,
+    fit_cache_info,
     fit_holt_damped,
     fit_holt_winters,
     holt_damped,
@@ -75,6 +78,7 @@ __all__ = [
     "DataError",
     "DemandData",
     "DemandProfile",
+    "FitCacheInfo",
     "FitError",
     "HistoryError",
     "InputFileError",
@@ -102,11 +106,13 @@ __all__ = [
     "protection_periods",
     "residual_bootstrap_quantile",
     "build_policy",
+    "clear_fit_cache",
     "coefficient_of_variation",
     "croston",
     "demand_profile",
     "dynamic_levels",
     "eoq",
+    "fit_cache_info",
     "fit_holt_damped",
     "fit_holt_winters",
     "holt_damped",
