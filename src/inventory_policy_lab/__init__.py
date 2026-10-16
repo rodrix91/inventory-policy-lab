@@ -16,7 +16,7 @@ out-of-sample replay (:class:`CostRates`, :func:`replay_cost`).
 
 from __future__ import annotations
 
-__version__ = "0.8.0"
+__version__ = "0.9.0"
 
 from .analysis import Config, Report, SkuResult, analyze, analyze_file, replay_policy
 from .classify import (

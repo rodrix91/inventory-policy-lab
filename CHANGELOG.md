@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-16
+
 ### Added
 
 - Cost rates per SKU for the out-of-sample replay (ADR 0014). `--holding-cost-rate RATE` (`Config.holding_cost_rate`) prices holding as a yearly fraction of each SKU's `unit_cost`, so a unit held one period costs `RATE x unit_cost / --periods-per-year` (needs a `unit_cost` column; excludes `--holding-cost`; separate from the EOQ `--holding-rate`). `--cost-columns` (`Config.cost_columns`) reads optional `order_cost` and `stockout_cost` columns, the most recent non-empty value per SKU, which replace `--order-cost` / `--stockout-cost` for that SKU. Markdown adds each SKU's rates to the cost section; JSON adds the settings, `holding_rate_of_unit_cost` / `cost_columns` to `out_of_sample.costs.rates` and `rates` to each SKU. API: `Config.sku_cost_rates`, `Config.per_sku_costs`, `OutOfSampleReport.sku_rates`, `OutOfSampleReport.rates_of`, `SkuHistory.order_cost` / `stockout_cost`, `DemandData.has_order_cost` / `has_stockout_cost`, `read_demand(..., cost_columns=True)`, `parse_rows(..., cost_columns=True)`. Without the new options the Markdown and JSON reports are byte for byte those of 0.8.0 (104 outputs compared).
@@ -100,7 +102,8 @@ First public version (alpha).
 - Synthetic, seeded example dataset (`examples/demand_synthetic.csv`, `scripts/generate_example.py`), a hand-checked worked example (`examples/worked_example.csv`, verified in `tests/test_worked_example.py`) and an ABC Pareto chart drawn as SVG with the standard library (`docs/abc-pareto.svg`).
 - README samples generated from real runs and checked by the test suite; CI on Python 3.11, 3.12 and 3.13 with tests, 100% line and branch coverage, Ruff and strict mypy; a release workflow that builds and tests the sdist and wheel.
 
-[Unreleased]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.5.0...v0.6.0
