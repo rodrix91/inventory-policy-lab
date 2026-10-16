@@ -182,6 +182,17 @@ def build_parser() -> argparse.ArgumentParser:
             "stock and levels at the start of every test period from the periods before it"
         ),
     )
+    group.add_argument(
+        "--refit-every",
+        type=int,
+        default=1,
+        metavar="K",
+        help=(
+            "with --rolling-origin, refit only at the start of every K-th test period and "
+            "keep that refit's decisions (its forecasts 1 to K steps ahead) until the "
+            "next (1: every period)"
+        ),
+    )
 
     group = parser.add_argument_group("classification and forecasting")
     group.add_argument(
@@ -247,6 +258,7 @@ def config_from_args(args: argparse.Namespace) -> Config:
         bootstrap_source=args.bootstrap_source,
         period_safety_stock=args.period_safety_stock,
         rolling_origin=args.rolling_origin,
+        refit_every=args.refit_every,
     )
 
 

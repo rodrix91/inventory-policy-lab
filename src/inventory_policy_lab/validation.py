@@ -25,6 +25,14 @@ level and the order quantity of that refit are the ones used at the end of
 ``t``. The training periods are replayed with the fixed policy, so both
 replays enter the test from the same stock and orders, and the first test
 period has the same decision in both.
+
+With ``Config.refit_every`` ``K`` above 1 the refit runs only at the start of
+test periods ``0, K, 2K, ...`` of the test window (ADR 0011). The refit at
+``t`` sees periods ``0 .. t - 1`` and decides periods ``t .. t + K - 1``: the
+same safety stock and order quantity, and with dynamic levels its forecasts
+1 to ``K`` steps ahead, exactly as the fixed origin uses the training fit for
+the whole test window. ``K = 1`` is the rolling origin above; a ``K`` of at
+least the test window gives the fixed-origin replay.
 """
 
 from __future__ import annotations
@@ -116,6 +124,7 @@ class OutOfSampleReport:
     policy: str = "sQ"  # the policy kind replayed: "sQ" or "RS"
     bootstrap_source: str = "demand"  # what the bootstrap replay resamples (ADR 0008)
     rolling_origin: bool = False  # SKUs also carry rolling-origin replays (ADR 0009)
+    refit_every: int = 1  # the rolling origin refits every K test periods (ADR 0011)
 
     def totals(self, method: str, sample: str) -> ReplayTotals:
         """Totals of ``method`` for ``sample`` ``"in_sample"`` or ``"out_of_sample"``."""
@@ -215,9 +224,13 @@ def out_of_sample_replay(data: DemandData, config: Config) -> OutOfSampleReport:
     fit = _origin(data, train_calendar, config)
     trains, values, classes = fit.histories, fit.values, fit.classes
     skipped = [h.sku for h in data.skus if h.sku not in trains]
-    # One refit per test period: the origin at calendar index t sees periods 0 .. t - 1.
+    # One refit every K test periods: the origin at calendar index t sees periods
+    # 0 .. t - 1 and decides the periods t .. t + K - 1 (the rest of the test, at the end).
     origins = (
-        [_origin(data, data.calendar[:t], config) for t in range(train_length, len(data.calendar))]
+        [
+            _origin(data, data.calendar[:t], config)
+            for t in range(train_length, len(data.calendar), config.refit_every)
+        ]
         if config.rolling_origin
         else []
     )
@@ -272,6 +285,7 @@ def out_of_sample_replay(data: DemandData, config: Config) -> OutOfSampleReport:
                         policy,
                         train_levels,
                         fitted.order_quantity,
+                        test_periods,
                     )
                 )
         assert fitted is not None  # SAFETY_STOCK_METHODS is not empty
@@ -298,6 +312,7 @@ def out_of_sample_replay(data: DemandData, config: Config) -> OutOfSampleReport:
         policy=config.policy,
         bootstrap_source=config.bootstrap_source,
         rolling_origin=config.rolling_origin,
+        refit_every=config.refit_every,
     )
 
 
@@ -309,8 +324,14 @@ def _rolling_replay(
     train_policy: Policy,
     train_levels: tuple[float, ...],
     train_quantity: float,
+    test_periods: int,
 ) -> RollingReplay:
     """Refit ``sku`` at every origin and replay the test with the refitted decisions.
+
+    Each origin decides ``settings.refit_every`` test periods (fewer for the
+    last one): the refit's level and safety stock of each of them (the same
+    numbers with a static policy; with dynamic levels, its forecasts 1 to ``K``
+    steps ahead) and its order quantity.
 
     The refit at an origin is the same :func:`_analyze_sku` call as on train,
     on the history before the origin only, so a test period can influence the
@@ -325,24 +346,29 @@ def _rolling_replay(
     stocks: list[float] = []
     levels: list[float] = []
     quantities: list[float] = []
-    for origin in origins:
+    for index, origin in enumerate(origins):
+        start = index * settings.refit_every
+        span = min(settings.refit_every, test_periods - start)
         fitted = _analyze_sku(
             origin.histories[sku],
             settings,
             origin.classes[sku],
             origin.values[sku],
-            horizon=1,
+            horizon=span,
         )
-        methods.append(fitted.method)
-        # With dynamic levels, next_levels[0] is the level of the end of the origin's
-        # period (the first period after the history the refit saw).
-        levels.append(fitted.next_levels[0] if fitted.next_levels else fitted.policy.reorder_point)
-        stocks.append(
-            fitted.next_safety_stocks[0]
-            if fitted.next_safety_stocks
-            else fitted.policy.safety_stock
-        )
-        quantities.append(fitted.order_quantity)
+        # With dynamic levels, next_levels[j] is the level of the end of the j-th
+        # period after the history the refit saw (j = 0: the origin's own period).
+        for j in range(span):
+            methods.append(fitted.method)
+            levels.append(
+                fitted.next_levels[j] if fitted.next_levels else fitted.policy.reorder_point
+            )
+            stocks.append(
+                fitted.next_safety_stocks[j]
+                if fitted.next_safety_stocks
+                else fitted.policy.safety_stock
+            )
+            quantities.append(fitted.order_quantity)
     warmup = len(train_levels)
     result = replay_policy(
         demand,

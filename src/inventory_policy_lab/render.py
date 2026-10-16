@@ -305,8 +305,13 @@ def _bootstrap_source_dict(config: Config) -> dict[str, Any]:
 
 
 def _rolling_setting(config: Config) -> dict[str, Any]:
-    """Setting of ADR 0009, only when used, so the default JSON stays that of 0.5.0."""
-    return {"rolling_origin": True} if config.rolling_origin else {}
+    """Settings of ADRs 0009 and 0011, only when used, so the default JSON stays that of
+    0.5.0 and the rolling origin's that of 0.6.0."""
+    if not config.rolling_origin:
+        return {}
+    if config.refit_every == 1:
+        return {"rolling_origin": True}
+    return {"rolling_origin": True, "refit_every": config.refit_every}
 
 
 def report_to_dict(report: Report) -> dict[str, Any]:
@@ -476,13 +481,26 @@ def _rolling_lines(oos: OutOfSampleReport) -> list[str]:
     from .validation import SAFETY_STOCK_METHODS
 
     test = oos.test_calendar
+    every = oos.refit_every
+    when = (
+        "At the start of every test period"
+        if every == 1
+        else f"At the start of the first test period and then every {every} test periods"
+    )
+    keep = (
+        ""
+        if every == 1
+        else f" Each refit decides its own period and the next {every - 1} (its forecasts "
+        f"1 to {every} steps ahead with dynamic levels)."
+    )
     lines = [
         "",
         f"### Rolling origin (test {test[0]} to {test[-1]})",
         "",
-        "At the start of every test period each SKU is refitted on the periods before it "
+        f"{when} each SKU is refitted on the periods before it "
         "only (training plus the test periods already observed): classes, forecast pick, "
-        "sigma, lead times, bootstrap draws, safety stock, level and order quantity. Both "
+        "sigma, lead times, bootstrap draws, safety stock, level and order quantity."
+        f"{keep} Both "
         "replays enter the test from the same stock; the fixed origin keeps the policy "
         "fitted at the end of training.",
         "",

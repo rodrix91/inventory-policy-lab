@@ -98,6 +98,7 @@ class Config:
     bootstrap_source: str = "demand"  # bootstrap "demand" or forecast "residuals" (ADR 0008)
     period_safety_stock: bool = False  # safety stock per period with dynamic levels (ADR 0008)
     rolling_origin: bool = False  # also refit every test period out of sample (ADR 0009)
+    refit_every: int = 1  # rolling origin: refit every K test periods only (ADR 0011)
 
     @property
     def effective_season_length(self) -> int | None:
@@ -205,6 +206,12 @@ class Config:
             raise ConfigError(
                 "the rolling-origin replay refits the policy in the test window and "
                 "needs test periods (--test-periods N)"
+            )
+        if self.refit_every < 1:
+            raise ConfigError(f"refit every must be at least 1 period, got {self.refit_every}")
+        if self.refit_every != 1 and not self.rolling_origin:
+            raise ConfigError(
+                "refitting every K periods applies to the rolling-origin replay (--rolling-origin)"
             )
 
     def methods(self, category: str) -> dict[str, Method]:
