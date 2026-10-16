@@ -97,6 +97,7 @@ class Config:
     dynamic_levels: bool = False  # levels that follow a trend or seasonal forecast (ADR 0007)
     bootstrap_source: str = "demand"  # bootstrap "demand" or forecast "residuals" (ADR 0008)
     period_safety_stock: bool = False  # safety stock per period with dynamic levels (ADR 0008)
+    rolling_origin: bool = False  # also refit every test period out of sample (ADR 0009)
 
     @property
     def effective_season_length(self) -> int | None:
@@ -199,6 +200,11 @@ class Config:
             raise ConfigError(
                 "a safety stock per period needs dynamic levels and the residual bootstrap "
                 "(--dynamic-levels --bootstrap-source residuals)"
+            )
+        if self.rolling_origin and not self.test_periods:
+            raise ConfigError(
+                "the rolling-origin replay refits the policy in the test window and "
+                "needs test periods (--test-periods N)"
             )
 
     def methods(self, category: str) -> dict[str, Method]:
@@ -359,14 +365,15 @@ def _trend_seasonal_candidate(
 def replay_policy(
     demand: Sequence[float],
     policy: Policy,
-    order_quantity: float,
+    order_quantity: float | Sequence[float],
     levels: Sequence[float] = (),
     warmup: int = 0,
 ) -> SimulationResult:
     """Replay ``demand`` under ``policy``: (s, Q) or (R, S), static or with ``levels``.
 
     ``levels`` (one per period of ``demand``) replace the policy's single level
-    when given. An (R, S) policy ignores ``order_quantity``.
+    when given. ``order_quantity`` is one quantity or one per period. An (R, S)
+    policy ignores ``order_quantity``.
     """
     level: float | Sequence[float] = levels if levels else policy.reorder_point
     if policy.kind == "RS":

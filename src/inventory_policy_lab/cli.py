@@ -174,6 +174,14 @@ def build_parser() -> argparse.ArgumentParser:
             "replay them out of sample on those N (0: off)"
         ),
     )
+    group.add_argument(
+        "--rolling-origin",
+        action="store_true",
+        help=(
+            "with --test-periods, also replay the test window refitting forecast, safety "
+            "stock and levels at the start of every test period from the periods before it"
+        ),
+    )
 
     group = parser.add_argument_group("classification and forecasting")
     group.add_argument(
@@ -238,6 +246,7 @@ def config_from_args(args: argparse.Namespace) -> Config:
         dynamic_levels=args.dynamic_levels,
         bootstrap_source=args.bootstrap_source,
         period_safety_stock=args.period_safety_stock,
+        rolling_origin=args.rolling_origin,
     )
 
 

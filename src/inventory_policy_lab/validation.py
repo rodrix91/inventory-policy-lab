@@ -16,6 +16,15 @@ replayed on. Here the calendar is split in time:
 
 The training replay of the same policy is reported next to it as the in-sample
 reference: the gap between the two is the optimism of the in-sample replay.
+
+With ``Config.rolling_origin`` the test is also replayed with a **rolling
+origin** (ADR 0009): at the start of every test period ``t`` each SKU is
+refitted, exactly as on train, on periods ``0 .. t - 1`` only (the training
+periods plus the test periods already observed), and the safety stock, the
+level and the order quantity of that refit are the ones used at the end of
+``t``. The training periods are replayed with the fixed policy, so both
+replays enter the test from the same stock and orders, and the first test
+period has the same decision in both.
 """
 
 from __future__ import annotations
@@ -33,6 +42,7 @@ SAFETY_STOCK_METHODS = ("normal", "bootstrap")
 
 if TYPE_CHECKING:  # pragma: no cover - imports for type hints only
     from .analysis import Config
+    from .policy import Policy
 
 
 @dataclass(frozen=True)
@@ -50,6 +60,22 @@ class PolicyReplay:
 
 
 @dataclass(frozen=True)
+class RollingReplay:
+    """One safety-stock method refitted at every test period (rolling origin, ADR 0009).
+
+    Every tuple has one entry per test period: what the refit on the periods
+    before it decided for the end of that period.
+    """
+
+    method: str  # "normal" or "bootstrap"
+    forecast_methods: tuple[str, ...]  # the forecast picked at each origin
+    safety_stocks: tuple[float, ...]
+    levels: tuple[float, ...]  # s of (s, Q), or the order-up-to level S of (R, S)
+    order_quantities: tuple[float, ...]  # Q of (s, Q); refitted but unused by (R, S)
+    out_of_sample: SimulationResult  # the test periods only
+
+
+@dataclass(frozen=True)
 class SkuOutOfSample:
     sku: str
     train_periods: int
@@ -60,9 +86,13 @@ class SkuOutOfSample:
     forecast: float
     replays: tuple[PolicyReplay, ...]  # one per method, in SAFETY_STOCK_METHODS order
     notes: tuple[str, ...]
+    rolling: tuple[RollingReplay, ...] = ()  # with Config.rolling_origin, same order
 
     def replay(self, method: str) -> PolicyReplay:
         return next(r for r in self.replays if r.method == method)
+
+    def rolling_replay(self, method: str) -> RollingReplay:
+        return next(r for r in self.rolling if r.method == method)
 
 
 @dataclass(frozen=True)
@@ -85,19 +115,55 @@ class OutOfSampleReport:
     skipped: tuple[str, ...]  # SKUs with no demand history in the train periods
     policy: str = "sQ"  # the policy kind replayed: "sQ" or "RS"
     bootstrap_source: str = "demand"  # what the bootstrap replay resamples (ADR 0008)
+    rolling_origin: bool = False  # SKUs also carry rolling-origin replays (ADR 0009)
 
     def totals(self, method: str, sample: str) -> ReplayTotals:
         """Totals of ``method`` for ``sample`` ``"in_sample"`` or ``"out_of_sample"``."""
-        results = [getattr(s.replay(method), sample) for s in self.skus]
-        demand = sum(r.total_demand for r in results)
-        served = sum(r.served_from_stock for r in results)
-        return ReplayTotals(
-            total_demand=demand,
-            served_from_stock=served,
-            fill_rate=served / demand if demand > 0 else None,
-            stockout_periods=sum(r.stockout_periods for r in results),
-            average_on_hand=sum(r.average_on_hand for r in results),
-        )
+        return _sum([getattr(s.replay(method), sample) for s in self.skus])
+
+    def rolling_totals(self, method: str) -> ReplayTotals:
+        """Out-of-sample totals of ``method`` with a rolling origin."""
+        return _sum([s.rolling_replay(method).out_of_sample for s in self.skus])
+
+
+def _sum(results: list[SimulationResult]) -> ReplayTotals:
+    demand = sum(r.total_demand for r in results)
+    served = sum(r.served_from_stock for r in results)
+    return ReplayTotals(
+        total_demand=demand,
+        served_from_stock=served,
+        fill_rate=served / demand if demand > 0 else None,
+        stockout_periods=sum(r.stockout_periods for r in results),
+        average_on_hand=sum(r.average_on_hand for r in results),
+    )
+
+
+@dataclass(frozen=True)
+class _Origin:
+    """What every SKU's refit at one rolling origin sees: histories, values, classes."""
+
+    histories: dict[str, SkuHistory]
+    values: dict[str, float]
+    classes: dict[str, str]
+
+
+def _origin(data: DemandData, calendar: tuple[str, ...], config: Config) -> _Origin:
+    """Histories cut to ``calendar`` and the ABC classes of their demand.
+
+    SKUs with no period in ``calendar`` are left out, as on train.
+    """
+    histories: dict[str, SkuHistory] = {}
+    for history in data.skus:
+        cut = train_history(history, calendar)
+        if cut is not None:
+            histories[history.sku] = cut
+    values = {
+        sku: statistics.fmean(h.demand)
+        * config.periods_per_year
+        * (h.unit_cost if h.unit_cost is not None else 1.0)
+        for sku, h in histories.items()
+    }
+    return _Origin(histories, values, abc_classes(values, *config.abc_thresholds))
 
 
 def train_history(history: SkuHistory, train_calendar: tuple[str, ...]) -> SkuHistory | None:
@@ -146,21 +212,15 @@ def out_of_sample_replay(data: DemandData, config: Config) -> OutOfSampleReport:
     train_calendar = data.calendar[:train_length]
     test_calendar = data.calendar[train_length:]
 
-    trains: dict[str, SkuHistory] = {}
-    skipped: list[str] = []
-    for history in data.skus:
-        train = train_history(history, train_calendar)
-        if train is None:
-            skipped.append(history.sku)
-        else:
-            trains[history.sku] = train
-    values = {
-        sku: statistics.fmean(h.demand)
-        * config.periods_per_year
-        * (h.unit_cost if h.unit_cost is not None else 1.0)
-        for sku, h in trains.items()
-    }
-    classes = abc_classes(values, *config.abc_thresholds)
+    fit = _origin(data, train_calendar, config)
+    trains, values, classes = fit.histories, fit.values, fit.classes
+    skipped = [h.sku for h in data.skus if h.sku not in trains]
+    # One refit per test period: the origin at calendar index t sees periods 0 .. t - 1.
+    origins = (
+        [_origin(data, data.calendar[:t], config) for t in range(train_length, len(data.calendar))]
+        if config.rolling_origin
+        else []
+    )
 
     results = []
     for history in data.skus:
@@ -168,6 +228,7 @@ def out_of_sample_replay(data: DemandData, config: Config) -> OutOfSampleReport:
         if train is None:
             continue
         replays = []
+        rolling = []
         notes: list[str] = []
         fitted = None
         for method in SAFETY_STOCK_METHODS:
@@ -200,6 +261,19 @@ def out_of_sample_replay(data: DemandData, config: Config) -> OutOfSampleReport:
                     test_safety_stocks=fitted.next_safety_stocks,
                 )
             )
+            if origins:
+                train_levels = fitted.levels or (policy.reorder_point,) * len(train.demand)
+                rolling.append(
+                    _rolling_replay(
+                        history.demand,
+                        settings,
+                        origins,
+                        history.sku,
+                        policy,
+                        train_levels,
+                        fitted.order_quantity,
+                    )
+                )
         assert fitted is not None  # SAFETY_STOCK_METHODS is not empty
         results.append(
             SkuOutOfSample(
@@ -212,6 +286,7 @@ def out_of_sample_replay(data: DemandData, config: Config) -> OutOfSampleReport:
                 forecast=fitted.forecast,
                 replays=tuple(replays),
                 notes=tuple(notes),
+                rolling=tuple(rolling),
             )
         )
     return OutOfSampleReport(
@@ -222,4 +297,65 @@ def out_of_sample_replay(data: DemandData, config: Config) -> OutOfSampleReport:
         skipped=tuple(skipped),
         policy=config.policy,
         bootstrap_source=config.bootstrap_source,
+        rolling_origin=config.rolling_origin,
+    )
+
+
+def _rolling_replay(
+    demand: tuple[float, ...],
+    settings: Config,
+    origins: list[_Origin],
+    sku: str,
+    train_policy: Policy,
+    train_levels: tuple[float, ...],
+    train_quantity: float,
+) -> RollingReplay:
+    """Refit ``sku`` at every origin and replay the test with the refitted decisions.
+
+    The refit at an origin is the same :func:`_analyze_sku` call as on train,
+    on the history before the origin only, so a test period can influence the
+    decisions of the periods after it and never of itself or the ones before.
+    The training periods keep ``train_levels`` and ``train_quantity``, so the
+    test starts from the state the fixed replay reaches. The refits' notes are
+    not repeated: the first origin is the training fit, whose notes are listed.
+    """
+    from .analysis import _analyze_sku, replay_policy
+
+    methods: list[str] = []
+    stocks: list[float] = []
+    levels: list[float] = []
+    quantities: list[float] = []
+    for origin in origins:
+        fitted = _analyze_sku(
+            origin.histories[sku],
+            settings,
+            origin.classes[sku],
+            origin.values[sku],
+            horizon=1,
+        )
+        methods.append(fitted.method)
+        # With dynamic levels, next_levels[0] is the level of the end of the origin's
+        # period (the first period after the history the refit saw).
+        levels.append(fitted.next_levels[0] if fitted.next_levels else fitted.policy.reorder_point)
+        stocks.append(
+            fitted.next_safety_stocks[0]
+            if fitted.next_safety_stocks
+            else fitted.policy.safety_stock
+        )
+        quantities.append(fitted.order_quantity)
+    warmup = len(train_levels)
+    result = replay_policy(
+        demand,
+        train_policy,
+        (train_quantity,) * warmup + tuple(quantities),
+        train_levels + tuple(levels),
+        warmup=warmup,
+    )
+    return RollingReplay(
+        method=settings.safety_stock_method,
+        forecast_methods=tuple(methods),
+        safety_stocks=tuple(stocks),
+        levels=tuple(levels),
+        order_quantities=tuple(quantities),
+        out_of_sample=result,
     )
