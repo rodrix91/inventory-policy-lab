@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-15
+
 ### Added
 
 - Rolling-origin out-of-sample replay, opt-in with `--rolling-origin` (`Config.rolling_origin`, needs `--test-periods`): at the start of every test period each SKU is refitted, with the same steps as on train, on the periods before it only (training plus the test periods already observed), and its safety stock, level and order quantity decide the end of that period. It is reported next to the fixed-origin replay of ADR 0005, which is unchanged; both enter the test from the same stock and share the first decision. No leak, tested two ways: no out-of-sample fit ever receives the period it decides, and zeroing later test periods leaves the earlier decisions unchanged (ADR 0009).
@@ -70,7 +72,8 @@ First public version (alpha).
 - Synthetic, seeded example dataset (`examples/demand_synthetic.csv`, `scripts/generate_example.py`), a hand-checked worked example (`examples/worked_example.csv`, verified in `tests/test_worked_example.py`) and an ABC Pareto chart drawn as SVG with the standard library (`docs/abc-pareto.svg`).
 - README samples generated from real runs and checked by the test suite; CI on Python 3.11, 3.12 and 3.13 with tests, 100% line and branch coverage, Ruff and strict mypy; a release workflow that builds and tests the sdist and wheel.
 
-[Unreleased]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.2.0...v0.3.0
