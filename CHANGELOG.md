@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-15
+
 ### Changed
 
 - Faster damped Holt and Holt-Winters fits, with identical results: `fit_holt_damped` and `fit_holt_winters` keep recent fits in a bounded cache keyed on the exact history, and on a miss score each parameter set once over the whole history, which gives the best fit of every prefix at the cost of one grid search (the backtest, the residual errors and the rolling origins fit those prefixes again and again). On the 48-month series, `--test-periods 12 --trend-seasonal --bootstrap-source residuals --rolling-origin` goes from 10.1 s to 0.22 s, and the fixed origin from 1.0 s to 0.15 s. Markdown and JSON reports are byte for byte those of 0.6.0, checked against the plain grid search kept in the tests (ADR 0010).
@@ -82,7 +84,8 @@ First public version (alpha).
 - Synthetic, seeded example dataset (`examples/demand_synthetic.csv`, `scripts/generate_example.py`), a hand-checked worked example (`examples/worked_example.csv`, verified in `tests/test_worked_example.py`) and an ABC Pareto chart drawn as SVG with the standard library (`docs/abc-pareto.svg`).
 - README samples generated from real runs and checked by the test suite; CI on Python 3.11, 3.12 and 3.13 with tests, 100% line and branch coverage, Ruff and strict mypy; a release workflow that builds and tests the sdist and wheel.
 
-[Unreleased]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.3.0...v0.4.0
