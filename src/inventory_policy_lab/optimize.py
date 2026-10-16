@@ -28,6 +28,11 @@ policy is made of are chosen for cost instead, on the training window only:
   quarter-sigma steps (:data:`REFINE_STEPS`) at the best ``Q``. The heuristic
   pair comes first and wins ties, so the search only moves away from it for a
   strictly lower expected cost.
+- **An optional fill-rate floor** (ADR 0016): with ``fill_floor``, a pair is
+  accepted only when its expected fill rate on the same paths (units served
+  from stock over units demanded, summed over the paths) is at least the floor;
+  the cheapest accepted pair wins, and when no pair qualifies the heuristic
+  pair is kept.
 """
 
 from __future__ import annotations
@@ -64,6 +69,12 @@ class CostSearch:
     heuristic_cost: float  # the same for the heuristic pair
     candidates: int  # pairs scored
     samples: int  # demand paths
+    # With a fill-rate floor (ADR 0016) only; None and 0 without one:
+    fill_floor: float | None = None  # least expected fill rate a pair needs
+    expected_fill: float | None = None  # expected fill rate on the paths, at the pick
+    heuristic_fill: float | None = None  # the same for the heuristic pair
+    feasible: int = 0  # pairs scored whose expected fill rate meets the floor
+    fell_back: bool = False  # no pair met the floor: the heuristic pair is kept
 
 
 def _with_first(first: float, others: Sequence[float]) -> tuple[float, ...]:
@@ -116,7 +127,7 @@ def _step(kind: str, review: int, lead: int) -> _Step:
     return sq if kind == "sQ" else rss
 
 
-def expected_costs(
+def expected_outcomes(
     train_demand: Sequence[float],
     train_levels: Sequence[float],
     train_quantity: float,
@@ -127,8 +138,12 @@ def expected_costs(
     paths: Sequence[Sequence[float]],
     rates: CostRates,
     candidates: Sequence[tuple[float, float]],
-) -> list[float]:
-    """Mean cost of the test window per path for each ``(safety stock, quantity)``.
+) -> list[tuple[float, float]]:
+    """Mean cost of the test window per path, and expected fill rate, of each
+    ``(safety stock, quantity)``.
+
+    The fill rate is the units served from stock over the units demanded, both
+    summed over every path (1.0 when the paths have no demand).
 
     The training periods are replayed once with ``train_levels`` and
     ``train_quantity`` (the run starts with the first level plus that quantity
@@ -153,25 +168,60 @@ def expected_costs(
         start.serve(t, quantity)
         step(start, t, train_levels[t], train_quantity)
     totals = [math.fsum(path) for path in paths]
+    demanded = math.fsum(totals)
     results = []
     for safety, quantity in candidates:
         if quantity <= 0:
             raise ValueError("order quantity must be positive")
         levels = [base + safety for base in base_levels]
         cost = 0.0
+        served: list[float] = []
         for path, total in zip(paths, totals, strict=True):
             ledger = _Ledger(net=start.net, warmup=warmup, arrivals=dict(start.arrivals))
             for h, demand in enumerate(path):
                 ledger.serve(warmup + h, demand)
                 step(ledger, warmup + h, levels[h], quantity)
             short = max(total - ledger.served_total, 0.0)
+            served.append(total - short)
             cost += (
                 rates.order * ledger.orders
                 + rates.holding * ledger.on_hand_sum
                 + rates.stockout * short
             )
-        results.append(cost / len(paths))
+        fill = math.fsum(served) / demanded if demanded > 0 else 1.0
+        results.append((cost / len(paths), fill))
     return results
+
+
+def expected_costs(
+    train_demand: Sequence[float],
+    train_levels: Sequence[float],
+    train_quantity: float,
+    kind: str,
+    review_period: int,
+    lead_time: float,
+    base_levels: Sequence[float],
+    paths: Sequence[Sequence[float]],
+    rates: CostRates,
+    candidates: Sequence[tuple[float, float]],
+) -> list[float]:
+    """Mean cost of the test window per path for each ``(safety stock, quantity)``.
+
+    The cost part of :func:`expected_outcomes`, with the same arguments.
+    """
+    outcomes = expected_outcomes(
+        train_demand,
+        train_levels,
+        train_quantity,
+        kind,
+        review_period,
+        lead_time,
+        base_levels,
+        paths,
+        rates,
+        candidates,
+    )
+    return [cost for cost, _ in outcomes]
 
 
 def search_levels(
@@ -187,6 +237,7 @@ def search_levels(
     safety_values: Sequence[float],
     quantity_values: Sequence[float],
     refine_step: float = 0.0,
+    fill_floor: float | None = None,
 ) -> CostSearch:
     """The ``(safety stock, quantity)`` with the lowest expected cost.
 
@@ -195,11 +246,15 @@ def search_levels(
     of :data:`REFINE_STEPS` times ``refine_step`` at the best quantity. Pairs are
     scored in that order (grid: safety stock, then quantity) and a pair replaces
     the best only with a strictly lower cost, so the heuristic pair wins ties.
+
+    With ``fill_floor`` (ADR 0016) only pairs whose expected fill rate is at
+    least the floor can be picked, the refinement included; when no grid pair
+    meets it, the heuristic pair is kept without refining (``fell_back``).
     """
     if not safety_values or not quantity_values:
         raise ValueError("the grids need at least one value each")
     replay = partial(
-        expected_costs,
+        expected_outcomes,
         train_demand,
         train_levels,
         train_quantity,
@@ -211,26 +266,39 @@ def search_levels(
         rates,
     )
     candidates = [(s, q) for s in safety_values for q in quantity_values]
-    costs = replay(candidates)
-    best = 0
-    for index, cost in enumerate(costs):
-        if cost < costs[best]:
+    outcomes = replay(candidates)
+
+    def allowed(index: int) -> bool:
+        return fill_floor is None or outcomes[index][1] >= fill_floor
+
+    accepted = [index for index in range(len(candidates)) if allowed(index)]
+    fell_back = not accepted
+    best = accepted[0] if accepted else 0
+    for index in accepted:
+        if outcomes[index][0] < outcomes[best][0]:
             best = index
-    if refine_step > 0:
+    if refine_step > 0 and not fell_back:
         safety, quantity = candidates[best]
         local = [(safety + k * refine_step, quantity) for k in REFINE_STEPS]
         candidates += local
-        costs += replay(local)
+        outcomes += replay(local)
         for index in range(len(candidates) - len(local), len(candidates)):
-            if costs[index] < costs[best]:
-                best = index
+            if allowed(index):
+                accepted.append(index)
+                if outcomes[index][0] < outcomes[best][0]:
+                    best = index
     return CostSearch(
         safety_stock=candidates[best][0],
         order_quantity=candidates[best][1],
-        expected_cost=costs[best],
+        expected_cost=outcomes[best][0],
         heuristic_safety_stock=safety_values[0],
         heuristic_order_quantity=quantity_values[0],
-        heuristic_cost=costs[0],
+        heuristic_cost=outcomes[0][0],
         candidates=len(candidates),
         samples=len(paths),
+        fill_floor=fill_floor,
+        expected_fill=None if fill_floor is None else outcomes[best][1],
+        heuristic_fill=None if fill_floor is None else outcomes[0][1],
+        feasible=len(accepted) if fill_floor is not None else 0,
+        fell_back=fell_back,
     )

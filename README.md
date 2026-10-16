@@ -243,6 +243,7 @@ The building blocks are public too: `read_demand`, `abc_classes`, `xyz_class`, `
 | `--cost-columns` | off | Take each SKU's cost per order and per unit short from the optional `order_cost` and `stockout_cost` columns; a SKU without a value uses `--order-cost` / `--stockout-cost` |
 | `--optimize-cost` | off | With cost rates and `--policy sQ` or `RsS`: also pick each SKU's safety stock and order quantity (so `s` and `S = s + Q`) on a bounded grid for the lowest expected cost of the test window, estimated on demand paths built from the training periods only, and replay that policy on the test (fixed origin); see [ADR 0015](docs/decisions/0015-cost-optimised-levels.md) |
 | `--optimize-samples N` | 100 | Demand paths per SKU of that search (at least 10) |
+| `--optimize-fill-floor F` | off | With `--optimize-cost`: accept only pairs whose expected fill rate on the training paths is at least `F` (in (0, 1]); a SKU where none qualifies keeps the heuristic pair; see [ADR 0016](docs/decisions/0016-fill-rate-floor-for-the-cost-search.md) |
 | `--trend-seasonal` | off | Also backtest damped Holt and Holt-Winters (additive, multiplicative) on smooth and erratic SKUs when the history allows; see [ADR 0006](docs/decisions/0006-trend-and-seasonal-forecasts.md) |
 | `--season-length M` | `--periods-per-year` | Season of Holt-Winters in periods (12 for months); only with `--trend-seasonal` |
 | `--abc-thresholds a,b` | 0.8,0.95 | Cumulative value shares that end classes A and B |

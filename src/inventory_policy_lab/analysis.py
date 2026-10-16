@@ -108,6 +108,7 @@ class Config:
     cost_columns: bool = False  # order_cost, stockout_cost per SKU from the CSV (ADR 0014)
     optimize_cost: bool = False  # also search SS and Q for cost on train (ADR 0015)
     optimize_samples: int = DEFAULT_SAMPLES  # demand paths of that search (ADR 0015)
+    optimize_fill_floor: float | None = None  # least expected fill rate of a pick (ADR 0016)
 
     @property
     def cost_rates(self) -> CostRates | None:
@@ -300,6 +301,14 @@ class Config:
                     "the cost search applies to --policy sQ and RsS; (R, S) has no order "
                     "quantity to search (compare it with a higher --service-level instead)"
                 )
+        floor = self.optimize_fill_floor
+        if floor is not None:
+            if not self.optimize_cost:
+                raise ConfigError(
+                    "a fill-rate floor constrains the cost search and needs --optimize-cost"
+                )
+            if not (math.isfinite(floor) and 0 < floor <= 1):
+                raise ConfigError(f"the fill-rate floor must be in (0, 1], got {floor}")
 
     def methods(self, category: str) -> dict[str, Method]:
         """Candidate forecasting methods for a demand category, in tie-break order."""

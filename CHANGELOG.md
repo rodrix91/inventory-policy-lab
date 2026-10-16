@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- Fill-rate floor for the cost search, opt-in with `--optimize-fill-floor F` (`Config.optimize_fill_floor`, `0 < F <= 1`, needs `--optimize-cost`): only pairs whose expected fill rate on the training demand paths is at least `F` can be picked (refinement included), and a SKU where no pair meets it keeps the heuristic pair. Markdown adds the floor and an expected-fill column; JSON adds `optimize_fill_floor`, `optimized.fill_floor`, `summary.fell_back` and per SKU `expected_fill_rate`, `heuristic_expected_fill_rate`, `feasible`, `fell_back`. API: `expected_outcomes`, `search_levels(..., fill_floor=)`, new `CostSearch` fields. Without it the reports are byte for byte those of 0.9.0 (122 outputs compared) (ADR 0016).
+- Result (100 paths, README rates): the floor hardly binds, since the training paths already expect 95% to 100% fill; at 0.99 the out-of-sample fill rate of the optimised policy moves from 88.4% to 90.0% (48-month (s, Q)) and from 90.6% to 91.4% (24-month (s, Q)) at a higher test cost on the 24-month example (20,985 against 18,016), and (R, s, S) does not improve.
+
 ## [0.9.0] - 2026-10-16
 
 ### Added
