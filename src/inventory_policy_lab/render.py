@@ -378,6 +378,7 @@ def _out_of_sample_dict(oos: OutOfSampleReport) -> dict[str, Any]:
         ],
         **_rolling_dict(oos),
         **_costs_dict(oos),
+        **_optimized_dict(oos),
     }
 
 
@@ -416,6 +417,56 @@ def _cost_setting(config: Config) -> dict[str, Any]:
     if config.cost_columns:
         settings["cost_columns"] = True
     return settings
+
+
+def _optimize_setting(config: Config) -> dict[str, Any]:
+    """Settings of ADR 0015, only when used, so the JSON without them stays that of 0.8.0."""
+    if not config.optimize_cost:
+        return {}
+    return {"optimize_cost": True, "optimize_samples": config.optimize_samples}
+
+
+def _optimized_dict(oos: OutOfSampleReport) -> dict[str, Any]:
+    """The cost-optimised replay (ADR 0015); only present with the option."""
+    from .optimize import COVER_PERIODS, SAFETY_Z
+
+    if not oos.optimize_cost:
+        return {}
+    skus = []
+    for s in oos.skus:
+        assert s.optimized is not None  # every SKU is searched with the option
+        found, search = s.optimized, s.optimized.search
+        item: dict[str, Any] = {
+            "sku": s.sku,
+            "safety_stock": _r(search.safety_stock),
+            "order_quantity": _r(search.order_quantity),
+            "heuristic_safety_stock": _r(search.heuristic_safety_stock),
+            "heuristic_order_quantity": _r(search.heuristic_order_quantity),
+            "expected_cost": _r(search.expected_cost),
+            "heuristic_expected_cost": _r(search.heuristic_cost),
+            "candidates": search.candidates,
+            "error_source": found.error_source,
+            "errors": found.errors,
+            "test_levels": _rs(found.test_levels),
+            "out_of_sample": _simulation_dict(found.out_of_sample),
+            "cost": _cost_dict(oos.optimized_sku_cost(s)),
+        }
+        skus.append(item)
+    searches = [s.optimized.search for s in oos.skus if s.optimized is not None]
+    return {
+        "optimized": {
+            "origin": "fixed",
+            "samples": oos.optimize_samples,
+            "grid": {"safety_z": list(SAFETY_Z), "cover_periods": list(COVER_PERIODS)},
+            "summary": {
+                "out_of_sample": _totals_dict(oos.optimized_totals()),
+                "cost": _cost_dict(oos.optimized_cost()),
+                "expected_cost": _r(sum(x.expected_cost for x in searches)),
+                "heuristic_expected_cost": _r(sum(x.heuristic_cost for x in searches)),
+            },
+            "skus": skus,
+        }
+    }
 
 
 def report_to_dict(report: Report) -> dict[str, Any]:
@@ -461,6 +512,7 @@ def report_to_dict(report: Report) -> dict[str, Any]:
             **_bootstrap_source_dict(config),
             **_rolling_setting(config),
             **_cost_setting(config),
+            **_optimize_setting(config),
         },
         "summary": {
             "skus": len(report.skus),
@@ -573,6 +625,8 @@ def _out_of_sample_lines(oos: OutOfSampleReport) -> list[str]:
         lines += _rolling_lines(oos)
     if oos.costs is not None:
         lines += _cost_lines(oos)
+    if oos.optimize_cost:
+        lines += _optimized_lines(oos)
     return lines
 
 
@@ -656,6 +710,86 @@ def _cost_lines(oos: OutOfSampleReport) -> list[str]:
         ["SKU", "Safety stock", "Origin", "Ordering", "Holding", "Stockout", "Total"], sku_rows
     )
     return lines
+
+
+def _optimized_lines(oos: OutOfSampleReport) -> list[str]:
+    from .validation import SAFETY_STOCK_METHODS
+
+    test = oos.test_calendar
+    quantity = "order quantity Q" if oos.policy == "sQ" else "order quantity Q (S = s + Q)"
+    lines = [
+        "",
+        f"### Cost-optimised levels (fixed origin, test {test[0]} to {test[-1]})",
+        "",
+        f"Each SKU's safety stock and {quantity} are picked for the lowest expected cost "
+        f"of the {len(test)} test periods, estimated on {oos.optimize_samples} demand paths "
+        "built from the training periods only (the training forecast of each test period "
+        "plus a one-step forecast error of training drawn at random). The level keeps the "
+        "forecast part of the normal one. Grid: the normal safety stock or z x sigma for z "
+        "from -1 to 3 by 0.25 (sigma: the training one-step errors x sqrt(L + R)); the "
+        "heuristic quantity or 0.5 to 6 (by 0.5), 8, 10 or 12 periods of mean training "
+        "demand; ties keep the heuristic. The test starts from the stock the normal policy "
+        "left at the end of training, and the test demand is used only to score.",
+        "",
+    ]
+    rows = []
+    for method in SAFETY_STOCK_METHODS:
+        totals, cost = oos.totals(method, "out_of_sample"), oos.cost(method)
+        rows.append(_optimized_row(_method_label(method, oos), totals, cost))
+    rows.append(_optimized_row("cost-optimised", oos.optimized_totals(), oos.optimized_cost()))
+    lines += _table(
+        [
+            "Policy",
+            "Fill rate out",
+            "Units short",
+            "Avg on hand (sum)",
+            "Orders",
+            "Total cost of the test",
+        ],
+        rows,
+    )
+    if oos.rolling_origin:
+        lines += ["", "The rolling origin is not searched: only the fixed origin is optimised."]
+    lines += [""]
+    sku_rows = []
+    for s in oos.skus:
+        assert s.optimized is not None  # every SKU is searched with the option
+        search, normal = s.optimized.search, s.replay("normal")
+        sku_rows.append(
+            [
+                s.sku,
+                f"{_num(search.heuristic_safety_stock)} / {_num(search.safety_stock)}",
+                f"{_num(search.heuristic_order_quantity)} / {_num(search.order_quantity)}",
+                f"{_num(search.heuristic_cost)} / {_num(search.expected_cost)}",
+                f"{_num(oos.sku_cost(s, 'normal').total)} / "
+                f"{_num(oos.optimized_sku_cost(s).total)}",
+                f"{_pct(normal.out_of_sample.fill_rate)} / "
+                f"{_pct(s.optimized.out_of_sample.fill_rate)}",
+            ]
+        )
+    lines += _table(
+        [
+            "SKU",
+            "Safety stock, normal / optimised",
+            "Order qty, normal / optimised",
+            "Expected cost on training paths, normal / optimised",
+            "Test cost, normal / optimised",
+            "Fill rate out, normal / optimised",
+        ],
+        sku_rows,
+    )
+    return lines
+
+
+def _optimized_row(label: str, totals: ReplayTotals, cost: CostBreakdown) -> list[str]:
+    return [
+        label,
+        _pct(totals.fill_rate),
+        _num(cost.units_short),
+        _num(totals.average_on_hand),
+        str(cost.orders),
+        f"**{_num(cost.total)}**",
+    ]
 
 
 def _rates_text(oos: OutOfSampleReport) -> str:

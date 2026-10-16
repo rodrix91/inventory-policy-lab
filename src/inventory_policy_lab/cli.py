@@ -233,6 +233,26 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    group = parser.add_argument_group(
+        "cost-optimised levels",
+        "with cost rates and --policy sQ or RsS, also pick each SKU's safety stock and order "
+        "quantity for the lowest expected cost of the test window, estimated on demand paths "
+        "built from the training periods only, and replay that policy on the test (fixed "
+        "origin)",
+    )
+    group.add_argument(
+        "--optimize-cost",
+        action="store_true",
+        help="search s and Q (S = s + Q for RsS) on a bounded grid; see ADR 0015",
+    )
+    group.add_argument(
+        "--optimize-samples",
+        type=int,
+        default=100,
+        metavar="N",
+        help="demand paths per SKU of that search, at least 10 (100)",
+    )
+
     group = parser.add_argument_group("classification and forecasting")
     group.add_argument(
         "--abc-thresholds", type=_pair, default=(0.8, 0.95), help="cumulative shares (0.8,0.95)"
@@ -303,6 +323,8 @@ def config_from_args(args: argparse.Namespace) -> Config:
         stockout_cost=args.stockout_cost,
         holding_cost_rate=args.holding_cost_rate,
         cost_columns=args.cost_columns,
+        optimize_cost=args.optimize_cost,
+        optimize_samples=args.optimize_samples,
     )
 
 
