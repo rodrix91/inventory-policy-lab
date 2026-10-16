@@ -37,6 +37,8 @@ least the test window gives the fixed-origin replay.
 
 from __future__ import annotations
 
+import math
+import random
 import statistics
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
@@ -45,6 +47,8 @@ from typing import TYPE_CHECKING
 from .classify import abc_classes
 from .costs import CostBreakdown, CostRates, replay_cost, total_cost
 from .errors import HistoryError
+from .optimize import CostSearch, demand_paths, quantity_grid, safety_grid, search_levels
+from .policy import protection_periods
 from .reader import DemandData, SkuHistory
 from .simulate import SimulationResult
 
@@ -52,7 +56,7 @@ SAFETY_STOCK_METHODS = ("normal", "bootstrap")
 ORIGINS = ("fixed", "rolling")  # the out-of-sample replays: fixed origin, rolling origin
 
 if TYPE_CHECKING:  # pragma: no cover - imports for type hints only
-    from .analysis import Config
+    from .analysis import Config, SkuResult
     from .policy import Policy
 
 
@@ -87,6 +91,22 @@ class RollingReplay:
 
 
 @dataclass(frozen=True)
+class OptimizedReplay:
+    """The cost-optimised safety stock and quantity of a SKU, replayed on the test (ADR 0015).
+
+    The training periods keep the normal policy, so the test starts from the
+    same stock as the normal fixed-origin replay.
+    """
+
+    search: CostSearch  # what the search on training paths picked, and its expected costs
+    test_levels: tuple[float, ...]  # level of each test period: forecast part + picked SS
+    order_quantity: float  # the picked Q (S = s + Q for (R, s, S))
+    error_source: str  # "forecast errors" or "demand deviations" (too few errors)
+    errors: int  # how many training values the demand paths resample
+    out_of_sample: SimulationResult  # the test periods only
+
+
+@dataclass(frozen=True)
 class SkuOutOfSample:
     sku: str
     train_periods: int
@@ -98,6 +118,7 @@ class SkuOutOfSample:
     replays: tuple[PolicyReplay, ...]  # one per method, in SAFETY_STOCK_METHODS order
     notes: tuple[str, ...]
     rolling: tuple[RollingReplay, ...] = ()  # with Config.rolling_origin, same order
+    optimized: OptimizedReplay | None = None  # with Config.optimize_cost (ADR 0015)
 
     def replay(self, method: str) -> PolicyReplay:
         return next(r for r in self.replays if r.method == method)
@@ -133,6 +154,8 @@ class OutOfSampleReport:
     sku_rates: Mapping[str, CostRates] = field(default_factory=dict)
     holding_cost_rate: float | None = None  # yearly holding rate of the unit cost (ADR 0014)
     cost_columns: bool = False  # order_cost and stockout_cost columns read (ADR 0014)
+    optimize_cost: bool = False  # SKUs also carry cost-optimised replays (ADR 0015)
+    optimize_samples: int = 0  # demand paths of the cost search
 
     def rates_of(self, sku: str) -> CostRates:
         """The cost rates of ``sku``: its own (ADR 0014), else the shared ones.
@@ -163,6 +186,25 @@ class OutOfSampleReport:
     def cost(self, method: str, origin: str = "fixed") -> CostBreakdown:
         """Cost of the test periods of ``method`` summed over the SKUs."""
         return total_cost(self.sku_cost(s, method, origin) for s in self.skus)
+
+    def optimized_sku_cost(self, sku: SkuOutOfSample) -> CostBreakdown:
+        """Cost of the test periods of ``sku`` with its cost-optimised policy (ADR 0015).
+
+        Raises ``ValueError`` when the report has no cost search.
+        """
+        if sku.optimized is None:
+            raise ValueError("this report has no cost search (Config.optimize_cost)")
+        return replay_cost(sku.optimized.out_of_sample, self.rates_of(sku.sku))
+
+    def optimized_cost(self) -> CostBreakdown:
+        """Cost of the test periods with the cost-optimised policies, summed over the SKUs."""
+        return total_cost(self.optimized_sku_cost(s) for s in self.skus)
+
+    def optimized_totals(self) -> ReplayTotals:
+        """Out-of-sample totals of the cost-optimised policies."""
+        if not self.optimize_cost:
+            raise ValueError("this report has no cost search (Config.optimize_cost)")
+        return _sum([s.optimized.out_of_sample for s in self.skus if s.optimized is not None])
 
 
 def _sum(results: list[SimulationResult]) -> ReplayTotals:
@@ -275,13 +317,20 @@ def out_of_sample_replay(data: DemandData, config: Config) -> OutOfSampleReport:
         rolling = []
         notes: list[str] = []
         fitted = None
+        optimized = None
         for method in SAFETY_STOCK_METHODS:
             settings = replace(config, safety_stock_method=method)
             # Dynamic levels of the test periods come from the fit on train only:
             # the real forecasts 1 to N steps after the end of training.
             ahead = len(history.demand) - len(train.demand)
+            search = config.optimize_cost and method == "normal"
             fitted = _analyze_sku(
-                train, settings, classes[history.sku], values[history.sku], horizon=ahead
+                train,
+                settings,
+                classes[history.sku],
+                values[history.sku],
+                horizon=ahead,
+                optimize_inputs=search,
             )
             notes += [note for note in fitted.notes if note not in notes]
             policy = fitted.policy
@@ -305,6 +354,10 @@ def out_of_sample_replay(data: DemandData, config: Config) -> OutOfSampleReport:
                     test_safety_stocks=fitted.next_safety_stocks,
                 )
             )
+            if search:
+                optimized = _optimized_replay(
+                    history, train, fitted, config, config.sku_cost_rates(history)
+                )
             if origins:
                 train_levels = fitted.levels or (policy.reorder_point,) * len(train.demand)
                 rolling.append(
@@ -332,6 +385,7 @@ def out_of_sample_replay(data: DemandData, config: Config) -> OutOfSampleReport:
                 replays=tuple(replays),
                 notes=tuple(notes),
                 rolling=tuple(rolling),
+                optimized=optimized,
             )
         )
     return OutOfSampleReport(
@@ -352,6 +406,67 @@ def out_of_sample_replay(data: DemandData, config: Config) -> OutOfSampleReport:
         ),
         holding_cost_rate=config.holding_cost_rate,
         cost_columns=config.cost_columns,
+        optimize_cost=config.optimize_cost,
+        optimize_samples=config.optimize_samples if config.optimize_cost else 0,
+    )
+
+
+def _optimized_replay(
+    history: SkuHistory, train: SkuHistory, fitted: SkuResult, config: Config, rates: CostRates
+) -> OptimizedReplay:
+    """Search the safety stock and quantity of ``history`` for cost on ``train`` only.
+
+    ``fitted`` is the normal policy fitted on ``train`` with the inputs of the
+    search (the forecast of every test period and the one-step errors of the
+    training periods). The demand paths and every grid bound come from
+    ``train`` and ``fitted``; the test demand is used only by the final replay.
+    """
+    from .analysis import replay_policy
+
+    policy = fitted.policy
+    train_length = len(train.demand)
+    test_length = len(history.demand) - train_length
+    train_levels = fitted.levels or (policy.reorder_point,) * train_length
+    test_levels = fitted.next_levels or (policy.reorder_point,) * test_length
+    base = tuple(level - policy.safety_stock for level in test_levels)
+    mean = statistics.fmean(train.demand)
+    errors, source = fitted.forecast_errors, "forecast errors"
+    if len(errors) < 2:
+        errors = tuple(d - mean for d in train.demand)
+        source = "demand deviations"
+    protection = max(protection_periods(policy.lead_time, policy.review_period), 1)
+    sigma = statistics.pstdev(errors) * math.sqrt(protection)
+    rng = random.Random(f"{config.seed}:{history.sku}:optimize")
+    paths = demand_paths(fitted.next_forecasts, errors, config.optimize_samples, rng)
+    result = search_levels(
+        train.demand,
+        train_levels,
+        fitted.order_quantity,
+        policy.kind,
+        int(policy.review_period) if policy.kind == "RsS" else 1,
+        policy.lead_time,
+        base,
+        paths,
+        rates,
+        safety_grid(policy.safety_stock, sigma, policy.reorder_point - policy.safety_stock),
+        quantity_grid(fitted.order_quantity, mean),
+        refine_step=sigma / 4,
+    )
+    levels = tuple(b + result.safety_stock for b in base)
+    replay = replay_policy(
+        history.demand,
+        policy,
+        (fitted.order_quantity,) * train_length + (result.order_quantity,) * test_length,
+        train_levels + levels,
+        warmup=train_length,
+    )
+    return OptimizedReplay(
+        search=result,
+        test_levels=levels,
+        order_quantity=result.order_quantity,
+        error_source=source,
+        errors=len(errors),
+        out_of_sample=replay,
     )
 
 

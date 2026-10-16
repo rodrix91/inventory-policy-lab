@@ -135,6 +135,25 @@ class _Ledger:
         )
 
 
+def _review_sq(ledger: _Ledger, t: int, level: float, quantity: float, lead: int) -> None:
+    """End of period ``t`` under (s, Q): order ``Q`` while the position is at or below ``s``."""
+    position = ledger.position()
+    while position <= level + _EPSILON:
+        ledger.order(t, t + lead + 1, quantity)
+        position += quantity
+
+
+def _review_rss(
+    ledger: _Ledger, t: int, level: float, quantity: float, review: int, lead: int
+) -> None:
+    """End of period ``t`` under (R, s, S): at a review, order up to ``s + Q`` at or below ``s``."""
+    if (t + 1) % review:
+        return
+    position = ledger.position()
+    if position <= level + _EPSILON:
+        ledger.order(t, t + lead + 1, level + quantity - position)
+
+
 def simulate(
     demand: Sequence[float],
     reorder_point: float | Sequence[float],
@@ -159,10 +178,7 @@ def simulate(
     ledger = _Ledger(net=start + first, warmup=warmup, arrivals={})
     for t, quantity in enumerate(demand):
         ledger.serve(t, quantity)
-        position = ledger.position()
-        while position <= levels[t] + _EPSILON:
-            ledger.order(t, t + lead + 1, quantities[t])
-            position += quantities[t]
+        _review_sq(ledger, t, levels[t], quantities[t], lead)
     return ledger.result(demand, lead)
 
 
@@ -224,9 +240,5 @@ def simulate_rss(
     ledger = _Ledger(net=start + first, warmup=warmup, arrivals={})
     for t, quantity in enumerate(demand):
         ledger.serve(t, quantity)
-        if (t + 1) % review:
-            continue
-        position = ledger.position()
-        if position <= levels[t] + _EPSILON:
-            ledger.order(t, t + lead + 1, levels[t] + quantities[t] - position)
+        _review_rss(ledger, t, levels[t], quantities[t], review, lead)
     return ledger.result(demand, lead)

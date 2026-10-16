@@ -33,6 +33,7 @@ from .forecast import (
     sba,
     ses,
 )
+from .optimize import DEFAULT_SAMPLES, OPTIMIZABLE
 from .policy import (
     BOOTSTRAP_SOURCES,
     POLICY_KINDS,
@@ -105,6 +106,8 @@ class Config:
     stockout_cost: float | None = None  # cost per unit not served from stock (ADR 0012)
     holding_cost_rate: float | None = None  # yearly holding cost / unit_cost (ADR 0014)
     cost_columns: bool = False  # order_cost, stockout_cost per SKU from the CSV (ADR 0014)
+    optimize_cost: bool = False  # also search SS and Q for cost on train (ADR 0015)
+    optimize_samples: int = DEFAULT_SAMPLES  # demand paths of that search (ADR 0015)
 
     @property
     def cost_rates(self) -> CostRates | None:
@@ -284,6 +287,19 @@ class Config:
                 "order, holding and stockout costs score the out-of-sample replay and "
                 "need test periods (--test-periods N)"
             )
+        if self.optimize_samples < 10:
+            raise ConfigError(f"optimize samples must be at least 10, got {self.optimize_samples}")
+        if self.optimize_cost:
+            if self.cost_rates is None:
+                raise ConfigError(
+                    "the cost search minimises the cost of the test window and needs cost "
+                    "rates (--order-cost, --holding-cost, --stockout-cost) and --test-periods"
+                )
+            if self.policy not in OPTIMIZABLE:
+                raise ConfigError(
+                    "the cost search applies to --policy sQ and RsS; (R, S) has no order "
+                    "quantity to search (compare it with a higher --service-level instead)"
+                )
 
     def methods(self, category: str) -> dict[str, Method]:
         """Candidate forecasting methods for a demand category, in tie-break order."""
@@ -489,6 +505,9 @@ class SkuResult:
     next_levels: tuple[float, ...] = ()  # dynamic levels of the periods after the history
     safety_stocks: tuple[float, ...] = ()  # per-period safety stocks of the replayed periods
     next_safety_stocks: tuple[float, ...] = ()  # per-period safety stocks after the history
+    # Inputs of the cost search (ADR 0015), only with optimize_inputs and a horizon:
+    next_forecasts: tuple[float, ...] = ()  # forecast of each period after the history
+    forecast_errors: tuple[float, ...] = ()  # one-step rolling-origin errors of the history
 
     @property
     def abc_xyz(self) -> str:
@@ -537,10 +556,19 @@ def _lead_time(history: SkuHistory, config: Config) -> tuple[float, float, str]:
 
 
 def _analyze_sku(
-    history: SkuHistory, config: Config, abc: str, value: float, horizon: int | None = None
+    history: SkuHistory,
+    config: Config,
+    abc: str,
+    value: float,
+    horizon: int | None = None,
+    optimize_inputs: bool = False,
 ) -> SkuResult:
     """One SKU. With dynamic levels, ``horizon`` periods after the history get levels
-    too (``next_levels``); by default one season (one period without a season)."""
+    too (``next_levels``); by default one season (one period without a season).
+
+    With ``optimize_inputs`` and a ``horizon``, the result also carries the
+    forecast of each of those periods and the one-step forecast errors of the
+    history, which the cost search of ADR 0015 resamples."""
     series = history.demand
     notes: list[str] = []
     if history.filled_periods:
@@ -704,6 +732,20 @@ def _analyze_sku(
         levels, next_levels = every[: len(series)], every[len(series) :]
     simulation = replay_policy(series, policy, quantity, levels)
 
+    next_forecasts: tuple[float, ...] = ()
+    errors: tuple[float, ...] = ()
+    if optimize_inputs and horizon is not None:
+        if method_name in fits:
+            every_forecast = fits[method_name].calendar_forecasts(
+                len(series), len(series) + horizon
+            )
+            next_forecasts = every_forecast[len(series) :]
+            one_step = _fit_interval(fitters[method_name])
+        else:
+            next_forecasts = (forecast,) * horizon
+            one_step = _level_interval(candidates[method_name])
+        errors = interval_forecast_errors(series, one_step, 1, RESIDUAL_START)
+
     return SkuResult(
         sku=history.sku,
         periods=len(series),
@@ -729,6 +771,8 @@ def _analyze_sku(
         next_levels=next_levels,
         safety_stocks=stocks,
         next_safety_stocks=next_stocks,
+        next_forecasts=next_forecasts,
+        forecast_errors=errors,
     )
 
 
