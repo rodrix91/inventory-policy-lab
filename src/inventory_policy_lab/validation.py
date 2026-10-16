@@ -156,6 +156,7 @@ class OutOfSampleReport:
     cost_columns: bool = False  # order_cost and stockout_cost columns read (ADR 0014)
     optimize_cost: bool = False  # SKUs also carry cost-optimised replays (ADR 0015)
     optimize_samples: int = 0  # demand paths of the cost search
+    optimize_fill_floor: float | None = None  # fill-rate floor of the search (ADR 0016)
 
     def rates_of(self, sku: str) -> CostRates:
         """The cost rates of ``sku``: its own (ADR 0014), else the shared ones.
@@ -408,6 +409,7 @@ def out_of_sample_replay(data: DemandData, config: Config) -> OutOfSampleReport:
         cost_columns=config.cost_columns,
         optimize_cost=config.optimize_cost,
         optimize_samples=config.optimize_samples if config.optimize_cost else 0,
+        optimize_fill_floor=config.optimize_fill_floor,
     )
 
 
@@ -451,6 +453,7 @@ def _optimized_replay(
         safety_grid(policy.safety_stock, sigma, policy.reorder_point - policy.safety_stock),
         quantity_grid(fitted.order_quantity, mean),
         refine_step=sigma / 4,
+        fill_floor=config.optimize_fill_floor,
     )
     levels = tuple(b + result.safety_stock for b in base)
     replay = replay_policy(

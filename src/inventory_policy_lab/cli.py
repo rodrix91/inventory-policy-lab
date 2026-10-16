@@ -252,6 +252,16 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="N",
         help="demand paths per SKU of that search, at least 10 (100)",
     )
+    group.add_argument(
+        "--optimize-fill-floor",
+        type=float,
+        default=None,
+        metavar="F",
+        help=(
+            "accept only pairs whose expected fill rate on the training paths is at least "
+            "F, in (0, 1]; without one, keep the heuristic pair; see ADR 0016 (off)"
+        ),
+    )
 
     group = parser.add_argument_group("classification and forecasting")
     group.add_argument(
@@ -325,6 +335,7 @@ def config_from_args(args: argparse.Namespace) -> Config:
         cost_columns=args.cost_columns,
         optimize_cost=args.optimize_cost,
         optimize_samples=args.optimize_samples,
+        optimize_fill_floor=args.optimize_fill_floor,
     )
 
 

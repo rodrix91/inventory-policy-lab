@@ -10,6 +10,7 @@ from . import __version__
 if TYPE_CHECKING:  # pragma: no cover - imports for type hints only
     from .analysis import Config, Report, SkuResult
     from .costs import CostBreakdown, CostRates
+    from .optimize import CostSearch
     from .policy import Policy
     from .simulate import SimulationResult
     from .validation import OutOfSampleReport, PolicyReplay, ReplayTotals, RollingReplay
@@ -423,7 +424,10 @@ def _optimize_setting(config: Config) -> dict[str, Any]:
     """Settings of ADR 0015, only when used, so the JSON without them stays that of 0.8.0."""
     if not config.optimize_cost:
         return {}
-    return {"optimize_cost": True, "optimize_samples": config.optimize_samples}
+    settings: dict[str, Any] = {"optimize_cost": True, "optimize_samples": config.optimize_samples}
+    if config.optimize_fill_floor is not None:  # ADR 0016, only when set
+        settings["optimize_fill_floor"] = config.optimize_fill_floor
+    return settings
 
 
 def _optimized_dict(oos: OutOfSampleReport) -> dict[str, Any]:
@@ -451,22 +455,30 @@ def _optimized_dict(oos: OutOfSampleReport) -> dict[str, Any]:
             "out_of_sample": _simulation_dict(found.out_of_sample),
             "cost": _cost_dict(oos.optimized_sku_cost(s)),
         }
+        if search.fill_floor is not None:  # ADR 0016
+            item["expected_fill_rate"] = _r(search.expected_fill)
+            item["heuristic_expected_fill_rate"] = _r(search.heuristic_fill)
+            item["feasible"] = search.feasible
+            item["fell_back"] = search.fell_back
         skus.append(item)
     searches = [s.optimized.search for s in oos.skus if s.optimized is not None]
-    return {
-        "optimized": {
-            "origin": "fixed",
-            "samples": oos.optimize_samples,
-            "grid": {"safety_z": list(SAFETY_Z), "cover_periods": list(COVER_PERIODS)},
-            "summary": {
-                "out_of_sample": _totals_dict(oos.optimized_totals()),
-                "cost": _cost_dict(oos.optimized_cost()),
-                "expected_cost": _r(sum(x.expected_cost for x in searches)),
-                "heuristic_expected_cost": _r(sum(x.heuristic_cost for x in searches)),
-            },
-            "skus": skus,
-        }
+    summary: dict[str, Any] = {
+        "out_of_sample": _totals_dict(oos.optimized_totals()),
+        "cost": _cost_dict(oos.optimized_cost()),
+        "expected_cost": _r(sum(x.expected_cost for x in searches)),
+        "heuristic_expected_cost": _r(sum(x.heuristic_cost for x in searches)),
     }
+    optimized: dict[str, Any] = {
+        "origin": "fixed",
+        "samples": oos.optimize_samples,
+        "grid": {"safety_z": list(SAFETY_Z), "cover_periods": list(COVER_PERIODS)},
+    }
+    if oos.optimize_fill_floor is not None:  # ADR 0016
+        optimized["fill_floor"] = oos.optimize_fill_floor
+        summary["fell_back"] = sum(x.fell_back for x in searches)
+    optimized["summary"] = summary
+    optimized["skus"] = skus
+    return {"optimized": optimized}
 
 
 def report_to_dict(report: Report) -> dict[str, Any]:
@@ -732,6 +744,15 @@ def _optimized_lines(oos: OutOfSampleReport) -> list[str]:
         "left at the end of training, and the test demand is used only to score.",
         "",
     ]
+    floor = oos.optimize_fill_floor
+    if floor is not None:  # ADR 0016
+        fell_back = sum(s.optimized.search.fell_back for s in oos.skus if s.optimized is not None)
+        lines[-1:-1] = [
+            "",
+            f"Fill-rate floor: only pairs whose expected fill rate on the training paths is "
+            f"at least {_pct(floor)} are accepted; a SKU with none keeps the heuristic pair "
+            f"({fell_back} of {len(oos.skus)} SKU(s)).",
+        ]
     rows = []
     for method in SAFETY_STOCK_METHODS:
         totals, cost = oos.totals(method, "out_of_sample"), oos.cost(method)
@@ -767,18 +788,26 @@ def _optimized_lines(oos: OutOfSampleReport) -> list[str]:
                 f"{_pct(s.optimized.out_of_sample.fill_rate)}",
             ]
         )
-    lines += _table(
-        [
-            "SKU",
-            "Safety stock, normal / optimised",
-            "Order qty, normal / optimised",
-            "Expected cost on training paths, normal / optimised",
-            "Test cost, normal / optimised",
-            "Fill rate out, normal / optimised",
-        ],
-        sku_rows,
-    )
+        if floor is not None:
+            sku_rows[-1].insert(4, _fill_pair(search))
+    headers = [
+        "SKU",
+        "Safety stock, normal / optimised",
+        "Order qty, normal / optimised",
+        "Expected cost on training paths, normal / optimised",
+        "Test cost, normal / optimised",
+        "Fill rate out, normal / optimised",
+    ]
+    if floor is not None:
+        headers.insert(4, "Expected fill rate on training paths, normal / optimised")
+    lines += _table(headers, sku_rows)
     return lines
+
+
+def _fill_pair(search: CostSearch) -> str:
+    """Expected fill rates of the heuristic and picked pairs, marked when it fell back."""
+    text = f"{_pct(search.heuristic_fill)} / {_pct(search.expected_fill)}"
+    return text + " (none met the floor)" if search.fell_back else text
 
 
 def _optimized_row(label: str, totals: ReplayTotals, cost: CostBreakdown) -> list[str]:
