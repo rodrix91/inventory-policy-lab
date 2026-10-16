@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- README "Levels optimised for cost": the table now shows the cost-optimised policy before (plain paths, as in 0.9.0) and after the options of this release (fill floor 0.95, refit paths, both) on the 48-month series and the 24-month example, pinned in `tests/test_optimize.py`, with the conclusion: refit paths make (R, s, S) the cheapest fixed-origin policy on the 48-month series (97.9% / 4,084), robustly across seeds and path counts, and help nothing on the 24-month example, where the heuristics stay cheaper.
+
 ### Added
 
 - `OptimizedReplay` is exported from the package (`from inventory_policy_lab import OptimizedReplay`), like the other result types; it was only importable from `inventory_policy_lab.validation`.
