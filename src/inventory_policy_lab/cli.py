@@ -93,16 +93,17 @@ def build_parser() -> argparse.ArgumentParser:
         default=1.0,
         help=(
             "periods between inventory reviews, added to the protection interval; "
-            "a whole number of at least 1 with --policy RS (1)"
+            "a whole number of at least 1 with --policy RS or RsS (1)"
         ),
     )
     group.add_argument(
         "--policy",
-        choices=("sQ", "RS"),
+        choices=("sQ", "RS", "RsS"),
         default="sQ",
         help=(
             "sQ: reorder point s and fixed quantity Q, checked every period; RS: periodic "
-            "review every R periods, ordering up to S (sQ)"
+            "review every R periods, ordering up to S; RsS: periodic review every R periods, "
+            "ordering up to S = s + Q only when the position is at or below s (sQ)"
         ),
     )
     group.add_argument(

@@ -5,7 +5,8 @@ Standard library only. The main entry points are :func:`analyze_file` (or
 and :func:`render_json`. ``Config(test_periods=N)`` adds an out-of-sample replay
 (:func:`out_of_sample_replay`) to the report, and ``Config(trend_seasonal=True)``
 adds damped Holt and Holt-Winters to the forecast candidates.
-``Config(policy="RS")`` replays a periodic-review, order-up-to policy, and
+``Config(policy="RS")`` replays a periodic-review, order-up-to policy,
+``Config(policy="RsS")`` a periodic-review (R, s, S) policy, and
 ``dynamic_levels=True`` lets its levels follow the forecast period by period.
 ``bootstrap_source="residuals"`` bootstraps the forecast errors instead of the
 demand, and ``period_safety_stock=True`` gives each dynamic level its own
@@ -49,7 +50,7 @@ from .policy import (
 )
 from .reader import DemandData, SkuHistory, parse_rows, read_demand
 from .render import render_json, render_markdown, report_to_dict
-from .simulate import SimulationResult, simulate, simulate_periodic
+from .simulate import SimulationResult, simulate, simulate_periodic, simulate_rss
 from .smoothing import (
     FitCacheInfo,
     FitError,
@@ -138,6 +139,7 @@ __all__ = [
     "ses",
     "simulate",
     "simulate_periodic",
+    "simulate_rss",
     "total_cost",
     "train_history",
     "xyz_class",

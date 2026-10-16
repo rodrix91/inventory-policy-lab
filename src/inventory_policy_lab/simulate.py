@@ -34,6 +34,13 @@ policy with the same timing, except for step 3: the inventory position is
 reviewed only at the end of every ``R``-th period (periods ``R - 1``,
 ``2R - 1``, ...), and then an order of ``S - position`` is placed when the
 position is below ``S``. The run starts with ``S`` units on hand.
+
+:func:`simulate_rss` replays a periodic-review (R, s, S) policy (ADR 0013): the
+position is reviewed at the same periods, and an order of ``S - position`` is
+placed only when the position is at or below ``s``, with ``S = s + Q``. The
+reorder level ``s`` and the quantity ``Q`` can be one number or one per period
+(dynamic levels, rolling origin), as in :func:`simulate`; the run starts with
+the first ``s + Q`` on hand, like (s, Q).
 """
 
 from __future__ import annotations
@@ -70,6 +77,14 @@ def _levels(level: float | Sequence[float], periods: int, name: str) -> tuple[fl
 def _check_warmup(demand: Sequence[float], warmup: int) -> None:
     if not 0 <= warmup <= len(demand):
         raise ValueError("warmup must be between 0 and the number of periods")
+
+
+def _review_period(review_period: int) -> int:
+    if isinstance(review_period, bool) or not isinstance(review_period, int):
+        raise ValueError("review_period must be a whole number of periods")
+    if review_period < 1:
+        raise ValueError("review_period must be at least 1")
+    return review_period
 
 
 @dataclass
@@ -166,19 +181,52 @@ def simulate_periodic(
     level used at a review at the end of that period). The run starts with the
     first level on hand. The first ``warmup`` periods are not scored.
     """
-    if isinstance(review_period, bool) or not isinstance(review_period, int):
-        raise ValueError("review_period must be a whole number of periods")
-    if review_period < 1:
-        raise ValueError("review_period must be at least 1")
+    review = _review_period(review_period)
     _check_warmup(demand, warmup)
     start, levels = _levels(order_up_to, len(demand), "order_up_to")
     lead = int(lead_time + 0.5)
     ledger = _Ledger(net=start, warmup=warmup, arrivals={})
     for t, quantity in enumerate(demand):
         ledger.serve(t, quantity)
-        if (t + 1) % review_period:
+        if (t + 1) % review:
             continue
         shortfall = levels[t] - ledger.position()
         if shortfall > _EPSILON:
             ledger.order(t, t + lead + 1, shortfall)
+    return ledger.result(demand, lead)
+
+
+def simulate_rss(
+    demand: Sequence[float],
+    reorder_point: float | Sequence[float],
+    order_quantity: float | Sequence[float],
+    review_period: int,
+    lead_time: float,
+    warmup: int = 0,
+) -> SimulationResult:
+    """Replay ``demand`` under the (R=``review_period``, s=``reorder_point``, S = s + Q) policy.
+
+    At a review (end of periods ``R - 1``, ``2R - 1``, ...) an order of
+    ``S - position`` with ``S = s + Q`` arrives at the start of period
+    ``t + L + 1`` when the position is at or below ``s``; above ``s`` nothing is
+    ordered. ``reorder_point`` and ``order_quantity`` are one value or one per
+    period (those of the period whose end is reviewed). The run starts with the
+    first ``s + Q`` on hand. The first ``warmup`` periods are not scored.
+    """
+    review = _review_period(review_period)
+    given = [order_quantity] if isinstance(order_quantity, int | float) else order_quantity
+    if any(q <= 0 for q in given):
+        raise ValueError("order_quantity must be positive")
+    first, quantities = _levels(order_quantity, len(demand), "order_quantity")
+    _check_warmup(demand, warmup)
+    start, levels = _levels(reorder_point, len(demand), "reorder_point")
+    lead = int(lead_time + 0.5)
+    ledger = _Ledger(net=start + first, warmup=warmup, arrivals={})
+    for t, quantity in enumerate(demand):
+        ledger.serve(t, quantity)
+        if (t + 1) % review:
+            continue
+        position = ledger.position()
+        if position <= levels[t] + _EPSILON:
+            ledger.order(t, t + lead + 1, levels[t] + quantities[t] - position)
     return ledger.result(demand, lead)

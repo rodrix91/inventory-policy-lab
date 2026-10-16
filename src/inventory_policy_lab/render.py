@@ -64,14 +64,23 @@ def _rs(values: tuple[float, ...]) -> list[float]:
     return [round(value, 4) for value in values]
 
 
+POLICY_NAMES = {"sQ": "(s, Q)", "RS": "(R, S)", "RsS": "(R, s, S)"}
+
+
 def _policy_name(config: Config) -> str:
-    return "(R, S)" if config.policy == "RS" else "(s, Q)"
+    return POLICY_NAMES[config.policy]
 
 
 def _policy_label(config: Config) -> str:
     if config.policy == "RS":
         label = (
             "- Policy: (R, S) periodic review, order-up-to level S = D x (L + R) + SS, "
+            f"reviewed every {config.review_period:g} period(s)"
+        )
+    elif config.policy == "RsS":
+        label = (
+            "- Policy: (R, s, S) periodic review, reorder level s = D x (L + R) + SS, "
+            "order-up-to level S = s + Q, ordering only when the position is at or below s, "
             f"reviewed every {config.review_period:g} period(s)"
         )
     else:
@@ -87,6 +96,14 @@ def _policy_label(config: Config) -> str:
 
 def _level_dict(policy: Policy, quantity: float, source: str) -> dict[str, Any]:
     """The level and quantity keys of a policy: (s, Q) as before, (R, S) with S."""
+    if policy.kind == "RsS":
+        return {
+            "kind": "RsS",
+            "order_up_to": _r(policy.reorder_point + quantity),
+            "reorder_point": _r(policy.reorder_point),
+            "order_quantity": _r(quantity),
+            "order_quantity_source": source,
+        }
     if policy.kind == "RS":
         return {
             "kind": "RS",
@@ -205,6 +222,8 @@ def _replay_level_dict(replay: PolicyReplay, kind: str) -> dict[str, Any]:
             "reorder_point": _r(replay.reorder_point),
             "order_quantity": _r(replay.order_quantity),
         }
+        if kind == "RsS":
+            values["order_up_to"] = _r(replay.reorder_point + replay.order_quantity)
     if replay.test_levels:
         values["test_levels"] = _rs(replay.test_levels)
     if replay.test_safety_stocks:
@@ -218,7 +237,7 @@ def _rolling_policy_dict(replay: RollingReplay, kind: str) -> dict[str, Any]:
         "safety_stocks": _rs(replay.safety_stocks),
         ("order_up_to_levels" if kind == "RS" else "reorder_points"): _rs(replay.levels),
     }
-    if kind == "sQ":
+    if kind != "RS":
         values["order_quantities"] = _rs(replay.order_quantities)
     values["out_of_sample"] = _simulation_dict(replay.out_of_sample)
     return values
@@ -697,6 +716,24 @@ def _safety_stock_cell(result: SkuResult) -> str:
     return f"{stock} ({_num(low)} to {_num(high)})"
 
 
+LEVEL_HEADERS = {
+    "sQ": ("Reorder point (s)", "Order qty (Q)"),
+    "RS": ("Order-up-to (S)", "Review (R)"),
+    "RsS": ("Reorder level (s)", "Order qty (Q = S - s)", "Review (R)"),
+}
+
+
+def _level_cells(result: SkuResult, kind: str) -> list[str]:
+    """The cells under :data:`LEVEL_HEADERS` of one SKU."""
+    review = f"{result.policy.review_period:g}"
+    quantity = f"{_num(result.order_quantity)} ({result.order_quantity_source})"
+    if kind == "RS":
+        return [_level_cell(result), review]
+    if kind == "RsS":
+        return [_level_cell(result), quantity, review]
+    return [_level_cell(result), quantity]
+
+
 def _level_cell(result: SkuResult) -> str:
     level = _num(result.policy.reorder_point)
     if not result.next_levels:
@@ -761,11 +798,7 @@ def render_markdown(report: Report) -> str:
             "Forecast/period",
             "CSL",
             "Safety stock",
-            *(
-                ("Order-up-to (S)", "Review (R)")
-                if config.policy == "RS"
-                else ("Reorder point (s)", "Order qty (Q)")
-            ),
+            *LEVEL_HEADERS[config.policy],
             "Fill rate",
             "Stockout periods",
             "Avg on hand",
@@ -779,12 +812,7 @@ def render_markdown(report: Report) -> str:
                 _num(r.forecast),
                 _pct(r.policy.service_level, 0),
                 _safety_stock_cell(r),
-                _level_cell(r),
-                (
-                    f"{r.policy.review_period:g}"
-                    if config.policy == "RS"
-                    else f"{_num(r.order_quantity)} ({r.order_quantity_source})"
-                ),
+                *_level_cells(r, config.policy),
                 _pct(r.simulation.fill_rate),
                 f"{r.simulation.stockout_periods}/{r.simulation.periods}",
                 _num(r.simulation.average_on_hand),
