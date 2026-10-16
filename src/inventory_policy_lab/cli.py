@@ -194,6 +194,25 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    group = parser.add_argument_group(
+        "cost of the out-of-sample replay",
+        "with --test-periods, score every replay of the test periods in money; a cost left "
+        "out counts as 0 once another is given; the policy itself does not change",
+    )
+    group.add_argument("--order-cost", type=float, metavar="C", help="cost per order placed")
+    group.add_argument(
+        "--holding-cost",
+        type=float,
+        metavar="C",
+        help="cost per unit on hand at the end of a period, per period",
+    )
+    group.add_argument(
+        "--stockout-cost",
+        type=float,
+        metavar="C",
+        help="cost per unit of demand not served from stock in its period (backordered)",
+    )
+
     group = parser.add_argument_group("classification and forecasting")
     group.add_argument(
         "--abc-thresholds", type=_pair, default=(0.8, 0.95), help="cumulative shares (0.8,0.95)"
@@ -259,6 +278,9 @@ def config_from_args(args: argparse.Namespace) -> Config:
         period_safety_stock=args.period_safety_stock,
         rolling_origin=args.rolling_origin,
         refit_every=args.refit_every,
+        order_cost=args.order_cost,
+        holding_cost=args.holding_cost,
+        stockout_cost=args.stockout_cost,
     )
 
 

@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- Cost of the out-of-sample replay, opt-in with `--order-cost`, `--holding-cost` and `--stockout-cost` (`Config.order_cost`, `holding_cost`, `stockout_cost`; need `--test-periods`): every replay of the test periods (normal and bootstrap, fixed and rolling origin) is priced at C per order placed, C per unit on hand at the end of a period, and C per unit of demand not served from stock in its period (backordered); a rate left out counts as 0. The Markdown report adds a "Cost of the test periods" section with totals per method and origin (orders, unit-periods held, units short, ordering, holding, stockout, total) and the same per SKU; JSON adds the rates to the settings and `out_of_sample.costs`. The rates do not change the policy (the EOQ inputs stay separate). Without them the Markdown and JSON reports are byte for byte those of 0.7.0 (ADR 0012).
+- API: `CostRates`, `CostBreakdown`, `replay_cost`, `total_cost`, `Config.cost_rates`, `OutOfSampleReport.costs`, `OutOfSampleReport.cost`, `OutOfSampleReport.sku_cost`.
+
 ## [0.7.0] - 2026-10-15
 
 ### Changed

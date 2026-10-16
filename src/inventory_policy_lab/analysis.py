@@ -20,6 +20,7 @@ from .classify import (
     demand_profile,
     xyz_class,
 )
+from .costs import CostRates
 from .errors import ConfigError, DataError, HistoryError
 from .forecast import (
     BacktestResult,
@@ -99,6 +100,21 @@ class Config:
     period_safety_stock: bool = False  # safety stock per period with dynamic levels (ADR 0008)
     rolling_origin: bool = False  # also refit every test period out of sample (ADR 0009)
     refit_every: int = 1  # rolling origin: refit every K test periods only (ADR 0011)
+    order_cost: float | None = None  # cost per order placed, to score replays (ADR 0012)
+    holding_cost: float | None = None  # cost per unit on hand per period (ADR 0012)
+    stockout_cost: float | None = None  # cost per unit not served from stock (ADR 0012)
+
+    @property
+    def cost_rates(self) -> CostRates | None:
+        """The cost rates of the out-of-sample replay; ``None`` when no cost is set.
+
+        A cost left unset counts as 0 once another one is set.
+        """
+        rates = (self.order_cost, self.holding_cost, self.stockout_cost)
+        if all(rate is None for rate in rates):
+            return None
+        order, holding, stockout = (rate or 0.0 for rate in rates)
+        return CostRates(order=order, holding=holding, stockout=stockout)
 
     @property
     def effective_season_length(self) -> int | None:
@@ -212,6 +228,19 @@ class Config:
         if self.refit_every != 1 and not self.rolling_origin:
             raise ConfigError(
                 "refitting every K periods applies to the rolling-origin replay (--rolling-origin)"
+            )
+        costs = {
+            "order cost": self.order_cost,
+            "holding cost": self.holding_cost,
+            "stockout cost": self.stockout_cost,
+        }
+        for label, cost in costs.items():
+            if cost is not None and not (math.isfinite(cost) and cost >= 0):
+                raise ConfigError(f"{label} must be a finite number of at least 0, got {cost}")
+        if self.cost_rates is not None and not self.test_periods:
+            raise ConfigError(
+                "order, holding and stockout costs score the out-of-sample replay and "
+                "need test periods (--test-periods N)"
             )
 
     def methods(self, category: str) -> dict[str, Method]:
