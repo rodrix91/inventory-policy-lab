@@ -104,6 +104,8 @@ class OptimizedReplay:
     error_source: str  # "forecast errors" or "demand deviations" (too few errors)
     errors: int  # how many training values the demand paths resample
     out_of_sample: SimulationResult  # the test periods only
+    paths: str = "forecast"  # "refit": each path refits the forecast (ADR 0017)
+    refit_failures: int = 0  # refits without a valid fit, which kept the training forecast
 
 
 @dataclass(frozen=True)
@@ -157,6 +159,7 @@ class OutOfSampleReport:
     optimize_cost: bool = False  # SKUs also carry cost-optimised replays (ADR 0015)
     optimize_samples: int = 0  # demand paths of the cost search
     optimize_fill_floor: float | None = None  # fill-rate floor of the search (ADR 0016)
+    optimize_paths: str = "forecast"  # demand paths of the search (ADR 0017)
 
     def rates_of(self, sku: str) -> CostRates:
         """The cost rates of ``sku``: its own (ADR 0014), else the shared ones.
@@ -410,6 +413,7 @@ def out_of_sample_replay(data: DemandData, config: Config) -> OutOfSampleReport:
         optimize_cost=config.optimize_cost,
         optimize_samples=config.optimize_samples if config.optimize_cost else 0,
         optimize_fill_floor=config.optimize_fill_floor,
+        optimize_paths=config.optimize_paths,
     )
 
 
@@ -439,7 +443,13 @@ def _optimized_replay(
     protection = max(protection_periods(policy.lead_time, policy.review_period), 1)
     sigma = statistics.pstdev(errors) * math.sqrt(protection)
     rng = random.Random(f"{config.seed}:{history.sku}:optimize")
-    paths = demand_paths(fitted.next_forecasts, errors, config.optimize_samples, rng)
+    kind = "forecast"
+    if config.optimize_paths == "refit" and fitted.refit_forecasts and source == "forecast errors":
+        # ADR 0017: one path per refit, its forecasts plus a resampled training error.
+        kind = "refit"
+        paths = tuple(demand_paths(f, errors, 1, rng)[0] for f in fitted.refit_forecasts)
+    else:
+        paths = demand_paths(fitted.next_forecasts, errors, config.optimize_samples, rng)
     result = search_levels(
         train.demand,
         train_levels,
@@ -470,6 +480,8 @@ def _optimized_replay(
         error_source=source,
         errors=len(errors),
         out_of_sample=replay,
+        paths=kind,
+        refit_failures=fitted.refit_failures if kind == "refit" else 0,
     )
 
 
