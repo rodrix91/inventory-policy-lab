@@ -147,7 +147,7 @@ def test_calendar_forecasts_by_hand() -> None:
 @pytest.mark.parametrize(
     ("settings", "message"),
     [
-        ({"policy": "sS"}, "policy must be 'sQ' or 'RS'"),
+        ({"policy": "sS"}, "policy must be 'sQ', 'RS' or 'RsS'"),
         ({"policy": "RS", "review_period": 0}, "whole review period of at least 1, got 0"),
         ({"policy": "RS", "review_period": 1.5}, "whole review period of at least 1, got 1.5"),
         ({"dynamic_levels": True}, "need trend_seasonal"),

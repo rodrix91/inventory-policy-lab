@@ -8,7 +8,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from statistics import NormalDist
 
-POLICY_KINDS = ("sQ", "RS")
+POLICY_KINDS = ("sQ", "RS", "RsS")
 BOOTSTRAP_SOURCES = ("demand", "residuals")
 
 # Forecast of the total demand of the next ``periods`` periods from ``history``;
@@ -18,12 +18,14 @@ IntervalForecaster = Callable[[Sequence[float], int], float | None]
 
 @dataclass(frozen=True)
 class Policy:
-    """An (s, Q) or (R, S) policy for one SKU, in units and periods.
+    """An (s, Q), (R, S) or (R, s, S) policy for one SKU, in units and periods.
 
     ``reorder_point`` is the level the inventory position is compared with:
     the reorder point ``s`` of an (s, Q) policy (``R = 0``: continuous review),
-    or the order-up-to level ``S`` of an (R, S) policy, which has the same
-    formula ``D * (L + R) + SS`` (ADR 0007).
+    the order-up-to level ``S`` of an (R, S) policy, which has the same
+    formula ``D * (L + R) + SS`` (ADR 0007), or the reorder level ``s`` of an
+    (R, s, S) policy, again ``D * (L + R) + SS``, whose ``S`` is ``s + Q`` with
+    the order quantity of the SKU (ADR 0013).
     """
 
     service_level: float  # target cycle service level (probability of no stockout per cycle)
@@ -37,11 +39,12 @@ class Policy:
     reorder_point: float
     eoq: float | None
     safety_stock_method: str = "normal"  # "normal" (formula) or "bootstrap" (empirical)
-    kind: str = "sQ"  # "sQ" (reorder point, fixed quantity) or "RS" (periodic, order-up-to)
+    kind: str = "sQ"  # "sQ" (reorder point, fixed quantity), "RS" or "RsS" (periodic review)
 
     @property
     def order_up_to(self) -> float | None:
-        """The order-up-to level ``S`` of an (R, S) policy; ``None`` for (s, Q)."""
+        """The order-up-to level ``S`` of an (R, S) policy; ``None`` for (s, Q) and for
+        (R, s, S), whose ``S = s + Q`` depends on the order quantity."""
         return self.reorder_point if self.kind == "RS" else None
 
 
@@ -204,14 +207,15 @@ def build_policy(
 ) -> Policy:
     """Combine safety stock and the level ``D * (L + R) + SS`` into a :class:`Policy`.
 
-    The level is the reorder point ``s`` with ``kind="sQ"`` and the order-up-to
-    level ``S`` with ``kind="RS"``. With ``bootstrap_units`` (from
+    The level is the reorder point ``s`` with ``kind="sQ"``, the order-up-to
+    level ``S`` with ``kind="RS"``, and the reorder level ``s`` with
+    ``kind="RsS"`` (its ``S`` is ``s + Q``). With ``bootstrap_units`` (from
     :func:`bootstrap_safety_stock`) that value is the safety stock and the
     policy is marked ``"bootstrap"``; ``z`` is still the normal quantile of the
     service level, reported for comparison.
     """
     if kind not in POLICY_KINDS:
-        raise ValueError(f"kind must be 'sQ' or 'RS', got {kind!r}")
+        raise ValueError(f"kind must be 'sQ', 'RS' or 'RsS', got {kind!r}")
     z, ss = safety_stock(
         service_level, demand_per_period, sigma_demand, lead_time, sigma_lead_time, review_period
     )

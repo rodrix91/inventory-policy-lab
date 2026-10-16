@@ -123,7 +123,7 @@ class OutOfSampleReport:
     test_calendar: tuple[str, ...]
     skus: tuple[SkuOutOfSample, ...]
     skipped: tuple[str, ...]  # SKUs with no demand history in the train periods
-    policy: str = "sQ"  # the policy kind replayed: "sQ" or "RS"
+    policy: str = "sQ"  # the policy kind replayed: "sQ", "RS" or "RsS"
     bootstrap_source: str = "demand"  # what the bootstrap replay resamples (ADR 0008)
     rolling_origin: bool = False  # SKUs also carry rolling-origin replays (ADR 0009)
     refit_every: int = 1  # the rolling origin refits every K test periods (ADR 0011)

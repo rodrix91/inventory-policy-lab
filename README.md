@@ -213,7 +213,7 @@ for sku in report.skus:
 markdown = render_markdown(report)  # or render_json(report) / report.to_dict()
 ```
 
-The building blocks are public too: `read_demand`, `abc_classes`, `xyz_class`, `demand_profile`, `naive`, `moving_average`, `ses`, `croston`, `sba`, `backtest`, `safety_stock`, `bootstrap_safety_stock`, `eoq`, `build_policy`, `simulate` (with `warmup=` to replay periods without scoring them), `train_history`, `out_of_sample_replay`, and the trend and seasonal models `holt_damped`, `holt_winters`, `fit_holt_damped` and `fit_holt_winters` (which return a `SmoothingFit` with `forecast(h)` and the parameters picked; `fit_cache_info()` and `clear_fit_cache()` inspect and empty their cache). `Config(trend_seasonal=True, season_length=12)` adds those models to the candidates of smooth and erratic SKUs. `Config(test_periods=12)` adds the out-of-sample replay to the report as `report.out_of_sample` (an `OutOfSampleReport`, with `totals(method, "in_sample" | "out_of_sample")`). `Config(policy="RS", review_period=1)` replays an (R, S) policy (`simulate_periodic`), and `Config(trend_seasonal=True, dynamic_levels=True)` gives each SKU one level per period (`SkuResult.levels`, `next_levels`; `PolicyReplay.test_levels` out of sample), built by `dynamic_levels` from `SmoothingFit.calendar_forecasts`; `replay_policy` replays any of them. `Config(bootstrap_source="residuals")` bootstraps forecast errors (`interval_forecast_errors`, `residual_bootstrap_quantile`), and with dynamic levels `period_safety_stock=True` gives each period its own safety stock (`period_safety_stocks`; `SkuResult.safety_stocks`, `next_safety_stocks`; `PolicyReplay.test_safety_stocks`). `Config(test_periods=12, rolling_origin=True)` also refits every SKU at each test period (`SkuOutOfSample.rolling`, one `RollingReplay` per safety-stock method, and `OutOfSampleReport.rolling_totals(method)`); `refit_every=3` refits every third test period only (`OutOfSampleReport.refit_every`). `Config(test_periods=12, order_cost=50, holding_cost=1, stockout_cost=20)` prices the test periods (`OutOfSampleReport.cost(method, "fixed" | "rolling")` and `sku_cost(sku, method, origin)` return a `CostBreakdown`; `replay_cost` and `total_cost` price any `SimulationResult` with `CostRates`). `simulate` accepts one order quantity per period. Errors are subclasses of `InventoryPolicyError` with an `exit_code`.
+The building blocks are public too: `read_demand`, `abc_classes`, `xyz_class`, `demand_profile`, `naive`, `moving_average`, `ses`, `croston`, `sba`, `backtest`, `safety_stock`, `bootstrap_safety_stock`, `eoq`, `build_policy`, `simulate` (with `warmup=` to replay periods without scoring them), `train_history`, `out_of_sample_replay`, and the trend and seasonal models `holt_damped`, `holt_winters`, `fit_holt_damped` and `fit_holt_winters` (which return a `SmoothingFit` with `forecast(h)` and the parameters picked; `fit_cache_info()` and `clear_fit_cache()` inspect and empty their cache). `Config(trend_seasonal=True, season_length=12)` adds those models to the candidates of smooth and erratic SKUs. `Config(test_periods=12)` adds the out-of-sample replay to the report as `report.out_of_sample` (an `OutOfSampleReport`, with `totals(method, "in_sample" | "out_of_sample")`). `Config(policy="RS", review_period=1)` replays an (R, S) policy (`simulate_periodic`) and `Config(policy="RsS", review_period=1)` an (R, s, S) policy (`simulate_rss`), and `Config(trend_seasonal=True, dynamic_levels=True)` gives each SKU one level per period (`SkuResult.levels`, `next_levels`; `PolicyReplay.test_levels` out of sample), built by `dynamic_levels` from `SmoothingFit.calendar_forecasts`; `replay_policy` replays any of them. `Config(bootstrap_source="residuals")` bootstraps forecast errors (`interval_forecast_errors`, `residual_bootstrap_quantile`), and with dynamic levels `period_safety_stock=True` gives each period its own safety stock (`period_safety_stocks`; `SkuResult.safety_stocks`, `next_safety_stocks`; `PolicyReplay.test_safety_stocks`). `Config(test_periods=12, rolling_origin=True)` also refits every SKU at each test period (`SkuOutOfSample.rolling`, one `RollingReplay` per safety-stock method, and `OutOfSampleReport.rolling_totals(method)`); `refit_every=3` refits every third test period only (`OutOfSampleReport.refit_every`). `Config(test_periods=12, order_cost=50, holding_cost=1, stockout_cost=20)` prices the test periods (`OutOfSampleReport.cost(method, "fixed" | "rolling")` and `sku_cost(sku, method, origin)` return a `CostBreakdown`; `replay_cost` and `total_cost` price any `SimulationResult` with `CostRates`). `simulate` accepts one order quantity per period. Errors are subclasses of `InventoryPolicyError` with an `exit_code`.
 
 ## Options
 
@@ -224,8 +224,8 @@ The building blocks are public too: `read_demand`, `abc_classes`, `xyz_class`, `
 | `--service-level P` | 0.95 | Target cycle service level, 0.5 <= P < 1 |
 | `--class-service-levels A=0.99,B=0.95,C=0.9` | none | Service level per ABC class |
 | `--lead-time L`, `--lead-time-std S` | 1, 0 | Lead time (periods) for SKUs without `lead_time` values |
-| `--review-period R` | 1 | Periods between reviews, added to the protection interval; 0 = continuous review. A whole number of at least 1 with `--policy RS` |
-| `--policy sQ\|RS` | sQ | `sQ`: reorder point s and fixed order quantity Q, checked every period; `RS`: review every R periods and order up to S; see [ADR 0007](docs/decisions/0007-periodic-review-and-dynamic-levels.md) |
+| `--review-period R` | 1 | Periods between reviews, added to the protection interval; 0 = continuous review. A whole number of at least 1 with `--policy RS` or `RsS` |
+| `--policy sQ\|RS\|RsS` | sQ | `sQ`: reorder point s and fixed order quantity Q, checked every period; `RS`: review every R periods and order up to S; `RsS`: review every R periods and order up to S = s + Q only when the position is at or below s; see [ADR 0007](docs/decisions/0007-periodic-review-and-dynamic-levels.md) and [ADR 0013](docs/decisions/0013-periodic-review-rss-policy.md) |
 | `--dynamic-levels` | off | Let s or S follow the picked trend or seasonal forecast period by period instead of one level for the whole history; needs `--trend-seasonal` |
 | `--ordering-cost S`, `--holding-rate h` | none | Cost per order and yearly holding cost as a fraction of unit cost; together they enable EOQ |
 | `--order-cover K` | 1 | Without EOQ, order quantity = forecast x K periods |
@@ -335,6 +335,12 @@ With too little history for any error, the SKU uses the demand bootstrap and the
 S = D x (L + R) + SS          order at a review = max(S - inventory position, 0)
 ```
 
+**Periodic review (R, s, S)** (`--policy RsS`). The position is reviewed every `R` periods, and an order brings it up to `S` only when it has fallen to `s` or below, so a review with little demand places no order (Silver, Pyke & Thomas, 2017). `s` has the same formula and safety stock as the other two policies, and `S` adds one order quantity, the usual simple choice for (s, S) systems (not a cost optimisation):
+
+```
+s = D x (L + R) + SS          S = s + Q          order at a review = S - position, only if position <= s
+```
+
 **Dynamic levels** (`--dynamic-levels`, with `--trend-seasonal`). Instead of one level, each period gets its own, from the forecast of the periods it protects:
 
 ```
@@ -355,7 +361,7 @@ s(t), S(t) = D(t) x (L + R) + SS(t)
 
 A peak month gets more safety stock than a trough, and the seasonal swing, which the levels already follow, is not counted again. SKUs with a level forecast keep one safety stock (every `D(t)` is the same) and the report notes it.
 
-**Replay.** Starting with `s + Q` on hand: orders due arrive at the start of each period; demand is served from stock and the rest is backordered; at the end of the period, while the inventory position (net stock + on order) is at or below `s`, an order of `Q` is placed, arriving at the start of period `t + L + 1` (L rounded half up to whole periods). With `--policy RS` the run starts with `S` on hand, the position is reviewed only at the end of periods `R - 1, 2R - 1, ...`, and an order of `S - position` is placed when the position is below `S`, with the same arrival timing. With dynamic levels the level of each period replaces the fixed one. Fill rate = units served from stock when demanded / total demand; a stockout period is one whose demand was not fully served from stock; average on hand is the mean end-of-period stock.
+**Replay.** Starting with `s + Q` on hand: orders due arrive at the start of each period; demand is served from stock and the rest is backordered; at the end of the period, while the inventory position (net stock + on order) is at or below `s`, an order of `Q` is placed, arriving at the start of period `t + L + 1` (L rounded half up to whole periods). With `--policy RS` the run starts with `S` on hand, the position is reviewed only at the end of periods `R - 1, 2R - 1, ...`, and an order of `S - position` is placed when the position is below `S`, with the same arrival timing. With `--policy RsS` the run starts with `s + Q` on hand, the position is reviewed at the same periods, and an order of `s + Q - position` is placed only when the position is at or below `s`. With dynamic levels the level of each period replaces the fixed one. Fill rate = units served from stock when demanded / total demand; a stockout period is one whose demand was not fully served from stock; average on hand is the mean end-of-period stock.
 
 **Cost of the out-of-sample replay** (`--order-cost`, `--holding-cost`, `--stockout-cost`, with `--test-periods`). Each replay of the test periods, fixed and rolling origin, normal and bootstrap, is priced from what it did in those periods, with the same rates for every SKU (a rate left out is 0):
 
@@ -554,6 +560,51 @@ What the numbers say, and what they do not:
 - **On the 24-month example a quarterly refit keeps part of the gain.** For (s, Q) with the normal formula, K = 3 keeps 3.3 of the 5.4 points the monthly refit adds over the fixed origin, with the same stock (930.7 against 932.4). The residual bootstrap is not monotone in stock: K = 3 and 6 hold more stock than both K = 1 and the fixed origin with worse service than K = 1, because a refit from a handful of errors can set a high quantile that is then kept for K periods.
 - **Time is no longer a reason to pick K.** With the fit cache a monthly refit costs at most 0.2 s more than a yearly one on these files. K is for matching the replay to how often the policy is actually recomputed (quarterly, half-yearly), not for speed. Three SKUs and seven SKUs over one test year are small samples, so these are indications for this data, not general rules.
 
+## Policies compared by cost
+
+Which policy is cheapest out of sample? `--policy RsS` adds the periodic-review (R, s, S) policy ([ADR 0013](docs/decisions/0013-periodic-review-rss-policy.md)) next to (s, Q) and (R, S), and the cost options of [ADR 0012](docs/decisions/0012-cost-of-the-out-of-sample-replay.md) price each replay of the test year. The table below comes from real runs pinned in [`tests/test_rss.py`](tests/test_rss.py); each cell is the fill rate / the total cost of the 12 test months, summed over the SKUs:
+
+```bash
+python -m inventory_policy_lab examples/demand_synthetic.csv --test-periods 12 --trend-seasonal --dynamic-levels --bootstrap-source residuals --rolling-origin --policy RsS --review-period 1 --order-cost 50 --holding-cost 1 --stockout-cost 10
+```
+
+All runs use dynamic levels (on the 24-month example they change almost nothing: 12 training months are too few for a seasonal model). (s, Q) checks the position every period, so it appears once.
+
+**The example rates**, the same for every SKU and every unit (the 48-month series has no unit cost):
+
+- **Holding 1 per unit and month**: a 25% yearly holding rate on a unit worth 48 (0.25 x 48 / 12 = 1), a common order of magnitude for carrying cost.
+- **Order 50 per order**: chosen so that the default order quantity, one month of forecast (`--order-cover 1`), is close to the EOQ of an item selling about 100 units a month, which is the size of the larger items of both files: `sqrt(2 x 100 x 12 x 50 / 12) = 100`. So (s, Q) is not penalised by a lot size that the rates make absurd.
+- **Stockout 10 per unit short**: a unit short is assumed to cost ten months of holding it (lost margin, expediting, goodwill). This is the most uncertain rate, so the text below gives the stockout cost at which the ranking changes.
+
+On the 48-month series (36 training months):
+
+| Policy | Normal, fixed | Normal, rolling | Bootstrap residuals, fixed | Bootstrap residuals, rolling |
+|---|---|---|---|---|
+| (s, Q) | 100.0% / 5,139 | 100.0% / 5,112 | 99.8% / 3,951 | 99.9% / 3,869 |
+| (R, S), R = 1 | 100.0% / **3,066** | 100.0% / **3,592** | 95.4% / **3,732** | 99.4% / **2,482** |
+| (R, S), R = 3 | 99.9% / 5,924 | 100.0% / 6,859 | 97.2% / 5,499 | 99.4% / 5,520 |
+| (R, s, S), R = 1 | 100.0% / 5,801 | 100.0% / 5,905 | 99.9% / 4,540 | 100.0% / 4,404 |
+| (R, s, S), R = 3 | 100.0% / 9,836 | 100.0% / 10,764 | 100.0% / 8,262 | 100.0% / 9,159 |
+
+On the 24-month synthetic example (12 training months):
+
+| Policy | Normal, fixed | Normal, rolling | Bootstrap residuals, fixed | Bootstrap residuals, rolling |
+|---|---|---|---|---|
+| (s, Q) | 94.4% / 21,371 | 99.8% / 17,735 | 92.2% / 23,849 | 98.5% / 19,178 |
+| (R, S), R = 1 | 90.9% / 17,313 | 97.3% / **13,405** | 88.5% / 19,956 | 96.0% / **14,813** |
+| (R, S), R = 3 | 93.4% / 21,594 | 97.0% / 19,353 | 92.9% / 25,599 | 96.9% / 23,004 |
+| (R, s, S), R = 1 | 99.3% / **15,576** | 100.0% / 15,818 | 97.9% / **17,490** | 99.5% / 16,632 |
+| (R, s, S), R = 3 | 97.9% / 25,065 | 99.3% / 24,634 | 96.7% / 29,523 | 98.4% / 29,018 |
+
+What wins, and when (bold: cheapest in its column):
+
+- **When the forecast keeps up with demand, (R, S) with a monthly review is cheapest.** On the 48-month series it wins all four columns: it serves 100% with the normal formula while holding the least stock. The exception is the residual bootstrap with a fixed origin, whose 95.4% fill rate makes (s, Q) cheaper above about 11 per unit short. (R, s, S) orders up to `s + Q`, about one lot more, which costs some 3,100 of holding (4,351 against 1,266, normal, fixed) to save 7 of 36 orders (350).
+- **When the policy is short of stock, (R, s, S) is cheapest.** On the 24-month example, with forecasts frozen after 12 training months, (R, S) R = 1 serves only 90.9% (578 units short) and (R, s, S) R = 1 reaches 99.3% (43 short): it is the cheapest with a fixed origin, for any stockout cost above about 7 per unit short (6 with the residual bootstrap). With a rolling origin (R, S) is short far less and wins at 10, but (R, s, S) takes over above about 24 per unit short (18 with the bootstrap). Part of this win is simply more stock, which (R, S) with a higher service level might buy as well; that is not tested here.
+- **A three-month review never pays at these rates.** R = 3 saves two thirds of the orders (about 1,200 on the 48-month series) but must cover a longer interval and holds thousands of unit-months more. It would take an order cost far above 50, relative to 1 of holding, to favour it.
+- **Normal or residual bootstrap depends on the data, as before**: the bootstrap is cheaper on the 48-month series (it holds less stock and the rolling origin repairs its service), the normal formula on the 24-month example.
+
+Two series of 3 and 12 SKUs over one test year are small samples, and the rates are assumptions: these rankings hold for these files and rates, and the cost section of each report lets anyone redo them with their own.
+
 ## Architecture
 
 ```mermaid
@@ -564,7 +615,7 @@ flowchart LR
         classify[classify: ABC, XYZ, Syntetos-Boylan]
         forecast[forecast: methods, backtest, MASE pick; smoothing: Holt, Holt-Winters]
         policy[policy: SS, ROP, EOQ]
-        simulate[simulate: replay of s, Q or R, S]
+        simulate[simulate: replay of s, Q or R, S or R, s, S]
         validation[validation: out-of-sample replay, fixed or rolling origin, and its cost, with --test-periods]
         classify --> forecast --> policy --> simulate
         simulate -.-> validation
