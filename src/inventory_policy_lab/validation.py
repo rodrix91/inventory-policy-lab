@@ -42,11 +42,13 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from .classify import abc_classes
+from .costs import CostBreakdown, CostRates, replay_cost, total_cost
 from .errors import HistoryError
 from .reader import DemandData, SkuHistory
 from .simulate import SimulationResult
 
 SAFETY_STOCK_METHODS = ("normal", "bootstrap")
+ORIGINS = ("fixed", "rolling")  # the out-of-sample replays: fixed origin, rolling origin
 
 if TYPE_CHECKING:  # pragma: no cover - imports for type hints only
     from .analysis import Config
@@ -125,6 +127,7 @@ class OutOfSampleReport:
     bootstrap_source: str = "demand"  # what the bootstrap replay resamples (ADR 0008)
     rolling_origin: bool = False  # SKUs also carry rolling-origin replays (ADR 0009)
     refit_every: int = 1  # the rolling origin refits every K test periods (ADR 0011)
+    costs: CostRates | None = None  # cost rates that score the test periods (ADR 0012)
 
     def totals(self, method: str, sample: str) -> ReplayTotals:
         """Totals of ``method`` for ``sample`` ``"in_sample"`` or ``"out_of_sample"``."""
@@ -133,6 +136,20 @@ class OutOfSampleReport:
     def rolling_totals(self, method: str) -> ReplayTotals:
         """Out-of-sample totals of ``method`` with a rolling origin."""
         return _sum([s.rolling_replay(method).out_of_sample for s in self.skus])
+
+    def sku_cost(self, sku: SkuOutOfSample, method: str, origin: str = "fixed") -> CostBreakdown:
+        """Cost of the test periods of ``sku`` under ``method``, origin ``"fixed"`` or
+        ``"rolling"``. Raises ``ValueError`` when the report has no cost rates."""
+        if self.costs is None:
+            raise ValueError("this report has no cost rates (Config order, holding, stockout)")
+        if origin not in ORIGINS:
+            raise ValueError(f"origin must be 'fixed' or 'rolling', got {origin!r}")
+        replay = sku.replay(method) if origin == "fixed" else sku.rolling_replay(method)
+        return replay_cost(replay.out_of_sample, self.costs)
+
+    def cost(self, method: str, origin: str = "fixed") -> CostBreakdown:
+        """Cost of the test periods of ``method`` summed over the SKUs."""
+        return total_cost(self.sku_cost(s, method, origin) for s in self.skus)
 
 
 def _sum(results: list[SimulationResult]) -> ReplayTotals:
@@ -313,6 +330,7 @@ def out_of_sample_replay(data: DemandData, config: Config) -> OutOfSampleReport:
         bootstrap_source=config.bootstrap_source,
         rolling_origin=config.rolling_origin,
         refit_every=config.refit_every,
+        costs=config.cost_rates,
     )
 
 

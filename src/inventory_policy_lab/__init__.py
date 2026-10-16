@@ -9,7 +9,8 @@ adds damped Holt and Holt-Winters to the forecast candidates.
 ``dynamic_levels=True`` lets its levels follow the forecast period by period.
 ``bootstrap_source="residuals"`` bootstraps the forecast errors instead of the
 demand, and ``period_safety_stock=True`` gives each dynamic level its own
-safety stock.
+safety stock. ``order_cost``, ``holding_cost`` and ``stockout_cost`` price the
+out-of-sample replay (:class:`CostRates`, :func:`replay_cost`).
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ from .classify import (
     demand_profile,
     xyz_class,
 )
+from .costs import CostBreakdown, CostRates, replay_cost, total_cost
 from .errors import (
     ConfigError,
     DataError,
@@ -75,6 +77,8 @@ __all__ = [
     "BacktestResult",
     "Config",
     "ConfigError",
+    "CostBreakdown",
+    "CostRates",
     "DataError",
     "DemandData",
     "DemandProfile",
@@ -127,12 +131,14 @@ __all__ = [
     "render_json",
     "render_markdown",
     "replay_policy",
+    "replay_cost",
     "report_to_dict",
     "safety_stock",
     "sba",
     "ses",
     "simulate",
     "simulate_periodic",
+    "total_cost",
     "train_history",
     "xyz_class",
 ]

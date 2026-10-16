@@ -9,6 +9,7 @@ from . import __version__
 
 if TYPE_CHECKING:  # pragma: no cover - imports for type hints only
     from .analysis import Config, Report, SkuResult
+    from .costs import CostBreakdown
     from .policy import Policy
     from .simulate import SimulationResult
     from .validation import OutOfSampleReport, PolicyReplay, ReplayTotals, RollingReplay
@@ -245,6 +246,57 @@ def _rolling_dict(oos: OutOfSampleReport) -> dict[str, Any]:
     }
 
 
+def _cost_dict(cost: CostBreakdown) -> dict[str, Any]:
+    return {
+        "orders": cost.orders,
+        "unit_periods": _r(cost.unit_periods),
+        "units_short": _r(cost.units_short),
+        "ordering": _r(cost.ordering),
+        "holding": _r(cost.holding),
+        "stockout": _r(cost.stockout),
+        "total": _r(cost.total),
+    }
+
+
+def _origins(oos: OutOfSampleReport) -> tuple[str, ...]:
+    return ("fixed", "rolling") if oos.rolling_origin else ("fixed",)
+
+
+def _costs_dict(oos: OutOfSampleReport) -> dict[str, Any]:
+    """The cost of the test periods (ADR 0012); only present with a cost rate."""
+    from .validation import SAFETY_STOCK_METHODS
+
+    if oos.costs is None:
+        return {}
+    origins = _origins(oos)
+    return {
+        "costs": {
+            "rates": {
+                "order": oos.costs.order,
+                "holding": oos.costs.holding,
+                "stockout": oos.costs.stockout,
+            },
+            "summary": {
+                method: {origin: _cost_dict(oos.cost(method, origin)) for origin in origins}
+                for method in SAFETY_STOCK_METHODS
+            },
+            "skus": [
+                {
+                    "sku": s.sku,
+                    "policies": {
+                        method: {
+                            origin: _cost_dict(oos.sku_cost(s, method, origin))
+                            for origin in origins
+                        }
+                        for method in SAFETY_STOCK_METHODS
+                    },
+                }
+                for s in oos.skus
+            ],
+        }
+    }
+
+
 def _out_of_sample_dict(oos: OutOfSampleReport) -> dict[str, Any]:
     from .validation import SAFETY_STOCK_METHODS
 
@@ -291,6 +343,7 @@ def _out_of_sample_dict(oos: OutOfSampleReport) -> dict[str, Any]:
             for s in oos.skus
         ],
         **_rolling_dict(oos),
+        **_costs_dict(oos),
     }
 
 
@@ -312,6 +365,17 @@ def _rolling_setting(config: Config) -> dict[str, Any]:
     if config.refit_every == 1:
         return {"rolling_origin": True}
     return {"rolling_origin": True, "refit_every": config.refit_every}
+
+
+def _cost_setting(config: Config) -> dict[str, Any]:
+    """Settings of ADR 0012, only when a cost is set, so the default JSON stays that of 0.7.0."""
+    if config.cost_rates is None:
+        return {}
+    return {
+        "order_cost": config.order_cost,
+        "holding_cost": config.holding_cost,
+        "stockout_cost": config.stockout_cost,
+    }
 
 
 def report_to_dict(report: Report) -> dict[str, Any]:
@@ -356,6 +420,7 @@ def report_to_dict(report: Report) -> dict[str, Any]:
             "dynamic_levels": config.dynamic_levels,
             **_bootstrap_source_dict(config),
             **_rolling_setting(config),
+            **_cost_setting(config),
         },
         "summary": {
             "skus": len(report.skus),
@@ -466,6 +531,78 @@ def _out_of_sample_lines(oos: OutOfSampleReport) -> list[str]:
         ]
     if oos.rolling_origin:
         lines += _rolling_lines(oos)
+    if oos.costs is not None:
+        lines += _cost_lines(oos)
+    return lines
+
+
+def _cost_lines(oos: OutOfSampleReport) -> list[str]:
+    from .validation import SAFETY_STOCK_METHODS
+
+    assert oos.costs is not None  # only called with cost rates
+    rates, test = oos.costs, oos.test_calendar
+    origins = _origins(oos)
+    lines = [
+        "",
+        f"### Cost of the test periods ({test[0]} to {test[-1]})",
+        "",
+        f"Rates: {rates.order:g} per order placed, {rates.holding:g} per unit on hand at "
+        f"the end of a period, {rates.stockout:g} per unit of demand not served from stock "
+        "in its period (backordered). The policies are the same as without costs; the "
+        "cost only scores what each replay did in the test periods.",
+        "",
+    ]
+    rows = []
+    for method in SAFETY_STOCK_METHODS:
+        for origin in origins:
+            cost = oos.cost(method, origin)
+            rows.append(
+                [
+                    _method_label(method, oos),
+                    origin,
+                    str(cost.orders),
+                    _num(cost.unit_periods),
+                    _num(cost.units_short),
+                    _num(cost.ordering),
+                    _num(cost.holding),
+                    _num(cost.stockout),
+                    f"**{_num(cost.total)}**",
+                ]
+            )
+    lines += _table(
+        [
+            "Safety stock",
+            "Origin",
+            "Orders",
+            "Unit-periods held",
+            "Units short",
+            "Ordering",
+            "Holding",
+            "Stockout",
+            "Total",
+        ],
+        rows,
+    )
+    lines += [""]
+    sku_rows = []
+    for s in oos.skus:
+        for method in SAFETY_STOCK_METHODS:
+            for origin in origins:
+                cost = oos.sku_cost(s, method, origin)
+                sku_rows.append(
+                    [
+                        s.sku,
+                        _method_label(method, oos),
+                        origin,
+                        _num(cost.ordering),
+                        _num(cost.holding),
+                        _num(cost.stockout),
+                        _num(cost.total),
+                    ]
+                )
+    lines += _table(
+        ["SKU", "Safety stock", "Origin", "Ordering", "Holding", "Stockout", "Total"], sku_rows
+    )
     return lines
 
 
