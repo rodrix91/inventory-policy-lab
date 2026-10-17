@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-16
+
 ### Changed
 
 - README "Levels optimised for cost": the table now shows the cost-optimised policy before (plain paths, as in 0.9.0) and after the options of this release (fill floor 0.95, refit paths, both) on the 48-month series and the 24-month example, pinned in `tests/test_optimize.py`, with the conclusion: refit paths make (R, s, S) the cheapest fixed-origin policy on the 48-month series (97.9% / 4,084), robustly across seeds and path counts, and help nothing on the 24-month example, where the heuristics stay cheaper.
@@ -115,7 +117,8 @@ First public version (alpha).
 - Synthetic, seeded example dataset (`examples/demand_synthetic.csv`, `scripts/generate_example.py`), a hand-checked worked example (`examples/worked_example.csv`, verified in `tests/test_worked_example.py`) and an ABC Pareto chart drawn as SVG with the standard library (`docs/abc-pareto.svg`).
 - README samples generated from real runs and checked by the test suite; CI on Python 3.11, 3.12 and 3.13 with tests, 100% line and branch coverage, Ruff and strict mypy; a release workflow that builds and tests the sdist and wheel.
 
-[Unreleased]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/rodrix91/inventory-policy-lab/compare/v0.6.0...v0.7.0

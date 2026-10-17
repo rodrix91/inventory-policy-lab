@@ -19,7 +19,7 @@ constrain the search and make its demand paths refit the forecast).
 
 from __future__ import annotations
 
-__version__ = "0.9.0"
+__version__ = "0.10.0"
 
 from .analysis import Config, Report, SkuResult, analyze, analyze_file, replay_policy
 from .classify import (
