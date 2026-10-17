@@ -474,3 +474,47 @@ def test_optimized_replay_is_exported_from_the_package() -> None:
     oos = analyze(SERIES, _priced()).out_of_sample
     assert oos is not None
     assert all(isinstance(s.optimized, OptimizedReplay) for s in oos.skus)
+
+
+# The variants of 0.10.0 (ADR 0016 and 0017), same runs: (dataset, policy) -> fill
+# rate % and test cost of the cost-optimised policy for each option set, and the
+# expected cost on the training paths (heuristic, optimised) of the refit paths.
+README_VARIANTS: dict[str, dict[str, object]] = {
+    "floor": {"optimize_fill_floor": 0.95},
+    "refit": {"optimize_paths": "refit"},
+    "refit_floor": {"optimize_paths": "refit", "optimize_fill_floor": 0.95},
+}
+README_VARIANT_TABLE = {
+    ("48", "sQ"): {"floor": (88.4, 7766), "refit": (96.4, 5371), "refit_floor": (96.4, 5371)},
+    ("48", "RsS"): {"floor": (94.9, 5119), "refit": (97.9, 4084), "refit_floor": (97.9, 4084)},
+    ("24", "sQ"): {"floor": (90.7, 18750), "refit": (89.0, 20275), "refit_floor": (89.2, 21827)},
+    ("24", "RsS"): {"floor": (86.1, 19859), "refit": (89.5, 18387), "refit_floor": (89.7, 19179)},
+}
+README_REFIT_EXPECTED = {
+    ("48", "sQ"): (5829, 4587),
+    ("48", "RsS"): (6252, 3913),
+    ("24", "sQ"): (18270, 12323),
+    ("24", "RsS"): (15410, 11315),
+}
+
+
+@pytest.mark.parametrize(
+    ("dataset", "policy", "variant"),
+    [(d, p, v) for (d, p) in README_VARIANT_TABLE for v in README_VARIANTS],
+)
+def test_readme_table_of_the_search_variants(dataset: str, policy: str, variant: str) -> None:
+    data = SERIES if dataset == "48" else read_demand(SYNTHETIC)
+    config = _priced(policy=policy, optimize_samples=100, **README_VARIANTS[variant])
+    oos = analyze(data, config).out_of_sample
+    assert oos is not None
+    rate = oos.optimized_totals().fill_rate
+    assert rate is not None
+    cell = (round(rate * 100, 1), round(oos.optimized_cost().total))
+    assert cell == README_VARIANT_TABLE[(dataset, policy)][variant]
+    if variant == "refit":
+        searches = [s.optimized.search for s in oos.skus if s.optimized is not None]
+        expected = (
+            round(sum(x.heuristic_cost for x in searches)),
+            round(sum(x.expected_cost for x in searches)),
+        )
+        assert expected == README_REFIT_EXPECTED[(dataset, policy)]

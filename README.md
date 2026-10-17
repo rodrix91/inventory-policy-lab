@@ -634,29 +634,37 @@ Does choosing `s` and `S` (or `s` and `Q`) for cost beat the heuristic out of sa
 python -m inventory_policy_lab examples/demand_synthetic.csv --test-periods 12 --trend-seasonal --policy RsS --order-cost 50 --holding-cost 1 --stockout-cost 10 --optimize-cost
 ```
 
-Same rates as above (50 per order, 1 per unit-month, 10 per unit short), `--test-periods 12 --trend-seasonal`, static levels, fixed origin; fill rate / total cost of the 12 test months, summed over the SKUs (pinned in [`tests/test_optimize.py`](tests/test_optimize.py)):
+Same rates as above (50 per order, 1 per unit-month, 10 per unit short), `--test-periods 12 --trend-seasonal`, static levels, fixed origin, 100 paths, seed 0; fill rate / total cost of the 12 test months, summed over the SKUs (pinned in [`tests/test_optimize.py`](tests/test_optimize.py)). "Plain paths" is the search of 0.9.0; `--optimize-fill-floor 0.95` adds the fill-rate floor of [ADR 0016](docs/decisions/0016-fill-rate-floor-for-the-cost-search.md) and `--optimize-paths refit` the refit paths of [ADR 0017](docs/decisions/0017-refit-demand-paths.md):
 
 | Policy | 48-month series | 24-month example |
 |---|---|---|
 | (s, Q), normal | 99.6% / 5,474 | 94.4% / 21,371 |
 | (s, Q), bootstrap | 97.6% / 5,125 | 94.6% / 19,212 |
-| (s, Q), cost-optimised | 88.4% / 7,766 | 90.6% / **18,016** |
+| (s, Q), cost-optimised, plain paths (0.9.0) | 88.4% / 7,766 | 90.6% / **18,016** |
+| (s, Q), cost-optimised, plain paths, fill floor 0.95 | 88.4% / 7,766 | 90.7% / 18,750 |
+| (s, Q), cost-optimised, refit paths | 96.4% / 5,371 | 89.0% / 20,275 |
+| (s, Q), cost-optimised, refit paths, fill floor 0.95 | 96.4% / 5,371 | 89.2% / 21,827 |
 | (R, s, S) R = 1, normal | 100.0% / 6,133 | 99.3% / 15,576 |
 | (R, s, S) R = 1, bootstrap | 100.0% / 4,945 | 98.4% / **14,157** |
-| (R, s, S) R = 1, cost-optimised | 94.9% / 5,119 | 86.0% / 19,102 |
+| (R, s, S) R = 1, cost-optimised, plain paths (0.9.0) | 94.9% / 5,119 | 86.0% / 19,102 |
+| (R, s, S) R = 1, cost-optimised, plain paths, fill floor 0.95 | 94.9% / 5,119 | 86.1% / 19,859 |
+| (R, s, S) R = 1, cost-optimised, refit paths | 97.9% / **4,084** | 89.5% / 18,387 |
+| (R, s, S) R = 1, cost-optimised, refit paths, fill floor 0.95 | 97.9% / **4,084** | 89.7% / 19,179 |
 | (R, S) R = 1, normal, service level 0.95 | 97.4% / 4,484 | 90.9% / 17,313 |
-| (R, S) R = 1, normal, service level 0.98 | 98.5% / **4,474** | 92.8% / 17,522 |
+| (R, S) R = 1, normal, service level 0.98 | 98.5% / 4,474 | 92.8% / 17,522 |
 | (R, S) R = 1, normal, service level 0.99 | 99.1% / 4,543 | 93.9% / 17,758 |
 
-Expected cost on the training paths, heuristic (normal) against optimised: (s, Q) 5,979 against 3,936 and 15,637 against 10,418; (R, s, S) 6,324 against 3,748 and 14,409 against 9,675.
+Expected cost on the training paths, heuristic (normal) against optimised, 48-month then 24-month: plain paths (s, Q) 5,979 against 3,936 and 15,637 against 10,418, (R, s, S) 6,324 against 3,748 and 14,409 against 9,675; refit paths (s, Q) 5,829 against 4,587 and 18,270 against 12,323, (R, s, S) 6,252 against 3,913 and 15,410 against 11,315. Refit paths price the heuristic higher and promise smaller cuts (21% to 37% instead of 33% to 41%), which is what more honest paths should do.
 
 What this shows (bold: cheapest in the column, and the cheapest (s, Q) on the 24-month example):
 
-- **The search overfits its own model.** It promises a cut of a third or more in every case (the training-path column), but the test cost follows only for (s, Q) on the 24-month example (18,016 against 21,371 normal and 19,212 bootstrap) and for (R, s, S) on the 48-month series against the normal formula (5,119 against 6,133, still above the bootstrap's 4,945). In the other two cases it costs more than both heuristics. It always holds less stock and the fill rate falls to 86% to 95%: the paths trust the training forecast, with its one-step error but not the error of its own level, trend and season, so they underprice the frozen forecast's misses. 200 paths or another seed change the totals by about 3% at most and none of these conclusions.
-- **(R, S) at a higher service level is the stronger answer on the 48-month series**: 0.98 costs 4,474 at 98.5% fill rate, the cheapest of these fixed-origin policies. On the 24-month example a higher level barely helps (90.9% to 93.9% fill rate for 445 more): its shortages come from forecasts frozen after 12 months, not from the safety factor, and (R, s, S) with the bootstrap stays cheapest.
-- **Use `--optimize-cost` as a diagnostic**: the gap between its training-path cost and its test cost measures how much the training model overstates what can be saved. Searching at every rolling origin or with paths that also resample the forecast model are the natural next steps.
+- **Plain paths overfit their own model.** They promise a cut of a third or more in every case, but the test cost follows only for (s, Q) on the 24-month example (18,016 against 21,371 normal and 19,212 bootstrap) and for (R, s, S) on the 48-month series against the normal formula. The fill rate falls to 86% to 95%: the paths trust the training forecast, with its one-step error but not the error of its own level, trend and season.
+- **A fill floor on those paths does not buy service.** The training paths expect 95% to 100% fill for almost every pick, so a 0.95 floor leaves the 48-month results unchanged and on the 24-month example costs more (18,750 and 19,859) for 0.1 point of fill rate. At 0.99 (not in the table) the best case is 48-month (s, Q) at 90.0% / 7,616. The constraint is only as good as the paths it is checked on.
+- **Refit paths help where there is a model to be uncertain about.** On the 48-month series (36 training months, Holt-Winters on two of three SKUs) (R, s, S) with refit paths reaches 97.9% fill at 4,084, the cheapest fixed-origin policy in the table, below the bootstrap heuristic (4,945) and (R, S) at 0.98 (4,474); this holds with seed 1 (97.3% / 4,325) and 200 paths (98.1% / 4,014). (s, Q) improves to 96.4% / 5,371 with seed 0 but not robustly (seed 1: 91.0% / 6,901; 200 paths: 90.1% / 7,162), so it does not beat its bootstrap heuristic reliably.
+- **On the 24-month example nothing beats the heuristics.** With 12 training months only level methods are possible, the refitted level barely moves, and the misses come from the frozen forecast itself, which no search on training data can see: refit paths make (s, Q) worse (20,275) and leave (R, s, S) at 18,387, well above its bootstrap heuristic (14,157).
+- **Use `--optimize-cost` as a diagnostic, and `--optimize-paths refit` when you use it.** The gap between the training-path cost and the test cost measures how much the model overstates what can be saved; with refit paths that gap shrinks. A search at every rolling origin, or paths that also re-select the model, are the natural next steps.
 
-The search takes about 0.5 s per SKU at 100 paths (48-month series: 0.15 s without, 1.7 s with; 24-month example: 0.12 s without, 5.8 s with; best of two wall-clock runs).
+The search takes about 0.5 s per SKU at 100 plain paths (48-month series: 0.15 s without, 1.7 s with; 24-month example: 0.12 s without, 5.8 s with; best of two wall-clock runs). Refit paths add about 1 s on the 48-month series (2.7 s: 200 Holt-Winters refits) and nothing measurable on the 24-month example (level methods).
 
 ## Architecture
 
@@ -688,7 +696,7 @@ Data flows one way: `reader` returns plain data, `analysis` returns a `Report`, 
 - **Trend and seasonality are opt-in and need history.** By default every forecast is a level forecast, and a seasonal or trending item gets a sigma inflated by the pattern. `--trend-seasonal` adds damped Holt and Holt-Winters, but Holt-Winters needs two full seasons before the first holdout origin (30 months of monthly data with the default holdout), parameters come from a coarse grid, and a short holdout can still prefer a level method. Without `--dynamic-levels` the policy is static, so a seasonal forecast sets one level for the whole year; with it the level follows the forecast, but the normal safety stock stays static (it still includes the seasonal swing with the default sigma). `--bootstrap-source residuals` and `--period-safety-stock` protect the forecast error instead, but they need history: with about a year of data they did worse than the demand bootstrap on the example.
 - **One policy for the whole history.** The main replay applies the reorder point computed from the end of the history to all of it, so it is in-sample: a check of the policy on the data, not an estimate of future service. `--test-periods` gives an out-of-sample estimate, but from a single split in time, which on short histories is a small sample; the policy is fixed through the test window unless `--rolling-origin` refits it every test period.
 - **Selection by a per-period error measure.** MASE is the best-behaved of the usual accuracy measures on zeros, but Teunter & Duncan (2009) show that per-period error measures are a poor guide for intermittent items, where service and stock outcomes matter more. On intermittent and lumpy SKUs the pick among SES, Croston and SBA is a heuristic; the replay is the better judge.
-- **Cycle service level only.** The target is the probability of no stockout per cycle; a fill-rate target (expected units short, the loss function) is not solved for, only measured by the replay. The cost options price the out-of-sample replay (with uniform rates, or per SKU with `--holding-cost-rate` and `--cost-columns`); they rank policies, and `--optimize-cost` picks `s` and `Q` (or `S`) for cost on training paths, which overfitted the training model on both example files (README "Levels optimised for cost").
+- **Cycle service level only.** The target is the probability of no stockout per cycle; a fill-rate target (expected units short, the loss function) is not solved for, only measured by the replay. The cost options price the out-of-sample replay (with uniform rates, or per SKU with `--holding-cost-rate` and `--cost-columns`); they rank policies, and `--optimize-cost` picks `s` and `Q` (or `S`) for cost on training paths, which overfitted the training model on both example files; refit paths (`--optimize-paths refit`) fix that only on the 48-month series and only robustly for (R, s, S) (README "Levels optimised for cost").
 - **Lead time in whole periods in the replay**, rounded half up; no partial deliveries, order minimums, pack sizes or capacity limits.
 - **No demand cleaning.** Stockout-censored history, promotions and outliers are used as they are. Negative quantities are rejected rather than netted.
 - Files are read whole into memory; fine for thousands of SKUs, not designed for millions of rows.
