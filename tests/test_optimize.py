@@ -463,3 +463,14 @@ def test_readme_table_of_rs_at_higher_service(dataset: str, level: float) -> Non
     rate = oos.totals("normal", "out_of_sample").fill_rate
     assert rate is not None
     assert (round(rate * 100, 1), round(oos.cost("normal").total)) == README_RS[(dataset, level)]
+
+
+def test_optimized_replay_is_exported_from_the_package() -> None:
+    import inventory_policy_lab
+    from inventory_policy_lab import OptimizedReplay, validation
+
+    assert OptimizedReplay is validation.OptimizedReplay
+    assert "OptimizedReplay" in inventory_policy_lab.__all__
+    oos = analyze(SERIES, _priced()).out_of_sample
+    assert oos is not None
+    assert all(isinstance(s.optimized, OptimizedReplay) for s in oos.skus)

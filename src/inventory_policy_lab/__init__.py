@@ -11,7 +11,10 @@ adds damped Holt and Holt-Winters to the forecast candidates.
 ``bootstrap_source="residuals"`` bootstraps the forecast errors instead of the
 demand, and ``period_safety_stock=True`` gives each dynamic level its own
 safety stock. ``order_cost``, ``holding_cost`` and ``stockout_cost`` price the
-out-of-sample replay (:class:`CostRates`, :func:`replay_cost`).
+out-of-sample replay (:class:`CostRates`, :func:`replay_cost`), and
+``optimize_cost=True`` adds a cost-optimised replay per SKU
+(:class:`OptimizedReplay`; ``optimize_fill_floor`` and ``optimize_paths="refit"``
+constrain the search and make its demand paths refit the forecast).
 """
 
 from __future__ import annotations
@@ -65,6 +68,7 @@ from .smoothing import (
     holt_winters_fit,
 )
 from .validation import (
+    OptimizedReplay,
     OutOfSampleReport,
     PolicyReplay,
     ReplayTotals,
@@ -88,6 +92,7 @@ __all__ = [
     "HistoryError",
     "InputFileError",
     "InventoryPolicyError",
+    "OptimizedReplay",
     "OutOfSampleReport",
     "Policy",
     "PolicyReplay",
