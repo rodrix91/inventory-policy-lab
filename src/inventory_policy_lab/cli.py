@@ -353,6 +353,25 @@ def config_from_args(args: argparse.Namespace) -> Config:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.output is not None:
+        # samefile detects equivalent paths, symlinks and hard links.
+        # Check before reading so a report cannot replace its input CSV.
+        try:
+            same_input = args.path.samefile(args.output)
+        except FileNotFoundError:
+            same_input = False  # A new output cannot be the existing input.
+        except OSError as exc:
+            print(
+                f"inventory-policy-lab: error: cannot check output {args.output}: {exc}",
+                file=sys.stderr,
+            )
+            return EXIT_INPUT
+        if same_input:
+            print(
+                f"inventory-policy-lab: error: refusing to overwrite input CSV {args.path}",
+                file=sys.stderr,
+            )
+            return EXIT_INPUT
     try:
         report = analyze_file(args.path, config_from_args(args))
     except InventoryPolicyError as exc:

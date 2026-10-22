@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+
+- Prevent `--output` from overwriting the input CSV through identical paths, relative aliases, symlinks or hard links; fail closed when file identity cannot be checked. Add regression tests.
+
 ## [0.10.0] - 2026-10-16
 
 ### Changed
