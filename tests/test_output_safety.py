@@ -97,3 +97,24 @@ def test_atomic_output_preserves_existing_report_on_replace_failure(
     assert "cannot write" in capsys.readouterr().err
     assert destination.read_text(encoding="utf-8") == "previous complete report\n"
     assert list(tmp_path.glob(".report.md.*.tmp")) == []
+
+
+def test_atomic_output_preserves_existing_report_on_fsync_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    source = tmp_path / "demand.csv"
+    source.write_bytes((EXAMPLES / "worked_example.csv").read_bytes())
+    destination = tmp_path / "report.md"
+    destination.write_text("previous complete report\n", encoding="utf-8")
+
+    def fail_fsync(_fd: int) -> None:
+        raise OSError("fsync denied")
+
+    monkeypatch.setattr("inventory_policy_lab.cli.os.fsync", fail_fsync)
+
+    assert main([str(source), "--holdout", "2", "-o", str(destination)]) == 3
+    assert "cannot write" in capsys.readouterr().err
+    assert destination.read_text(encoding="utf-8") == "previous complete report\n"
+    assert list(tmp_path.glob(".report.md.*.tmp")) == []
