@@ -58,7 +58,7 @@ steps:
       report-path: reports/inventory-policy.json
 
   - name: Upload the report
-    uses: actions/upload-artifact@v4
+    uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
     with:
       name: inventory-policy-report
       path: "${{ steps.inventory.outputs.report-path }}"
