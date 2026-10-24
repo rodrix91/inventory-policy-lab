@@ -7,3 +7,5 @@ include requirements-dev.txt
 include CHANGELOG.md
 include CONTRIBUTING.md
 global-exclude __pycache__ *.py[cod]
+include SECURITY.md
+include CITATION.cff
