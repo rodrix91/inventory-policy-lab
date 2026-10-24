@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- CI jobs now have explicit conservative timeouts so a hung coverage run, platform test, or packaging step cannot occupy a runner indefinitely.
+
+- The release job now has an explicit timeout so a stuck build, install, release test, or upload cannot occupy a runner indefinitely.
+
 - Built distributions now expose direct links to issues, contributing guidance, documentation, and security alongside the existing homepage and changelog links.
 
 ### Changed
