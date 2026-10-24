@@ -94,9 +94,7 @@ def test_runner_rejects_unsafe_path_before_any_side_effect(
         assert run_action.main() == 2
         mocked.assert_not_called()
     assert not report.parent.exists()
-    assert outputs.read_text(encoding="utf-8") == (
-        "exit-code=2\nsucceeded=false\nreport-path=\n"
-    )
+    assert outputs.read_text(encoding="utf-8") == ("exit-code=2\nsucceeded=false\nreport-path=\n")
 
 
 def test_runner_passes_valid_workspace_input_to_cli(
