@@ -37,6 +37,7 @@ def test_accepts_str_paths_and_header_aliases(tmp_path: Path) -> None:
     assert data.skus[0].demand == (3, 4)
     assert not data.has_unit_cost and not data.has_lead_time
     assert data.skus[0].unit_cost is None
+    assert data.source == path.as_posix()
 
 
 def test_months_fill_gaps_and_new_items_start_late() -> None:
