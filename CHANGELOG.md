@@ -26,6 +26,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- Added a reusable composite GitHub Action that runs the existing CLI with safe argv handling, preserves atomic report writes, exposes `exit-code`/`succeeded`/`report-path`, and is tested end to end on both a real JSON report and a missing-input failure.
 - GitHub Actions are pinned to the verified commit SHAs behind `actions/checkout@v7` and `actions/setup-python@v7`, with version comments retained for readable Dependabot updates.
 - CI keeps 100% coverage, lint, formatting, mypy and generated-file checks on Python 3.12 while testing Python 3.11 and 3.13 separately without coverage instrumentation; superseded runs for the same PR or branch are cancelled.
 - CI now runs the full test suite on Windows and macOS at Python 3.11 and 3.13, in addition to the Linux quality matrix, to exercise OS-sensitive path identity, links and atomic output behavior.
