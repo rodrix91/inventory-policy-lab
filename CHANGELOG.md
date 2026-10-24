@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Hardened Markdown rendering of CSV-supplied SKU identifiers throughout policy, forecast, out-of-sample replay, per-SKU cost and notes sections. Text that looks like Markdown links, HTML or newlines is now displayed literally without corrupting tables or the GitHub Action summary; machine-readable JSON and inventory computations are unchanged. Added direct and CLI regression coverage.
+
 - Prevented false-green reusable Action runs when `args` uses `--help`, `--version`, or abbreviated forms: these can exit successfully without analyzing a CSV, especially if a report already exists. The Action now rejects informational options and abbreviated `--format` / `--output` overrides before any report directories are created or subprocesses run. Added parametrized regressions and end-to-end Action CI checks; standalone CLI help/version remain available.
 
 - The reusable GitHub Action now validates CSV input paths against the caller's `GITHUB_WORKSPACE` before creating report directories or launching the CLI. Absolute paths, workspace traversal, escaping symlinks, stdin and line-break paths fail closed with documented Action outputs; new unit and end-to-end CI checks preserve normal relative-path behavior.

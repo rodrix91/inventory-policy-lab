@@ -196,6 +196,8 @@ The ABC Pareto of this dataset, drawn as SVG with the standard library by [`scri
 
 One row per SKU and period, long format. Header names are case-insensitive.
 
+**Markdown safety:** SKU identifiers from the CSV are displayed literally in inventory policy, forecast backtest, replay and cost tables, and in per-SKU notes. Pipes, Markdown links, HTML-like text and embedded line breaks cannot create misleading table cells or headings. The JSON report retains the exact original SKU string, and the analysis, forecasts and cost calculations are unchanged.
+
 | Column | Required | Meaning |
 |---|---|---|
 | `sku` | yes | Item identifier |
