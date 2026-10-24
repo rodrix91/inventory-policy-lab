@@ -162,3 +162,62 @@ jobs:
         run: |
           inventory-policy-lab --version
           inventory-policy-lab examples/worked_example.csv --holdout 2 --format json > /dev/null
+
+  action:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Action produces a JSON policy report
+        id: report
+        uses: ./
+        with:
+          path: examples/worked_example.csv
+          args: --holdout 2 --ordering-cost 30 --holding-rate 0.25
+          format: json
+          report-path: reports/action-report.json
+          summary: "false"
+
+      - name: Missing input fails cleanly
+        id: missing
+        continue-on-error: true
+        uses: ./
+        with:
+          path: examples/not-there.csv
+          args: --holdout 2
+          report-path: reports/missing.md
+          summary: "false"
+
+      - name: Verify Action outputs and report
+        env:
+          REPORT_CODE: ${{ steps.report.outputs.exit-code }}
+          REPORT_SUCCEEDED: ${{ steps.report.outputs.succeeded }}
+          REPORT_PATH: ${{ steps.report.outputs.report-path }}
+          MISSING_CODE: ${{ steps.missing.outputs.exit-code }}
+          MISSING_SUCCEEDED: ${{ steps.missing.outputs.succeeded }}
+          MISSING_PATH: ${{ steps.missing.outputs.report-path }}
+          MISSING_OUTCOME: ${{ steps.missing.outcome }}
+        run: |
+          test "$REPORT_CODE" = 0
+          test "$REPORT_SUCCEEDED" = true
+          test -n "$REPORT_PATH"
+          test -f "$REPORT_PATH"
+          test "$MISSING_CODE" = 3
+          test "$MISSING_SUCCEEDED" = false
+          test -z "$MISSING_PATH"
+          test "$MISSING_OUTCOME" = failure
+          test ! -e reports/missing.md
+          python - <<'PY'
+          import json
+          import os
+
+          with open(os.environ["REPORT_PATH"], encoding="utf-8") as handle:
+              report = json.load(handle)
+          assert report["tool"] == "inventory-policy-lab", report["tool"]
+          assert report["summary"]["skus"] == 2, report["summary"]
+          assert report["settings"]["holdout"] == 2, report["settings"]
+          PY

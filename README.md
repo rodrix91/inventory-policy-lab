@@ -38,6 +38,53 @@ inventory-policy-lab --help
 
 From a clone you can also run it without installing: `PYTHONPATH=src python -m inventory_policy_lab ...`.
 
+## GitHub Action
+
+The repository also exposes a composite GitHub Action for running the same inventory-policy analysis inside a workflow. It uses the CLI's own atomic `--output` path and does not add runtime dependencies.
+
+The current `v0.10.0` release predates this Action. Until a future release includes it, `@main` follows Unreleased changes; pin a reviewed commit SHA when reproducibility matters.
+
+```yaml
+steps:
+  - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+  - name: Build inventory policy report
+    id: inventory
+    uses: rodrix91/inventory-policy-lab@main
+    with:
+      path: data/demand.csv
+      args: --holdout 6 --test-periods 6
+      format: json
+      report-path: reports/inventory-policy.json
+
+  - name: Upload the report
+    uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+    with:
+      name: inventory-policy-report
+      path: "${{ steps.inventory.outputs.report-path }}"
+```
+
+The Action returns the CLI result directly: a nonzero inventory-policy-lab exit code fails the step unless the caller uses `continue-on-error`.
+
+| Output | Meaning |
+|---|---|
+| `exit-code` | CLI exit code (`0` success; `2` invalid option; `3` missing/unreadable input; `4` invalid data; `5` history too short) |
+| `succeeded` | `true` only when the analysis completed with exit code `0` |
+| `report-path` | Report file path on success; empty on failure |
+
+Inputs:
+
+| Input | Default | Meaning |
+|---|---|---|
+| `path` | required | Demand-history CSV relative to the caller workspace |
+| `args` | `""` | Additional analytical CLI arguments, parsed as argv and never evaluated as shell code |
+| `format` | `markdown` | `markdown` or `json` |
+| `report-path` | `""` | Optional report path; empty uses the runner temp directory |
+| `python-version` | `3.12` | Python used by the Action |
+| `summary` | `false` | Append the completed report to the GitHub job summary |
+
+`format`, `-o`, and `--output` are reserved by the Action and must use the dedicated inputs instead. The Action creates the report directory when needed, while the CLI still performs its existing atomic write and input/output collision checks.
+
 ## Verify release artifacts
 
 Releases produced by the current release workflow include a `SHA256SUMS` file and GitHub artifact provenance attestations for the wheel and source distribution. After downloading the release files into one directory, verify the checksums:

@@ -1,0 +1,54 @@
+name: inventory-policy-lab
+description: Run a reproducible inventory-policy analysis from a CSV in GitHub Actions.
+inputs:
+  path:
+    description: Demand-history CSV path relative to the workflow workspace.
+    required: true
+  args:
+    description: Additional inventory-policy-lab CLI arguments.
+    required: false
+    default: ""
+  format:
+    description: "Report format: markdown or json."
+    required: false
+    default: markdown
+  report-path:
+    description: Optional report path relative to the workflow workspace.
+    required: false
+    default: ""
+  python-version:
+    description: Python version used to run the Action.
+    required: false
+    default: "3.12"
+  summary:
+    description: Append the completed report to the GitHub job summary.
+    required: false
+    default: "false"
+outputs:
+  exit-code:
+    description: inventory-policy-lab exit code.
+    value: ${{ steps.run.outputs.exit-code }}
+  succeeded:
+    description: "true when the analysis completed successfully."
+    value: ${{ steps.run.outputs.succeeded }}
+  report-path:
+    description: Report file path when analysis succeeded.
+    value: ${{ steps.run.outputs.report-path }}
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+      with:
+        python-version: ${{ inputs.python-version }}
+    - name: Run inventory-policy-lab
+      id: run
+      shell: bash
+      env:
+        INVENTORY_ACTION_PATH: ${{ github.action_path }}
+        INVENTORY_INPUT_PATH: ${{ inputs.path }}
+        INVENTORY_INPUT_ARGS: ${{ inputs.args }}
+        INVENTORY_INPUT_FORMAT: ${{ inputs.format }}
+        INVENTORY_INPUT_REPORT_PATH: ${{ inputs.report-path }}
+        INVENTORY_INPUT_SUMMARY: ${{ inputs.summary }}
+      run: python "${{ github.action_path }}/scripts/run_action.py"
