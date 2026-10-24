@@ -355,7 +355,6 @@ def config_from_args(args: argparse.Namespace) -> Config:
 
 def _write_text_atomic(path: Path, text: str) -> None:
     """Write UTF-8 text atomically, preserving an existing destination on failure."""
-    path.parent.mkdir(parents=True, exist_ok=True)
     temp_path: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(
