@@ -569,6 +569,14 @@ def _pct(value: float | None, digits: int = 1) -> str:
     return "n/a" if value is None else f"{value * 100:.{digits}f}%"
 
 
+def _md_text(value: str) -> str:
+    """Display a SKU literally in Markdown, leaving analysis and JSON unchanged."""
+    entities = value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    escapes = {ord(ch): chr(92) + ch for ch in chr(92) + chr(96) + "*_[]()|!~"}
+    escapes.update({ord("\r"): "&#13;", ord("\n"): "&#10;"})
+    return entities.translate(escapes)
+
+
 def _table(header: list[str], rows: list[list[str]]) -> list[str]:
     lines = ["| " + " | ".join(header) + " |", "|" + "|".join("---" for _ in header) + "|"]
     lines += ["| " + " | ".join(row) + " |" for row in rows]
@@ -621,7 +629,7 @@ def _out_of_sample_lines(oos: OutOfSampleReport) -> list[str]:
         normal, boot = s.replay("normal"), s.replay("bootstrap")
         sku_rows.append(
             [
-                s.sku,
+                _md_text(s.sku),
                 s.abc,
                 s.category,
                 s.forecast_method,
@@ -649,7 +657,7 @@ def _out_of_sample_lines(oos: OutOfSampleReport) -> list[str]:
         lines += [
             "",
             f"Not in the out-of-sample replay (no history before {test[0]}): "
-            f"{', '.join(oos.skipped)}.",
+            f"{', '.join(_md_text(sku) for sku in oos.skipped)}.",
         ]
     if oos.rolling_origin:
         lines += _rolling_lines(oos)
@@ -679,7 +687,7 @@ def _cost_lines(oos: OutOfSampleReport) -> list[str]:
             ["SKU", "Per order", "Per unit held a period", "Per unit short"],
             [
                 [
-                    s.sku,
+                    _md_text(s.sku),
                     _num(oos.sku_rates[s.sku].order, 2),
                     _num(oos.sku_rates[s.sku].holding, 4),
                     _num(oos.sku_rates[s.sku].stockout, 2),
@@ -727,7 +735,7 @@ def _cost_lines(oos: OutOfSampleReport) -> list[str]:
                 cost = oos.sku_cost(s, method, origin)
                 sku_rows.append(
                     [
-                        s.sku,
+                        _md_text(s.sku),
                         _method_label(method, oos),
                         origin,
                         _num(cost.ordering),
@@ -798,7 +806,7 @@ def _optimized_lines(oos: OutOfSampleReport) -> list[str]:
         search, normal = s.optimized.search, s.replay("normal")
         sku_rows.append(
             [
-                s.sku,
+                _md_text(s.sku),
                 f"{_num(search.heuristic_safety_stock)} / {_num(search.safety_stock)}",
                 f"{_num(search.heuristic_order_quantity)} / {_num(search.order_quantity)}",
                 f"{_num(search.heuristic_cost)} / {_num(search.expected_cost)}",
@@ -942,7 +950,7 @@ def _rolling_lines(oos: OutOfSampleReport) -> list[str]:
     lines += [""]
     sku_rows = []
     for s in oos.skus:
-        cells = [s.sku, _picks(s.rolling_replay("normal").forecast_methods)]
+        cells = [_md_text(s.sku), _picks(s.rolling_replay("normal").forecast_methods)]
         for method in SAFETY_STOCK_METHODS:
             fixed_rate = s.replay(method).out_of_sample.fill_rate
             rolling_rate = s.rolling_replay(method).out_of_sample.fill_rate
@@ -1063,7 +1071,7 @@ def render_markdown(report: Report) -> str:
         ],
         [
             [
-                r.sku,
+                _md_text(r.sku),
                 r.abc_xyz,
                 r.profile.category,
                 r.method,
@@ -1116,14 +1124,14 @@ def render_markdown(report: Report) -> str:
                 cell = _num(result.mase, 2)
                 cells.append(f"**{cell}**" if name == r.method else cell)
         bias = scores[r.method].bias if r.method in scores else None
-        backtest_rows.append([r.sku, *cells, _num(bias, 2)])
+        backtest_rows.append([_md_text(r.sku), *cells, _num(bias, 2)])
     lines += _table(["SKU", *order, "Bias of pick"], backtest_rows)
     if report.out_of_sample is not None:
         lines += _out_of_sample_lines(report.out_of_sample)
     noted = [r for r in report.skus if r.notes]
     if noted:
         lines += ["", "## Notes", ""]
-        lines += [f"- {r.sku}: {'; '.join(r.notes)}" for r in noted]
+        lines += [f"- {_md_text(r.sku)}: {'; '.join(r.notes)}" for r in noted]
     lines += [
         "",
         "Fill rate, stockout periods and average on hand come from replaying this same "
