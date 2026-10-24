@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
-- CI now verifies the installed package from the source distribution contains the PEP 561 `py.typed` marker, and the sdist manifest includes it explicitly.
+- CI now verifies the installed package from the source distribution contains the PEP 561 `py.typed` marker.
 
 - Source distributions now explicitly include `SECURITY.md` and `CITATION.cff`, and CI verifies both files are present in the built sdist.
 
