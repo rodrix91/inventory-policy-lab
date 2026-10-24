@@ -83,7 +83,7 @@ Inputs:
 | `python-version` | `3.12` | Python used by the Action |
 | `summary` | `false` | Append the completed report to the GitHub job summary |
 
-`format`, `-o`, and `--output` are reserved by the Action and must use the dedicated inputs instead. An explicit `report-path` must be relative and resolve inside `GITHUB_WORKSPACE`; absolute paths and `..` escapes are refused. The Action creates the report directory when needed, while the CLI still performs its existing atomic write and input/output collision checks.
+`format`, `-o`, and `--output` are reserved by the Action and must use the dedicated inputs instead. An explicit `report-path` must be relative and resolve inside `GITHUB_WORKSPACE`; absolute paths and `..` escapes are refused. **The Action's input `path` is also confined to the caller's `GITHUB_WORKSPACE`**: absolute paths, paths that escape using `..` or symlinks, stdin (`-`), and paths containing line breaks are rejected with `exit-code=2`, `succeeded=false`, and an empty `report-path`. Relative paths that resolve inside the workspace are supported, including nested folders. This is an input-boundary check, not a complete sandbox against untrusted code running in the job. The Action creates the report directory when needed, while the CLI still performs its existing atomic write and input/output collision checks.
 
 ## Verify release artifacts
 
