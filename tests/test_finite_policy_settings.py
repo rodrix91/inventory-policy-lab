@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
+from typing import Any
 
 import pytest
 from conftest import EXAMPLES
@@ -37,7 +38,8 @@ WORKED = str(EXAMPLES / "worked_example.csv")
     ],
 )
 def test_api_rejects_nonfinite_settings(setting: str, value: float | tuple[float, float]) -> None:
-    config = replace(Config(), **{setting: value})
+    changes: dict[str, Any] = {setting: value}
+    config = replace(Config(), **changes)
     with pytest.raises(ConfigError, match="must be finite"):
         config.validate()
 
