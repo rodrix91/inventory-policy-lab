@@ -355,27 +355,27 @@ def config_from_args(args: argparse.Namespace) -> Config:
 
 def _write_text_atomic(path: Path, text: str) -> None:
     """Write UTF-8 text atomically, preserving an existing destination on failure."""
-    temp_path: Path | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            encoding="utf-8",
-            dir=path.parent,
-            prefix=f".{path.name}.",
-            suffix=".tmp",
-            delete=False,
-        ) as handle:
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        delete=False,
+    ) as handle:
+        temp_path = Path(handle.name)
+        try:
             handle.write(text)
             handle.flush()
             os.fsync(handle.fileno())
-            temp_path = Path(handle.name)
+        except OSError:
+            temp_path.unlink(missing_ok=True)
+            raise
+
+    try:
         os.replace(temp_path, path)
     finally:
-        if temp_path is not None:
-            try:
-                temp_path.unlink()
-            except FileNotFoundError:
-                pass
+        temp_path.unlink(missing_ok=True)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
