@@ -1,0 +1,39 @@
+name: Bug report
+description: Report behavior that does not match the documented inventory analysis
+title: "[bug] "
+body:
+  - type: textarea
+    id: command
+    attributes:
+      label: Command or API call
+      description: The exact CLI command or Python API call that reproduces the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: input
+    attributes:
+      label: Minimal input
+      description: Provide the smallest synthetic or anonymized dataset that reproduces the issue. Do not upload confidential company data.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+      description: Describe the policy, metric, exit code, or report output you expected.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+      description: Include relevant stdout, stderr, traceback, or report excerpt. Do not paste secrets.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Python version, operating system, and installed package version or commit.
+    validations:
+      required: true

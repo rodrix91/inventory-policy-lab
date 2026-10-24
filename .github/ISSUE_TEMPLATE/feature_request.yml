@@ -1,0 +1,32 @@
+name: Feature or method request
+description: Suggest a focused analytical or usability improvement
+title: "[feature] "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Decision or analysis problem
+      description: What inventory, forecasting, simulation, or workflow question is difficult to answer today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed improvement
+      description: Describe the smallest useful change. Runtime code should remain standard-library only.
+    validations:
+      required: true
+  - type: textarea
+    id: reference
+    attributes:
+      label: Method reference
+      description: For a new formula, forecasting method, or policy rule, provide a paper, textbook, standard, or other authoritative reference.
+    validations:
+      required: false
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation idea
+      description: How could the change be checked with a worked example, backtest, simulation, or regression test?
+    validations:
+      required: false
