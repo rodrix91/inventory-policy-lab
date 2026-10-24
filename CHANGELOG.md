@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- CI now runs the full test suite on Windows and macOS at Python 3.11 and 3.13, in addition to the Linux quality matrix, to exercise OS-sensitive path identity, links and atomic output behavior.
+
 ### Fixed
 
 - Prevent `--output` from overwriting the input CSV through identical paths, relative aliases, symlinks or hard links; fail closed when file identity cannot be checked. Add regression tests.
