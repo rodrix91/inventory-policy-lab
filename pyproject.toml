@@ -29,6 +29,10 @@ classifiers = [
 [project.urls]
 Homepage = "https://github.com/rodrix91/inventory-policy-lab"
 Changelog = "https://github.com/rodrix91/inventory-policy-lab/blob/main/CHANGELOG.md"
+Issues = "https://github.com/rodrix91/inventory-policy-lab/issues"
+Contributing = "https://github.com/rodrix91/inventory-policy-lab/blob/main/CONTRIBUTING.md"
+Documentation = "https://github.com/rodrix91/inventory-policy-lab/tree/main/docs"
+Security = "https://github.com/rodrix91/inventory-policy-lab/security"
 
 [project.scripts]
 inventory-policy-lab = "inventory_policy_lab.cli:main"
