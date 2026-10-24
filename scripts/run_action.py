@@ -110,9 +110,7 @@ def main() -> int:
             f"Argument {reserved!r} is controlled by the Action; use format/report-path inputs."
         )
 
-    report_path = _resolve_report_path(
-        os.getenv("INVENTORY_INPUT_REPORT_PATH", ""), report_format
-    )
+    report_path = _resolve_report_path(os.getenv("INVENTORY_INPUT_REPORT_PATH", ""), report_format)
     if "\n" in str(report_path) or "\r" in str(report_path):
         return _fail("Action report-path must not contain line breaks.")
     try:
