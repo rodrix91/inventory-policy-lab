@@ -140,28 +140,8 @@ jobs:
 
       - name: Required project metadata is present in the source distribution
         run: |
-          tar tzf "$RUNNER_TEMP"/dist/*.tar.gz | grep -Eq '^[^/]+/SECURITY\.md          mkdir "$RUNNER_TEMP/sdist"
-          tar xzf "$RUNNER_TEMP"/dist/*.tar.gz -C "$RUNNER_TEMP/sdist"
-          cd "$RUNNER_TEMP"/sdist/*/
-          python -m pip install --no-deps .
-          python -m pytest -p no:cacheprovider
-
-      - name: The installed command works
-        run: |
-          inventory-policy-lab --version
-          inventory-policy-lab examples/worked_example.csv --holdout 2 --format json > /dev/null
-
-          tar tzf "$RUNNER_TEMP"/dist/*.tar.gz | grep -Eq '^[^/]+/CITATION\.cff          mkdir "$RUNNER_TEMP/sdist"
-          tar xzf "$RUNNER_TEMP"/dist/*.tar.gz -C "$RUNNER_TEMP/sdist"
-          cd "$RUNNER_TEMP"/sdist/*/
-          python -m pip install --no-deps .
-          python -m pytest -p no:cacheprovider
-
-      - name: The installed command works
-        run: |
-          inventory-policy-lab --version
-          inventory-policy-lab examples/worked_example.csv --holdout 2 --format json > /dev/null
-
+          tar tzf "$RUNNER_TEMP"/dist/*.tar.gz | grep -Eq '^[^/]+/SECURITY\.md$'
+          tar tzf "$RUNNER_TEMP"/dist/*.tar.gz | grep -Eq '^[^/]+/CITATION\.cff$'
 
       - name: Run the tests from the unpacked source distribution
         run: |
