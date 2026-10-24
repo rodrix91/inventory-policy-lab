@@ -142,6 +142,7 @@ jobs:
         run: |
           tar tzf "$RUNNER_TEMP"/dist/*.tar.gz | grep -Eq '^[^/]+/SECURITY\.md$'
           tar tzf "$RUNNER_TEMP"/dist/*.tar.gz | grep -Eq '^[^/]+/CITATION\.cff$'
+          tar tzf "$RUNNER_TEMP"/dist/*.tar.gz | grep -Eq '^[^/]+/docs/README\.md$'
 
       - name: Run the tests from the unpacked source distribution
         run: |
