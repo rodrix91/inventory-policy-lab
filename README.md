@@ -728,6 +728,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). In short: `python -m pytest`, `coverage 
 - Tashman, L. J. (2000). Out-of-sample tests of forecasting accuracy: an analysis and review. *International Journal of Forecasting*, 16(4), 437-450.
 - Teunter, R. H., & Duncan, L. (2009). Forecasting intermittent demand: a comparative study. *Journal of the Operational Research Society*, 60(3), 321-329.
 
+## Citation
+
+If you use this software in research, teaching, or analytical work, GitHub can generate a citation from [`CITATION.cff`](CITATION.cff). The citation metadata points to the latest published software release and is kept separate from Unreleased development work.
+
 ## License
 
 MIT, see [LICENSE](LICENSE). Copyright (c) 2026 Rodrigo Pantoja Navajas.
