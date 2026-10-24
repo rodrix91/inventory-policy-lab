@@ -26,6 +26,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- The reusable GitHub Action now rejects explicit report paths that are absolute or resolve outside `GITHUB_WORKSPACE`, matching its documented relative-path contract and preventing accidental writes outside the caller workspace.
 - Added a reusable composite GitHub Action that runs the existing CLI with safe argv handling, preserves atomic report writes, exposes `exit-code`/`succeeded`/`report-path`, and is tested end to end on both a real JSON report and a missing-input failure.
 - GitHub Actions are pinned to the verified commit SHAs behind `actions/checkout@v7` and `actions/setup-python@v7`, with version comments retained for readable Dependabot updates.
 - CI keeps 100% coverage, lint, formatting, mypy and generated-file checks on Python 3.12 while testing Python 3.11 and 3.13 separately without coverage instrumentation; superseded runs for the same PR or branch are cancelled.
