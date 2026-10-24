@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- CI now verifies the installed package from the source distribution contains the PEP 561 `py.typed` marker, and the sdist manifest includes it explicitly.
+
 - Source distributions now explicitly include `SECURITY.md` and `CITATION.cff`, and CI verifies both files are present in the built sdist.
 
 - README now links the private vulnerability-reporting guidance in `SECURITY.md` from the development section.
