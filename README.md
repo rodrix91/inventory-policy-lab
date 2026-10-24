@@ -292,6 +292,8 @@ The building blocks are public too: `read_demand`, `abc_classes`, `xyz_class`, `
 
 ## Options
 
+**Numeric safety:** policy durations, demand annualization, order coverage, EOQ rates and ABC-XYZ thresholds must be finite numbers. Inputs such as `--lead-time NaN`, `--periods-per-year inf` or `--xyz-thresholds 0.5,inf` fail with exit code `2` and do not replace an existing report. JSON and Markdown calculations with valid finite values are unchanged.
+
 | Option | Default | Meaning |
 |---|---|---|
 | `--format markdown\|json` | markdown | Output format |
