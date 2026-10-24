@@ -703,7 +703,7 @@ Data flows one way: `reader` returns plain data, `analysis` returns a `Report`, 
 
 ## Development
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). In short: `python -m pytest`, `coverage run -m pytest && coverage combine && coverage report` (100% line and branch coverage is enforced), `ruff check .`, `ruff format --check .`, `mypy` (strict). Design decisions are recorded in [docs/decisions](docs/decisions). Changes are listed in the [CHANGELOG](CHANGELOG.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md). In short: `python -m pytest`, `coverage run -m pytest && coverage combine && coverage report` (100% line and branch coverage is enforced), `ruff check .`, `ruff format --check .`, `mypy` (strict). CI runs the full suite on Linux, Windows and macOS. Design decisions are recorded in [docs/decisions](docs/decisions). Changes are listed in the [CHANGELOG](CHANGELOG.md).
 
 ## References
 
