@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Release artifacts now include a `SHA256SUMS` file so downloaded wheels and source distributions can be independently verified.
+
 - CI jobs now have explicit conservative timeouts so a hung coverage run, platform test, or packaging step cannot occupy a runner indefinitely.
 
 - The release job now has an explicit timeout so a stuck build, install, release test, or upload cannot occupy a runner indefinitely.
