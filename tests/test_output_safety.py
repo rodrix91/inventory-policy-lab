@@ -76,3 +76,24 @@ def test_identity_check_error_fails_closed(
     assert main([str(source), "--holdout", "2", "-o", str(destination)]) == 3
     assert "cannot check output" in capsys.readouterr().err
     assert not destination.exists()
+
+
+def test_atomic_output_preserves_existing_report_on_replace_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    source = tmp_path / "demand.csv"
+    source.write_bytes((EXAMPLES / "worked_example.csv").read_bytes())
+    destination = tmp_path / "report.md"
+    destination.write_text("previous complete report\n", encoding="utf-8")
+
+    def fail_replace(_src: object, _dst: object) -> None:
+        raise OSError("replace denied")
+
+    monkeypatch.setattr("inventory_policy_lab.cli.os.replace", fail_replace)
+
+    assert main([str(source), "--holdout", "2", "-o", str(destination)]) == 3
+    assert "cannot write" in capsys.readouterr().err
+    assert destination.read_text(encoding="utf-8") == "previous complete report\n"
+    assert list(tmp_path.glob(".report.md.*.tmp")) == []
