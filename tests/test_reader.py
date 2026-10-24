@@ -37,6 +37,7 @@ def test_accepts_str_paths_and_header_aliases(tmp_path: Path) -> None:
     assert data.skus[0].demand == (3, 4)
     assert not data.has_unit_cost and not data.has_lead_time
     assert data.skus[0].unit_cost is None
+    assert data.source == path.as_posix()
 
 
 def test_months_fill_gaps_and_new_items_start_late() -> None:
@@ -119,3 +120,23 @@ def test_missing_file_directory_and_encoding_are_input_errors(tmp_path: Path) ->
     with pytest.raises(InputFileError, match="not valid UTF-8") as excinfo:
         read_demand(latin1)
     assert excinfo.value.exit_code == 3
+
+
+@pytest.mark.parametrize(
+    ("error", "message"),
+    [
+        (FileNotFoundError(), "file not found"),
+        (IsADirectoryError(), "not a file"),
+    ],
+)
+def test_open_race_errors_are_input_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, error: OSError, message: str
+) -> None:
+    path = write_csv(tmp_path / "race.csv", "sku,period,quantity\na,1,1\n")
+
+    def fail_open(self: Path, *args: object, **kwargs: object) -> object:
+        raise error
+
+    monkeypatch.setattr(Path, "open", fail_open)
+    with pytest.raises(InputFileError, match=message):
+        read_demand(path)

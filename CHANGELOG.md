@@ -4,8 +4,14 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- CI now runs the full test suite on Windows and macOS at Python 3.11 and 3.13, in addition to the Linux quality matrix, to exercise OS-sensitive path identity, links and atomic output behavior.
+
 ### Fixed
 
+- Input directories are rejected consistently as `InputFileError` before opening them, including on Windows where opening a directory can raise `PermissionError` instead of `IsADirectoryError`.
+- File sources embedded in reports use POSIX-style separators, so generated reports and README samples are byte-stable across Windows, macOS and Linux.
 - Prevent `--output` from overwriting the input CSV through identical paths, relative aliases, symlinks or hard links; fail closed when file identity cannot be checked. Add regression tests.
 - Write report files atomically through a temporary file and `os.replace`, so a failed write or final replacement preserves the previous complete report and cleans up temporary files. Regression tests cover replacement and `fsync` failures, including cleanup after the file handle closes.
 
