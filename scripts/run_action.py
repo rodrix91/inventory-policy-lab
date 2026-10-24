@@ -73,6 +73,27 @@ def _resolve_report_path(raw: str, report_format: str) -> Path:
     return resolved
 
 
+def _resolve_input_path(raw: str) -> Path:
+    """Keep the Action's input CSV inside the caller workspace."""
+    workspace = os.getenv("GITHUB_WORKSPACE")
+    if not workspace:
+        raise ValueError("GITHUB_WORKSPACE is required for the Action.")
+    if raw == "-":
+        raise ValueError("Action input path must name a CSV inside GITHUB_WORKSPACE.")
+    if "\n" in raw or "\r" in raw:
+        raise ValueError("Action input path must not contain line breaks.")
+    path = Path(raw)
+    if path.is_absolute():
+        raise ValueError("Action input path must be relative to GITHUB_WORKSPACE.")
+    root = Path(workspace).resolve()
+    resolved = (root / path).resolve()
+    try:
+        resolved.relative_to(root)
+    except ValueError as exc:
+        raise ValueError("Action input path must stay within GITHUB_WORKSPACE.") from exc
+    return resolved
+
+
 def _write_summary(path: Path, report_format: str) -> None:
     target = os.getenv("GITHUB_STEP_SUMMARY")
     if not target:
@@ -114,6 +135,11 @@ def main() -> int:
         return _fail(
             f"Argument {reserved!r} is controlled by the Action; use format/report-path inputs."
         )
+
+    try:
+        csv_path = str(_resolve_input_path(csv_path))
+    except ValueError as exc:
+        return _fail(str(exc))
 
     try:
         report_path = _resolve_report_path(
