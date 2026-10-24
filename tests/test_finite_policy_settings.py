@@ -36,9 +36,7 @@ WORKED = str(EXAMPLES / "worked_example.csv")
         ("xyz_thresholds", (float("nan"), 1.0)),
     ],
 )
-def test_api_rejects_nonfinite_settings(
-    setting: str, value: float | tuple[float, float]
-) -> None:
+def test_api_rejects_nonfinite_settings(setting: str, value: float | tuple[float, float]) -> None:
     config = replace(Config(), **{setting: value})
     with pytest.raises(ConfigError, match="must be finite"):
         config.validate()
