@@ -9,13 +9,16 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   quality:
+    # Coverage and static analysis are version-independent checks; run them once
+    # on the middle supported Python instead of instrumenting the full suite
+    # three times.
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.11", "3.12", "3.13"]
 
     steps:
       - name: Check out repository
@@ -24,7 +27,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.12"
           cache: pip
 
       - name: Install development dependencies
@@ -50,6 +53,31 @@ jobs:
           python scripts/generate_example.py --check
           python scripts/make_pareto_svg.py --check
           python scripts/update_readme_samples.py --check
+
+  linux:
+    # Keep explicit interpreter compatibility on the other supported versions
+    # without repeating the expensive coverage/static-analysis pass.
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.13"]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install development dependencies
+        run: python -m pip install --require-hashes -r requirements-dev.lock
+
+      - name: Run tests
+        run: python -m pytest -p no:cacheprovider -ra
 
 
   platforms:
