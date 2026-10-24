@@ -83,6 +83,4 @@ def test_existing_report_does_not_allow_false_green_result(
         mocked.assert_not_called()
 
     assert original.read_text(encoding="utf-8") == '{"tool":"old-report"}\n'
-    assert outputs.read_text(encoding="utf-8") == (
-        "exit-code=2\nsucceeded=false\nreport-path=\n"
-    )
+    assert outputs.read_text(encoding="utf-8") == ("exit-code=2\nsucceeded=false\nreport-path=\n")
