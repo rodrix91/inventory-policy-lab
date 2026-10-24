@@ -138,6 +138,11 @@ jobs:
       - name: Build the source distribution
         run: python -m build --sdist --outdir "$RUNNER_TEMP/dist" .
 
+      - name: Required project metadata is present in the source distribution
+        run: |
+          tar tzf "$RUNNER_TEMP"/dist/*.tar.gz | grep -Eq '^[^/]+/SECURITY\.md$'
+          tar tzf "$RUNNER_TEMP"/dist/*.tar.gz | grep -Eq '^[^/]+/CITATION\.cff$'
+
       - name: Run the tests from the unpacked source distribution
         run: |
           mkdir "$RUNNER_TEMP/sdist"
