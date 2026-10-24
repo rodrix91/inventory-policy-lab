@@ -740,6 +740,8 @@ The search takes about 0.5 s per SKU at 100 plain paths (48-month series: 0.15 s
 
 ## Architecture
 
+Explore the [engineering decisions index](docs/README.md) to navigate all 17 accepted architecture decision records, from forecast selection and stock policies to cost optimisation and service-level tradeoffs.
+
 ```mermaid
 flowchart LR
     CSV[(demand CSV)] --> reader
