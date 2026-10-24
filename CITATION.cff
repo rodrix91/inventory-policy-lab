@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use inventory-policy-lab in research, teaching, or analysis, please cite this software."
+title: "inventory-policy-lab"
+type: software
+authors:
+  - family-names: "Pantoja Navajas"
+    given-names: "Rodrigo"
+repository-code: "https://github.com/rodrix91/inventory-policy-lab"
+url: "https://github.com/rodrix91/inventory-policy-lab"
+license: MIT
+version: "0.10.0"
+date-released: "2026-10-16"
+keywords:
+  - inventory
+  - supply chain
+  - forecasting
+  - safety stock
+  - reorder point
+  - operations
