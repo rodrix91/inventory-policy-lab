@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- The reusable GitHub Action now validates CSV input paths against the caller's `GITHUB_WORKSPACE` before creating report directories or launching the CLI. Absolute paths, workspace traversal, escaping symlinks, stdin and line-break paths fail closed with documented Action outputs; new unit and end-to-end CI checks preserve normal relative-path behavior.
+
 - CI now verifies the installed package from the source distribution contains the PEP 561 `py.typed` marker.
 
 - Source distributions now explicitly include `SECURITY.md` and `CITATION.cff`, and CI verifies both files are present in the built sdist.
