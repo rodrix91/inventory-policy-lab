@@ -8,6 +8,15 @@ Python 3.11+, standard library only at runtime. Library and command line.
 
 **Status: alpha, version 0.10.0.** The methods are textbook methods, implemented and tested carefully, but the tool has not been used on many real datasets yet. Read [Limitations](#limitations) before using its numbers for real orders.
 
+## Companion data-quality tools
+
+Before using a demand extract for policy analysis:
+
+- use [csv-quality-report](https://github.com/rodrix91/csv-quality-report) for deeper profiling, types, ranges, allowed values, uniqueness, freshness, schema changes, and baseline drift;
+- use [ops-field-brief](https://github.com/rodrix91/ops-field-brief) for fast operational checks such as required-field fill, repeated business keys, minimum row counts, and counterparty concentration.
+
+This keeps data validation separate from inventory-policy modeling and makes each step easier to audit.
+
 ## Why it matters for operations
 
 Most stock problems are policy problems: the same safety-stock rule applied to a fast, stable item and to a spare part that sells twice a year; a forecast chosen because it is the default, not because it was tested; a reorder point computed once and never checked against what would actually have happened. This tool makes each step explicit and reviewable:
