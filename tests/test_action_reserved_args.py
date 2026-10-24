@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shlex
 from pathlib import Path
 from unittest.mock import patch
 
@@ -34,8 +35,6 @@ run_action = load_script("run_action")
     ],
 )
 def test_rejects_nonexecuting_and_reserved_action_args(raw: str) -> None:
-    import shlex
-
     assert run_action._reserved_argument(shlex.split(raw)) is not None
 
 
@@ -54,8 +53,6 @@ def test_rejects_nonexecuting_and_reserved_action_args(raw: str) -> None:
     ],
 )
 def test_allows_normal_analysis_options(raw: str) -> None:
-    import shlex
-
     assert run_action._reserved_argument(shlex.split(raw)) is None
 
 
