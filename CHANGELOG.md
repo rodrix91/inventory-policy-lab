@@ -7,6 +7,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Fixed
 
 - Prevent `--output` from overwriting the input CSV through identical paths, relative aliases, symlinks or hard links; fail closed when file identity cannot be checked. Add regression tests.
+- Write report files atomically through a temporary file and `os.replace`, so a failed write or final replacement preserves the previous complete report and cleans up temporary files. Regression tests cover replacement and `fsync` failures, including cleanup after the file handle closes.
 
 ## [0.10.0] - 2026-10-16
 
