@@ -155,6 +155,10 @@ def read_demand(path: str | os.PathLike[str], cost_columns: bool = False) -> Dem
     columns are read too (ADR 0014).
     """
     file = Path(path)
+    if not file.exists():
+        raise InputFileError(f"file not found: {file}")
+    if not file.is_file():
+        raise InputFileError(f"not a file: {file}")
     try:
         with file.open(encoding="utf-8-sig", newline="") as handle:
             rows = list(csv.reader(handle))
@@ -166,7 +170,7 @@ def read_demand(path: str | os.PathLike[str], cost_columns: bool = False) -> Dem
         raise InputFileError(
             f"{file} is not valid UTF-8 (byte {exc.start}); re-save it as UTF-8"
         ) from None
-    return parse_rows(rows, source=str(file), cost_columns=cost_columns)
+    return parse_rows(rows, source=file.as_posix(), cost_columns=cost_columns)
 
 
 def parse_rows(
