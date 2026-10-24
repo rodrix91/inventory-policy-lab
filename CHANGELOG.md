@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Source distributions now explicitly include `SECURITY.md` and `CITATION.cff`, and CI verifies both files are present in the built sdist.
+
 - README now links the private vulnerability-reporting guidance in `SECURITY.md` from the development section.
 
 - README now documents how to verify release SHA-256 checksums and GitHub provenance attestations, while noting that historical releases may predate those guarantees.
