@@ -141,7 +141,244 @@ jobs:
       - name: Required project metadata is present in the source distribution
         run: |
           tar tzf "$RUNNER_TEMP"/dist/*.tar.gz | grep -Eq '^[^/]+/SECURITY\.md$'
-          tar tzf "$RUNNER_TEMP"/dist/*.tar.gz | grep -Eq '^[^/]+/CITATION\.cff$'
+          tar tzf "$RUNNER_TEMP"/dist/*.tar.gz | grep -Eq '^[^/]+/CITATION\.cff
+
+      - name: Run the tests from the unpacked source distribution
+        run: |
+          mkdir "$RUNNER_TEMP/sdist"
+          tar xzf "$RUNNER_TEMP"/dist/*.tar.gz -C "$RUNNER_TEMP/sdist"
+          cd "$RUNNER_TEMP"/sdist/*/
+          python -m pip install --no-deps .
+          python - <<'PY'
+          from pathlib import Path
+          import inventory_policy_lab
+
+          marker = Path(inventory_policy_lab.__file__).with_name("py.typed")
+          assert marker.is_file(), marker
+          PY
+          python -m pytest -p no:cacheprovider
+
+      - name: The installed command works
+        run: |
+          inventory-policy-lab --version
+          inventory-policy-lab examples/worked_example.csv --holdout 2 --format json > /dev/null
+
+  action:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Action produces a JSON policy report
+        id: report
+        uses: ./
+        with:
+          path: examples/worked_example.csv
+          args: --holdout 2 --ordering-cost 30 --holding-rate 0.25
+          format: json
+          report-path: reports/action-report.json
+          summary: "false"
+
+      - name: Missing input fails cleanly
+        id: missing
+        continue-on-error: true
+        uses: ./
+        with:
+          path: examples/not-there.csv
+          args: --holdout 2
+          report-path: reports/missing.md
+          summary: "false"
+
+      - name: Absolute report path is refused
+        id: absolute
+        continue-on-error: true
+        uses: ./
+        with:
+          path: examples/worked_example.csv
+          args: --holdout 2
+          report-path: ${{ runner.temp }}/inventory-action-absolute.json
+          summary: "false"
+
+      - name: Escaping report path is refused
+        id: escape
+        continue-on-error: true
+        uses: ./
+        with:
+          path: examples/worked_example.csv
+          args: --holdout 2
+          report-path: ../inventory-action-escape.json
+          summary: "false"
+
+      - name: Verify Action outputs and report
+        env:
+          REPORT_CODE: ${{ steps.report.outputs.exit-code }}
+          REPORT_SUCCEEDED: ${{ steps.report.outputs.succeeded }}
+          REPORT_PATH: ${{ steps.report.outputs.report-path }}
+          MISSING_CODE: ${{ steps.missing.outputs.exit-code }}
+          MISSING_SUCCEEDED: ${{ steps.missing.outputs.succeeded }}
+          MISSING_PATH: ${{ steps.missing.outputs.report-path }}
+          MISSING_OUTCOME: ${{ steps.missing.outcome }}
+          ABSOLUTE_CODE: ${{ steps.absolute.outputs.exit-code }}
+          ABSOLUTE_SUCCEEDED: ${{ steps.absolute.outputs.succeeded }}
+          ABSOLUTE_PATH: ${{ steps.absolute.outputs.report-path }}
+          ABSOLUTE_OUTCOME: ${{ steps.absolute.outcome }}
+          ESCAPE_CODE: ${{ steps.escape.outputs.exit-code }}
+          ESCAPE_SUCCEEDED: ${{ steps.escape.outputs.succeeded }}
+          ESCAPE_PATH: ${{ steps.escape.outputs.report-path }}
+          ESCAPE_OUTCOME: ${{ steps.escape.outcome }}
+        run: |
+          test "$REPORT_CODE" = 0
+          test "$REPORT_SUCCEEDED" = true
+          test -n "$REPORT_PATH"
+          test -f "$REPORT_PATH"
+          test "$MISSING_CODE" = 3
+          test "$MISSING_SUCCEEDED" = false
+          test -z "$MISSING_PATH"
+          test "$MISSING_OUTCOME" = failure
+          test ! -e reports/missing.md
+          test "$ABSOLUTE_CODE" = 2
+          test "$ABSOLUTE_SUCCEEDED" = false
+          test -z "$ABSOLUTE_PATH"
+          test "$ABSOLUTE_OUTCOME" = failure
+          test ! -e "$RUNNER_TEMP/inventory-action-absolute.json"
+          test "$ESCAPE_CODE" = 2
+          test "$ESCAPE_SUCCEEDED" = false
+          test -z "$ESCAPE_PATH"
+          test "$ESCAPE_OUTCOME" = failure
+          test ! -e "$GITHUB_WORKSPACE/../inventory-action-escape.json"
+          python - <<'PY'
+          import json
+          import os
+
+          with open(os.environ["REPORT_PATH"], encoding="utf-8") as handle:
+              report = json.load(handle)
+          assert report["tool"] == "inventory-policy-lab", report["tool"]
+          assert report["summary"]["skus"] == 2, report["summary"]
+          assert report["settings"]["holdout"] == 2, report["settings"]
+          PY
+
+          tar tzf "$RUNNER_TEMP"/dist/*.tar.gz | grep -Eq '^[^/]+/docs/README\.md
+
+      - name: Run the tests from the unpacked source distribution
+        run: |
+          mkdir "$RUNNER_TEMP/sdist"
+          tar xzf "$RUNNER_TEMP"/dist/*.tar.gz -C "$RUNNER_TEMP/sdist"
+          cd "$RUNNER_TEMP"/sdist/*/
+          python -m pip install --no-deps .
+          python - <<'PY'
+          from pathlib import Path
+          import inventory_policy_lab
+
+          marker = Path(inventory_policy_lab.__file__).with_name("py.typed")
+          assert marker.is_file(), marker
+          PY
+          python -m pytest -p no:cacheprovider
+
+      - name: The installed command works
+        run: |
+          inventory-policy-lab --version
+          inventory-policy-lab examples/worked_example.csv --holdout 2 --format json > /dev/null
+
+  action:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Action produces a JSON policy report
+        id: report
+        uses: ./
+        with:
+          path: examples/worked_example.csv
+          args: --holdout 2 --ordering-cost 30 --holding-rate 0.25
+          format: json
+          report-path: reports/action-report.json
+          summary: "false"
+
+      - name: Missing input fails cleanly
+        id: missing
+        continue-on-error: true
+        uses: ./
+        with:
+          path: examples/not-there.csv
+          args: --holdout 2
+          report-path: reports/missing.md
+          summary: "false"
+
+      - name: Absolute report path is refused
+        id: absolute
+        continue-on-error: true
+        uses: ./
+        with:
+          path: examples/worked_example.csv
+          args: --holdout 2
+          report-path: ${{ runner.temp }}/inventory-action-absolute.json
+          summary: "false"
+
+      - name: Escaping report path is refused
+        id: escape
+        continue-on-error: true
+        uses: ./
+        with:
+          path: examples/worked_example.csv
+          args: --holdout 2
+          report-path: ../inventory-action-escape.json
+          summary: "false"
+
+      - name: Verify Action outputs and report
+        env:
+          REPORT_CODE: ${{ steps.report.outputs.exit-code }}
+          REPORT_SUCCEEDED: ${{ steps.report.outputs.succeeded }}
+          REPORT_PATH: ${{ steps.report.outputs.report-path }}
+          MISSING_CODE: ${{ steps.missing.outputs.exit-code }}
+          MISSING_SUCCEEDED: ${{ steps.missing.outputs.succeeded }}
+          MISSING_PATH: ${{ steps.missing.outputs.report-path }}
+          MISSING_OUTCOME: ${{ steps.missing.outcome }}
+          ABSOLUTE_CODE: ${{ steps.absolute.outputs.exit-code }}
+          ABSOLUTE_SUCCEEDED: ${{ steps.absolute.outputs.succeeded }}
+          ABSOLUTE_PATH: ${{ steps.absolute.outputs.report-path }}
+          ABSOLUTE_OUTCOME: ${{ steps.absolute.outcome }}
+          ESCAPE_CODE: ${{ steps.escape.outputs.exit-code }}
+          ESCAPE_SUCCEEDED: ${{ steps.escape.outputs.succeeded }}
+          ESCAPE_PATH: ${{ steps.escape.outputs.report-path }}
+          ESCAPE_OUTCOME: ${{ steps.escape.outcome }}
+        run: |
+          test "$REPORT_CODE" = 0
+          test "$REPORT_SUCCEEDED" = true
+          test -n "$REPORT_PATH"
+          test -f "$REPORT_PATH"
+          test "$MISSING_CODE" = 3
+          test "$MISSING_SUCCEEDED" = false
+          test -z "$MISSING_PATH"
+          test "$MISSING_OUTCOME" = failure
+          test ! -e reports/missing.md
+          test "$ABSOLUTE_CODE" = 2
+          test "$ABSOLUTE_SUCCEEDED" = false
+          test -z "$ABSOLUTE_PATH"
+          test "$ABSOLUTE_OUTCOME" = failure
+          test ! -e "$RUNNER_TEMP/inventory-action-absolute.json"
+          test "$ESCAPE_CODE" = 2
+          test "$ESCAPE_SUCCEEDED" = false
+          test -z "$ESCAPE_PATH"
+          test "$ESCAPE_OUTCOME" = failure
+          test ! -e "$GITHUB_WORKSPACE/../inventory-action-escape.json"
+          python - <<'PY'
+          import json
+          import os
+
+          with open(os.environ["REPORT_PATH"], encoding="utf-8") as handle:
+              report = json.load(handle)
+          assert report["tool"] == "inventory-policy-lab", report["tool"]
+          assert report["summary"]["skus"] == 2, report["summary"]
+          assert report["settings"]["holdout"] == 2, report["settings"]
+          PY
+
 
       - name: Run the tests from the unpacked source distribution
         run: |
