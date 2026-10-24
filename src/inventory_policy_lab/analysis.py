@@ -167,6 +167,24 @@ class Config:
 
     def validate(self) -> None:
         """Raise :class:`ConfigError` for any setting out of range."""
+        # NaN bypasses ordinary comparisons; infinity can corrupt the forecasts,
+        # EOQ, replenishment levels or ABC-XYZ classification.
+        finite_settings = {
+            "periods per year": self.periods_per_year,
+            "lead time": self.lead_time,
+            "lead time standard deviation": self.lead_time_std,
+            "review period": self.review_period,
+            "order cover": self.order_cover,
+            "ordering cost": self.ordering_cost,
+            "holding rate": self.holding_rate,
+            "first ABC threshold": self.abc_thresholds[0],
+            "second ABC threshold": self.abc_thresholds[1],
+            "first XYZ threshold": self.xyz_thresholds[0],
+            "second XYZ threshold": self.xyz_thresholds[1],
+        }
+        for label, value in finite_settings.items():
+            if value is not None and not math.isfinite(value):
+                raise ConfigError(f"{label} must be finite, got {value}")
         levels = {"service_level": self.service_level}
         for name, level in self.class_service_levels.items():
             if name not in ("A", "B", "C"):
