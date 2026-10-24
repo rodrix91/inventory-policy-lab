@@ -19,6 +19,7 @@ jobs:
     # on the middle supported Python instead of instrumenting the full suite
     # three times.
     runs-on: ubuntu-latest
+    timeout-minutes: 60
 
     steps:
       - name: Check out repository
@@ -58,6 +59,7 @@ jobs:
     # Keep explicit interpreter compatibility on the other supported versions
     # without repeating the expensive coverage/static-analysis pass.
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -83,6 +85,7 @@ jobs:
   platforms:
     # Exercise OS-sensitive file identity and atomic-write behavior outside Linux.
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -110,6 +113,7 @@ jobs:
     # archive, outside the checkout, so a file the tests need but MANIFEST.in
     # leaves out fails here instead of for whoever packages a release.
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
