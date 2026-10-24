@@ -63,9 +63,7 @@ def test_cli_sku_escaping_without_changing_machine_readable_values(tmp_path: Pat
     _write_history(path, sku)
     env = {**os.environ, "PYTHONPATH": str(ROOT / "src")}
     args = [sys.executable, "-m", "inventory_policy_lab", str(path), "--holdout", "2"]
-    markdown = subprocess.run(
-        args, cwd=ROOT, env=env, capture_output=True, text=True, check=False
-    )
+    markdown = subprocess.run(args, cwd=ROOT, env=env, capture_output=True, text=True, check=False)
     data = subprocess.run(
         [*args, "--format", "json"],
         cwd=ROOT,
