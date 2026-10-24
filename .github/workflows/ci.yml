@@ -233,6 +233,39 @@ jobs:
           report-path: reports/absolute-input.md
           summary: "false"
 
+      - name: Refuse help even if a previous report already exists
+        id: no-op-help
+        continue-on-error: true
+        uses: ./
+        with:
+          path: examples/worked_example.csv
+          args: --help
+          format: json
+          report-path: reports/action-report.json
+          summary: "false"
+
+      - name: Refuse abbreviated version even if a previous report exists
+        id: no-op-version
+        continue-on-error: true
+        uses: ./
+        with:
+          path: examples/worked_example.csv
+          args: --ver
+          format: json
+          report-path: reports/action-report.json
+          summary: "false"
+
+      - name: Refuse argparse's abbreviated output switch
+        id: alias-output
+        continue-on-error: true
+        uses: ./
+        with:
+          path: examples/worked_example.csv
+          args: --out=reports/bypass.json
+          format: json
+          report-path: reports/action-report.json
+          summary: "false"
+
       - name: Verify Action outputs and report
         env:
           INPUT_ESCAPE_CODE: ${{ steps.input-escape.outputs.exit-code }}
@@ -243,6 +276,18 @@ jobs:
           INPUT_ABSOLUTE_SUCCEEDED: ${{ steps.input-absolute.outputs.succeeded }}
           INPUT_ABSOLUTE_PATH: ${{ steps.input-absolute.outputs.report-path }}
           INPUT_ABSOLUTE_OUTCOME: ${{ steps.input-absolute.outcome }}
+          NOOP_HELP_CODE: ${{ steps.no-op-help.outputs.exit-code }}
+          NOOP_HELP_SUCCEEDED: ${{ steps.no-op-help.outputs.succeeded }}
+          NOOP_HELP_OUTCOME: ${{ steps.no-op-help.outcome }}
+          NOOP_HELP_PATH: ${{ steps.no-op-help.outputs.report-path }}
+          NOOP_VERSION_CODE: ${{ steps.no-op-version.outputs.exit-code }}
+          NOOP_VERSION_SUCCEEDED: ${{ steps.no-op-version.outputs.succeeded }}
+          NOOP_VERSION_OUTCOME: ${{ steps.no-op-version.outcome }}
+          NOOP_VERSION_PATH: ${{ steps.no-op-version.outputs.report-path }}
+          ALIAS_OUTPUT_CODE: ${{ steps.alias-output.outputs.exit-code }}
+          ALIAS_OUTPUT_SUCCEEDED: ${{ steps.alias-output.outputs.succeeded }}
+          ALIAS_OUTPUT_OUTCOME: ${{ steps.alias-output.outcome }}
+          ALIAS_OUTPUT_PATH: ${{ steps.alias-output.outputs.report-path }}
           REPORT_CODE: ${{ steps.report.outputs.exit-code }}
           REPORT_SUCCEEDED: ${{ steps.report.outputs.succeeded }}
           REPORT_PATH: ${{ steps.report.outputs.report-path }}
@@ -269,6 +314,19 @@ jobs:
           test -z "$INPUT_ABSOLUTE_PATH"
           test "$INPUT_ABSOLUTE_OUTCOME" = failure
           test ! -e reports/absolute-input.md
+          test "$NOOP_HELP_CODE" = 2
+          test "$NOOP_HELP_SUCCEEDED" = false
+          test "$NOOP_HELP_OUTCOME" = failure
+          test -z "$NOOP_HELP_PATH"
+          test "$NOOP_VERSION_CODE" = 2
+          test "$NOOP_VERSION_SUCCEEDED" = false
+          test "$NOOP_VERSION_OUTCOME" = failure
+          test -z "$NOOP_VERSION_PATH"
+          test "$ALIAS_OUTPUT_CODE" = 2
+          test "$ALIAS_OUTPUT_SUCCEEDED" = false
+          test "$ALIAS_OUTPUT_OUTCOME" = failure
+          test -z "$ALIAS_OUTPUT_PATH"
+          test ! -f reports/bypass.json
           test "$REPORT_CODE" = 0
           test "$REPORT_SUCCEEDED" = true
           test -n "$REPORT_PATH"

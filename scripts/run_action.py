@@ -37,13 +37,19 @@ def _parse_bool(value: str) -> bool | None:
 
 
 def _reserved_argument(args: list[str]) -> str | None:
+    """Prevent extra Action args from bypassing execution or owned outputs.
+
+    argparse accepts unambiguous long-option prefixes, so protecting only the
+    complete spellings of --output and --format is insufficient.
+    """
+    protected_long = ("--help", "--version", "--format", "--output")
     for token in args:
-        if token in {"--format", "--output", "-o"}:
+        if token == "-h" or (token.startswith("-o") and not token.startswith("--")):
             return token
-        if token.startswith("--format=") or token.startswith("--output="):
-            return token
-        if token.startswith("-o") and not token.startswith("--"):
-            return token
+        if token.startswith("--"):
+            name = token.split("=", 1)[0]
+            if len(name) > 2 and any(option.startswith(name) for option in protected_long):
+                return token
     return None
 
 
@@ -133,7 +139,8 @@ def main() -> int:
     reserved = _reserved_argument(extra_args)
     if reserved is not None:
         return _fail(
-            f"Argument {reserved!r} is controlled by the Action; use format/report-path inputs."
+            f"Argument {reserved!r} is not allowed in Action args; "
+            "use format/report-path inputs or run help/version in the standalone CLI."
         )
 
     try:
