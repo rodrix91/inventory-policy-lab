@@ -139,7 +139,7 @@ def main() -> int:
     reserved = _reserved_argument(extra_args)
     if reserved is not None:
         return _fail(
-            f"Argument {reserved!r} is not allowed in Action args; " 
+            f"Argument {reserved!r} is not allowed in Action args; "
             "use format/report-path inputs or run help/version in the standalone CLI."
         )
 
