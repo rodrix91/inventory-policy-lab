@@ -79,11 +79,11 @@ Inputs:
 | `path` | required | Demand-history CSV relative to the caller workspace |
 | `args` | `""` | Additional analytical CLI arguments, parsed as argv and never evaluated as shell code |
 | `format` | `markdown` | `markdown` or `json` |
-| `report-path` | `""` | Optional report path; empty uses the runner temp directory |
+| `report-path` | `""` | Optional relative report path that must remain inside the workflow workspace; empty uses the runner temp directory |
 | `python-version` | `3.12` | Python used by the Action |
 | `summary` | `false` | Append the completed report to the GitHub job summary |
 
-`format`, `-o`, and `--output` are reserved by the Action and must use the dedicated inputs instead. The Action creates the report directory when needed, while the CLI still performs its existing atomic write and input/output collision checks.
+`format`, `-o`, and `--output` are reserved by the Action and must use the dedicated inputs instead. An explicit `report-path` must be relative and resolve inside `GITHUB_WORKSPACE`; absolute paths and `..` escapes are refused. The Action creates the report directory when needed, while the CLI still performs its existing atomic write and input/output collision checks.
 
 ## Verify release artifacts
 

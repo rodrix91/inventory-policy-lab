@@ -13,7 +13,7 @@ inputs:
     required: false
     default: markdown
   report-path:
-    description: Optional report path relative to the workflow workspace.
+    description: Optional report path relative to and contained within the workflow workspace.
     required: false
     default: ""
   python-version:

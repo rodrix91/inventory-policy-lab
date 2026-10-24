@@ -63,9 +63,14 @@ def _resolve_report_path(raw: str, report_format: str) -> Path:
         return _default_report_path(report_format).resolve()
     path = Path(raw)
     if path.is_absolute():
-        return path
+        raise ValueError("Action report-path must be relative to GITHUB_WORKSPACE.")
     workspace = Path(os.getenv("GITHUB_WORKSPACE", ".")).resolve()
-    return (workspace / path).resolve()
+    resolved = (workspace / path).resolve()
+    try:
+        resolved.relative_to(workspace)
+    except ValueError as exc:
+        raise ValueError("Action report-path must stay within GITHUB_WORKSPACE.") from exc
+    return resolved
 
 
 def _write_summary(path: Path, report_format: str) -> None:
@@ -110,7 +115,12 @@ def main() -> int:
             f"Argument {reserved!r} is controlled by the Action; use format/report-path inputs."
         )
 
-    report_path = _resolve_report_path(os.getenv("INVENTORY_INPUT_REPORT_PATH", ""), report_format)
+    try:
+        report_path = _resolve_report_path(
+            os.getenv("INVENTORY_INPUT_REPORT_PATH", ""), report_format
+        )
+    except ValueError as exc:
+        return _fail(str(exc))
     if "\n" in str(report_path) or "\r" in str(report_path):
         return _fail("Action report-path must not contain line breaks.")
     try:

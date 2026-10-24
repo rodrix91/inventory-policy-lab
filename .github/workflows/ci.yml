@@ -192,6 +192,26 @@ jobs:
           report-path: reports/missing.md
           summary: "false"
 
+      - name: Absolute report path is refused
+        id: absolute
+        continue-on-error: true
+        uses: ./
+        with:
+          path: examples/worked_example.csv
+          args: --holdout 2
+          report-path: ${{ runner.temp }}/inventory-action-absolute.json
+          summary: "false"
+
+      - name: Escaping report path is refused
+        id: escape
+        continue-on-error: true
+        uses: ./
+        with:
+          path: examples/worked_example.csv
+          args: --holdout 2
+          report-path: ../inventory-action-escape.json
+          summary: "false"
+
       - name: Verify Action outputs and report
         env:
           REPORT_CODE: ${{ steps.report.outputs.exit-code }}
@@ -201,6 +221,14 @@ jobs:
           MISSING_SUCCEEDED: ${{ steps.missing.outputs.succeeded }}
           MISSING_PATH: ${{ steps.missing.outputs.report-path }}
           MISSING_OUTCOME: ${{ steps.missing.outcome }}
+          ABSOLUTE_CODE: ${{ steps.absolute.outputs.exit-code }}
+          ABSOLUTE_SUCCEEDED: ${{ steps.absolute.outputs.succeeded }}
+          ABSOLUTE_PATH: ${{ steps.absolute.outputs.report-path }}
+          ABSOLUTE_OUTCOME: ${{ steps.absolute.outcome }}
+          ESCAPE_CODE: ${{ steps.escape.outputs.exit-code }}
+          ESCAPE_SUCCEEDED: ${{ steps.escape.outputs.succeeded }}
+          ESCAPE_PATH: ${{ steps.escape.outputs.report-path }}
+          ESCAPE_OUTCOME: ${{ steps.escape.outcome }}
         run: |
           test "$REPORT_CODE" = 0
           test "$REPORT_SUCCEEDED" = true
@@ -211,6 +239,16 @@ jobs:
           test -z "$MISSING_PATH"
           test "$MISSING_OUTCOME" = failure
           test ! -e reports/missing.md
+          test "$ABSOLUTE_CODE" = 2
+          test "$ABSOLUTE_SUCCEEDED" = false
+          test -z "$ABSOLUTE_PATH"
+          test "$ABSOLUTE_OUTCOME" = failure
+          test ! -e "$RUNNER_TEMP/inventory-action-absolute.json"
+          test "$ESCAPE_CODE" = 2
+          test "$ESCAPE_SUCCEEDED" = false
+          test -z "$ESCAPE_PATH"
+          test "$ESCAPE_OUTCOME" = failure
+          test ! -e "$GITHUB_WORKSPACE/../inventory-action-escape.json"
           python - <<'PY'
           import json
           import os
