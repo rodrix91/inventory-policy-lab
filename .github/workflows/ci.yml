@@ -51,6 +51,32 @@ jobs:
           python scripts/make_pareto_svg.py --check
           python scripts/update_readme_samples.py --check
 
+
+  platforms:
+    # Exercise OS-sensitive file identity and atomic-write behavior outside Linux.
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+        python-version: ["3.11", "3.13"]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install development dependencies
+        run: python -m pip install --require-hashes -r requirements-dev.lock
+
+      - name: Run tests
+        run: python -m pytest -p no:cacheprovider -ra
+
   sdist:
     # Builds the source distribution and runs the test suite from the unpacked
     # archive, outside the checkout, so a file the tests need but MANIFEST.in
