@@ -9,4 +9,3 @@ include CONTRIBUTING.md
 global-exclude __pycache__ *.py[cod]
 include SECURITY.md
 include CITATION.cff
-include src/inventory_policy_lab/py.typed
