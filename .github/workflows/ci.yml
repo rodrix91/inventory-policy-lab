@@ -212,8 +212,36 @@ jobs:
           report-path: ../inventory-action-escape.json
           summary: "false"
 
+      - name: Escaping input path is refused
+        id: input-escape
+        continue-on-error: true
+        uses: ./
+        with:
+          path: ../outside-workspace.csv
+          args: --holdout 2
+          report-path: reports/unsafe-input.md
+          summary: "false"
+
+      - name: Absolute input path is refused
+        id: input-absolute
+        continue-on-error: true
+        uses: ./
+        with:
+          path: ${{ github.workspace }}/examples/worked_example.csv
+          args: --holdout 2
+          report-path: reports/absolute-input.md
+          summary: "false"
+
       - name: Verify Action outputs and report
         env:
+          INPUT_ESCAPE_CODE: ${{ steps.input-escape.outputs.exit-code }}
+          INPUT_ESCAPE_SUCCEEDED: ${{ steps.input-escape.outputs.succeeded }}
+          INPUT_ESCAPE_PATH: ${{ steps.input-escape.outputs.report-path }}
+          INPUT_ESCAPE_OUTCOME: ${{ steps.input-escape.outcome }}
+          INPUT_ABSOLUTE_CODE: ${{ steps.input-absolute.outputs.exit-code }}
+          INPUT_ABSOLUTE_SUCCEEDED: ${{ steps.input-absolute.outputs.succeeded }}
+          INPUT_ABSOLUTE_PATH: ${{ steps.input-absolute.outputs.report-path }}
+          INPUT_ABSOLUTE_OUTCOME: ${{ steps.input-absolute.outcome }}
           REPORT_CODE: ${{ steps.report.outputs.exit-code }}
           REPORT_SUCCEEDED: ${{ steps.report.outputs.succeeded }}
           REPORT_PATH: ${{ steps.report.outputs.report-path }}
@@ -230,6 +258,16 @@ jobs:
           ESCAPE_PATH: ${{ steps.escape.outputs.report-path }}
           ESCAPE_OUTCOME: ${{ steps.escape.outcome }}
         run: |
+          test "$INPUT_ESCAPE_CODE" = 2
+          test "$INPUT_ESCAPE_SUCCEEDED" = false
+          test -z "$INPUT_ESCAPE_PATH"
+          test "$INPUT_ESCAPE_OUTCOME" = failure
+          test ! -e reports/unsafe-input.md
+          test "$INPUT_ABSOLUTE_CODE" = 2
+          test "$INPUT_ABSOLUTE_SUCCEEDED" = false
+          test -z "$INPUT_ABSOLUTE_PATH"
+          test "$INPUT_ABSOLUTE_OUTCOME" = failure
+          test ! -e reports/absolute-input.md
           test "$REPORT_CODE" = 0
           test "$REPORT_SUCCEEDED" = true
           test -n "$REPORT_PATH"
