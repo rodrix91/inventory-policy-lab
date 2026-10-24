@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
+import tempfile
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -351,6 +353,32 @@ def config_from_args(args: argparse.Namespace) -> Config:
     )
 
 
+def _write_text_atomic(path: Path, text: str) -> None:
+    """Write UTF-8 text atomically, preserving an existing destination on failure."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
+            temp_path = Path(handle.name)
+        os.replace(temp_path, path)
+    finally:
+        if temp_path is not None:
+            try:
+                temp_path.unlink()
+            except FileNotFoundError:
+                pass
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.output is not None:
@@ -382,7 +410,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         sys.stdout.write(text)
         return EXIT_OK
     try:
-        args.output.write_text(text, encoding="utf-8")
+        _write_text_atomic(args.output, text)
     except OSError as exc:
         print(f"inventory-policy-lab: error: cannot write {args.output}: {exc}", file=sys.stderr)
         return EXIT_INPUT
