@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Built distributions now expose direct links to issues, contributing guidance, documentation, and security alongside the existing homepage and changelog links.
+
 ### Changed
 
 - GitHub Actions are pinned to the verified commit SHAs behind `actions/checkout@v7` and `actions/setup-python@v7`, with version comments retained for readable Dependabot updates.
