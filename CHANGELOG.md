@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- GitHub Actions checkouts now disable persisted Git credentials because CI and release jobs do not push repository changes.
+
 - Release artifacts now include a `SHA256SUMS` file so downloaded wheels and source distributions can be independently verified.
 
 - CI jobs now have explicit conservative timeouts so a hung coverage run, platform test, or packaging step cannot occupy a runner indefinitely.
