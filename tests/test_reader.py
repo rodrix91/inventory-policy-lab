@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 from conftest import EXAMPLES, write_csv
@@ -175,7 +176,7 @@ def test_cli_read_failure_preserves_report(
     output.write_text("verified report\n", encoding="utf-8")
     real_open = Path.open
 
-    def deny_input(self: Path, *args: object, **kwargs: object) -> object:
+    def deny_input(self: Path, *args: Any, **kwargs: Any) -> Any:
         if self == source:
             raise PermissionError("permission denied by test")
         return real_open(self, *args, **kwargs)
