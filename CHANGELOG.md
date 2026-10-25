@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Fail closed on ambiguous ERP/CSV headers for consumed inventory fields: repeated headers (even with case/whitespace differences) and alternative aliases (`quantity`/`qty`/`demand`, `period`/`date`) are rejected with actionable field names and positions instead of silently choosing one and changing forecast inputs. This also covers optional costs and lead times, and opt-in per-SKU cost columns. Non-consumed extra columns remain compatible. Added library and CLI regressions, including preservation of an existing output report on error.
+
 - Rejected non-finite (`NaN`, `Infinity`, `-Infinity`) inventory policy settings that could bypass numeric validation, including lead/review periods, annualization, order coverage, EOQ inputs and ABC-XYZ thresholds. The CLI now exits 2 with an explicit setting name rather than generating invalid estimates; existing report files stay untouched. Added API and CLI regression cases for invalid parameters and normal finite values.
 
 - Hardened Markdown rendering of CSV-supplied SKU identifiers throughout policy, forecast, out-of-sample replay, per-SKU cost and notes sections. Text that looks like Markdown links, HTML or newlines is now displayed literally without corrupting tables or the GitHub Action summary; machine-readable JSON and inventory computations are unchanged. Added direct and CLI regression coverage.
