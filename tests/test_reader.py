@@ -201,7 +201,7 @@ def test_cli_read_failure_preserves_report(
 def test_metadata_probe_errors_are_clean_input_errors(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, probe: str, error: OSError
 ) -> None:
-    source = write_csv(tmp_path / "restricted.csv", "sku,period,quantity\\na,1,4\\n")
+    source = write_csv(tmp_path / "restricted.csv", "sku,period,quantity\na,1,4\n")
 
     def fail_metadata(self: Path) -> bool:
         raise error
@@ -219,9 +219,9 @@ def test_cli_metadata_failure_keeps_existing_report(
 ) -> None:
     from inventory_policy_lab.cli import main
 
-    source = write_csv(tmp_path / "restricted.csv", "sku,period,quantity\\na,1,4\\n")
+    source = write_csv(tmp_path / "restricted.csv", "sku,period,quantity\na,1,4\n")
     output = tmp_path / "existing.json"
-    output.write_text("previous valid report\\n", encoding="utf-8")
+    output.write_text("previous valid report\n", encoding="utf-8")
     real_is_file = Path.is_file
 
     def fail_input_metadata(self: Path) -> bool:
@@ -236,4 +236,4 @@ def test_cli_metadata_failure_keeps_existing_report(
     assert "cannot read" in captured.err
     assert "restricted input metadata" in captured.err
     assert "Traceback" not in captured.err
-    assert output.read_text(encoding="utf-8") == "previous valid report\\n"
+    assert output.read_text(encoding="utf-8") == "previous valid report\n"
