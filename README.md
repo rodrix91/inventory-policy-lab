@@ -194,7 +194,7 @@ The ABC Pareto of this dataset, drawn as SVG with the standard library by [`scri
 
 ## Input format
 
-One row per SKU and period, long format. Header names are case-insensitive.
+One row per SKU and period, long format. Header names are case-insensitive. **Ambiguous input columns are rejected:** when two headers refer to the same consumed field (for example, `quantity` alongside `qty` or `demand`, `period` alongside `date`, or `sku` repeated with different capitalization), the parser raises a data error (CLI exit `4`) instead of silently using one of them. The same rule applies to optional `unit_cost` and `lead_time`, and to `order_cost` / `stockout_cost` when `--cost-columns` is enabled. Unrelated extra columns remain untouched.
 
 **Markdown safety:** SKU identifiers from the CSV are displayed literally in inventory policy, forecast backtest, replay and cost tables, and in per-SKU notes. Pipes, Markdown links, HTML-like text and embedded line breaks cannot create misleading table cells or headings. The JSON report retains the exact original SKU string, and the analysis, forecasts and cost calculations are unchanged.
 

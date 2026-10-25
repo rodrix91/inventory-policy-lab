@@ -135,10 +135,12 @@ def _resolve_columns(header: list[str], cost_columns: bool = False) -> dict[str,
     if cost_columns:
         aliases_of.update((name, (name,)) for name in COST_COLUMNS)
     for field, aliases in aliases_of.items():
-        for alias in aliases:
-            if alias in normalized:
-                found[field] = normalized.index(alias)
-                break
+        matches = [index for index, name in enumerate(normalized) if name in aliases]
+        if len(matches) > 1:
+            columns = ", ".join(f"{header[index]!r} (column {index + 1})" for index in matches)
+            raise DataError(f"ambiguous {field} columns: {columns}; keep only one")
+        if matches:
+            found[field] = matches[0]
     missing = [field for field in REQUIRED if field not in found]
     if missing:
         expected = "; ".join("/".join(COLUMN_ALIASES[field]) for field in missing)
