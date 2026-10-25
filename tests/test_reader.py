@@ -300,9 +300,7 @@ def test_cli_unbounded_calendar_preserves_previously_valid_report(
 ) -> None:
     from inventory_policy_lab.cli import main
 
-    source = write_csv(
-        tmp_path / "calendar.csv", "sku,period,quantity\nA,1,2\nA,1000000000,4\n"
-    )
+    source = write_csv(tmp_path / "calendar.csv", "sku,period,quantity\nA,1,2\nA,1000000000,4\n")
     output = tmp_path / "existing.json"
     output.write_text('{"status":"valid"}\n', encoding="utf-8")
     assert main([str(source), "--format", "json", "--output", str(output)]) == 4
