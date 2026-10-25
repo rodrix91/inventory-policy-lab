@@ -232,7 +232,13 @@ def parse_rows(
                 "net returns out of the demand history before the analysis"
             )
         per_period = totals.setdefault(sku, {})
-        per_period[period] = per_period.get(period, 0.0) + quantity
+        combined = per_period.get(period, 0.0) + quantity
+        if not math.isfinite(combined):
+            raise DataError(
+                f"line {line}: total quantity for sku {sku!r} in period {period!r} "
+                "exceeds the finite numeric range"
+            )
+        per_period[period] = combined
 
         if "unit_cost" in columns:
             cost_text = row[columns["unit_cost"]].strip()
