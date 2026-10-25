@@ -274,3 +274,40 @@ def test_cli_overflow_preserves_existing_report(
     assert "exceeds the finite numeric range" in captured.err
     assert "Traceback" not in captured.err
     assert output.read_text(encoding="utf-8") == '{"status":"verified"}\n'
+
+
+def test_integer_calendar_rejects_unbounded_gap() -> None:
+    with pytest.raises(DataError, match="integer calendar exceeds 100000 periods") as info:
+        parse_rows(rows("sku,period,quantity\nA,1,2\nA,1000000000,4\n"))
+    assert info.value.exit_code == 4
+
+
+def test_month_calendar_rejects_unbounded_gap() -> None:
+    with pytest.raises(DataError, match="month calendar exceeds 100000 periods") as info:
+        parse_rows(rows("sku,period,quantity\nA,0001-01,2\nA,9999-12,4\n"))
+    assert info.value.exit_code == 4
+
+
+def test_extremely_long_integer_period_is_a_clean_data_error() -> None:
+    large = "9" * 129
+    with pytest.raises(DataError, match="line 2: integer period exceeds 128 digits") as info:
+        parse_rows(rows(f"sku,period,quantity\nA,{large},2\n"))
+    assert info.value.exit_code == 4
+
+
+def test_cli_unbounded_calendar_preserves_previously_valid_report(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from inventory_policy_lab.cli import main
+
+    source = write_csv(
+        tmp_path / "calendar.csv", "sku,period,quantity\nA,1,2\nA,1000000000,4\n"
+    )
+    output = tmp_path / "existing.json"
+    output.write_text('{"status":"valid"}\n', encoding="utf-8")
+    assert main([str(source), "--format", "json", "--output", str(output)]) == 4
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "integer calendar exceeds 100000 periods" in captured.err
+    assert "Traceback" not in captured.err
+    assert output.read_text(encoding="utf-8") == '{"status":"valid"}\n'
