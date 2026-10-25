@@ -34,7 +34,7 @@ def test_abc_normal_values_and_empty_or_zero_data_remain_unchanged() -> None:
     assert abc_classes({"A": 0.0, "B": 0.0}) == {"A": "C", "B": "C"}
 
 
-@pytest.mark.parametrize("invalid", [math.inf, -math.inf, math.nan])
+@pytest.mark.parametrize("invalid", [math.inf, -math.inf, math.nan, -1e307])
 def test_abc_rejects_non_finite_values(invalid: float) -> None:
     with pytest.raises(ValueError, match="ABC item values must be finite and non-negative"):
         abc_classes({"a": invalid, "b": 1e308})
