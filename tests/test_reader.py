@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 from conftest import EXAMPLES, write_csv
@@ -140,3 +141,51 @@ def test_open_race_errors_are_input_errors(
     monkeypatch.setattr(Path, "open", fail_open)
     with pytest.raises(InputFileError, match=message):
         read_demand(path)
+
+
+@pytest.mark.parametrize(
+    ("error", "explanation"),
+    [
+        (PermissionError("access denied"), "access denied"),
+        (OSError("device read error"), "device read error"),
+    ],
+)
+def test_unreadable_csv_errors_are_input_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, error: OSError, explanation: str
+) -> None:
+    source = write_csv(tmp_path / "blocked.csv", "sku,period,quantity\na,1,5\n")
+
+    def fail_open(self: Path, *args: object, **kwargs: object) -> object:
+        raise error
+
+    monkeypatch.setattr(Path, "open", fail_open)
+    with pytest.raises(InputFileError, match="cannot read") as info:
+        read_demand(source)
+    assert info.value.exit_code == 3
+    assert str(source) in str(info.value)
+    assert explanation in str(info.value)
+
+
+def test_cli_read_failure_preserves_report(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from inventory_policy_lab.cli import main
+
+    source = write_csv(tmp_path / "blocked.csv", "sku,period,quantity\na,1,5\n")
+    output = tmp_path / "existing.json"
+    output.write_text("verified report\n", encoding="utf-8")
+    real_open = Path.open
+
+    def deny_input(self: Path, *args: Any, **kwargs: Any) -> Any:
+        if self == source:
+            raise PermissionError("permission denied by test")
+        return real_open(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", deny_input)
+    assert main([str(source), "--format", "json", "--output", str(output)]) == 3
+    captured = capsys.readouterr()
+    assert not captured.out
+    assert "cannot read" in captured.err
+    assert "permission denied by test" in captured.err
+    assert "Traceback" not in captured.err
+    assert output.read_text(encoding="utf-8") == "verified report\n"

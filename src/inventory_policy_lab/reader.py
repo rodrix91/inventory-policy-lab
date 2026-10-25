@@ -177,6 +177,8 @@ def read_demand(path: str | os.PathLike[str], cost_columns: bool = False) -> Dem
         raise DataError(
             f"{file}: malformed CSV quoting near line {reader.line_num}: {exc}"
         ) from None
+    except OSError as exc:
+        raise InputFileError(f"cannot read {file}: {exc}") from None
     return parse_rows(rows, source=file.as_posix(), cost_columns=cost_columns)
 
 
