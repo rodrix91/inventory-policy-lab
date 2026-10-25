@@ -45,10 +45,17 @@ the first ``s + Q`` on hand, like (s, Q).
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from .errors import DataError
+
 _EPSILON = 1e-9
+# Preserve the historical per-order floating-point results for ordinary replays.
+_BATCH_AFTER = 256
+# Float division cannot reliably distinguish adjacent integer counts above 2**53.
+_MAX_EXACT_ORDER_COUNT = 2**53 - 1
 
 
 @dataclass(frozen=True)
@@ -116,8 +123,12 @@ class _Ledger:
         return self.net + sum(self.arrivals.values())
 
     def order(self, t: int, due: int, quantity: float) -> None:
-        self.arrivals[due] = self.arrivals.get(due, 0.0) + quantity
-        self.orders += int(t >= self.warmup)
+        self.order_many(t, due, quantity, 1)
+
+    def order_many(self, t: int, due: int, quantity: float, count: int) -> None:
+        """Aggregate identically timed lots, retaining the individual order count."""
+        self.arrivals[due] = self.arrivals.get(due, 0.0) + quantity * count
+        self.orders += count * int(t >= self.warmup)
 
     def result(self, demand: Sequence[float], lead: int) -> SimulationResult:
         periods = len(demand) - self.warmup
@@ -136,11 +147,40 @@ class _Ledger:
 
 
 def _review_sq(ledger: _Ledger, t: int, level: float, quantity: float, lead: int) -> None:
-    """End of period ``t`` under (s, Q): order ``Q`` while the position is at or below ``s``."""
+    """Place (s, Q) lots without an unbounded per-lot loop for extreme demand."""
     position = ledger.position()
-    while position <= level + _EPSILON:
-        ledger.order(t, t + lead + 1, quantity)
-        position += quantity
+    threshold = level + _EPSILON
+    due = t + lead + 1
+    # Keep the old summation order for realistic lot counts. Stop when the
+    # increment cannot advance a float: otherwise this loop never terminates.
+    for _ in range(_BATCH_AFTER):
+        if position > threshold:
+            return
+        next_position = position + quantity
+        if next_position <= position or not math.isfinite(next_position):
+            raise DataError("order quantity cannot advance the inventory position")
+        ledger.order(t, due, quantity)
+        position = next_position
+    if position > threshold:
+        return
+
+    # Count the remaining lots in O(1). Reject ratios for which adjacent
+    # integer counts cannot be represented reliably by floating-point division.
+    ratio = (threshold - position) / quantity
+    if not math.isfinite(ratio) or ratio >= _MAX_EXACT_ORDER_COUNT:
+        raise DataError("inventory replay needs too many lots for reliable order counting")
+    count = math.floor(ratio) + 1
+    future_position = position + count * quantity
+    if future_position <= threshold:
+        count += 1
+        future_position = position + count * quantity
+        if future_position <= threshold:
+            raise DataError("order quantity cannot advance the inventory position")
+    elif count > 1 and position + (count - 1) * quantity > threshold:
+        count -= 1
+    if not math.isfinite(count * quantity):
+        raise DataError("inventory replay order arrival exceeds numeric range")
+    ledger.order_many(t, due, quantity, count)
 
 
 def _review_rss(
