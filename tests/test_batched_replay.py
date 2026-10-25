@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import importlib
 import math
 from pathlib import Path
 
@@ -10,6 +9,7 @@ import pytest
 from conftest import run_module, write_csv
 
 from inventory_policy_lab import DataError, simulate
+from inventory_policy_lab.simulate import _Ledger, _review_sq
 
 
 def test_large_number_of_lots_replenishes_in_one_batch() -> None:
@@ -105,11 +105,10 @@ def test_batch_corrects_a_rounded_down_lot_estimate(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Exercise the defensive extra-lot correction without costly loops."""
-    module = importlib.import_module("inventory_policy_lab.simulate")
-    monkeypatch.setattr(module, "_BATCH_AFTER", 0)
-    monkeypatch.setattr(module.math, "floor", lambda _: -1)
-    ledger = module._Ledger(net=0.0, warmup=0, arrivals={})
-    module._review_sq(ledger, 0, level=0, quantity=1, lead=0)
+    monkeypatch.setitem(_review_sq.__globals__, "_BATCH_AFTER", 0)
+    monkeypatch.setattr(math, "floor", lambda _: -1)
+    ledger = _Ledger(net=0.0, warmup=0, arrivals={})
+    _review_sq(ledger, 0, level=0, quantity=1, lead=0)
     assert ledger.orders == 1
     assert ledger.arrivals == {1: 1.0}
 
@@ -117,23 +116,21 @@ def test_batch_corrects_a_rounded_down_lot_estimate(
 def test_batch_rejects_a_badly_underestimated_ratio(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    module = importlib.import_module("inventory_policy_lab.simulate")
-    monkeypatch.setattr(module, "_BATCH_AFTER", 0)
-    monkeypatch.setattr(module.math, "floor", lambda _: 0)
-    ledger = module._Ledger(net=-100.0, warmup=0, arrivals={})
+    monkeypatch.setitem(_review_sq.__globals__, "_BATCH_AFTER", 0)
+    monkeypatch.setattr(math, "floor", lambda _: 0)
+    ledger = _Ledger(net=-100.0, warmup=0, arrivals={})
     with pytest.raises(DataError, match="cannot advance the inventory position"):
-        module._review_sq(ledger, 0, level=0, quantity=1, lead=0)
+        _review_sq(ledger, 0, level=0, quantity=1, lead=0)
     assert ledger.orders == 0
 
 
 def test_batch_corrects_a_rounded_up_lot_estimate(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    module = importlib.import_module("inventory_policy_lab.simulate")
-    monkeypatch.setattr(module, "_BATCH_AFTER", 0)
-    monkeypatch.setattr(module.math, "floor", lambda _: 1)
-    ledger = module._Ledger(net=0.0, warmup=0, arrivals={})
-    module._review_sq(ledger, 0, level=0, quantity=1, lead=0)
+    monkeypatch.setitem(_review_sq.__globals__, "_BATCH_AFTER", 0)
+    monkeypatch.setattr(math, "floor", lambda _: 1)
+    ledger = _Ledger(net=0.0, warmup=0, arrivals={})
+    _review_sq(ledger, 0, level=0, quantity=1, lead=0)
     assert ledger.orders == 1
     assert ledger.arrivals == {1: 1.0}
 
@@ -141,12 +138,11 @@ def test_batch_corrects_a_rounded_up_lot_estimate(
 def test_batch_detects_nonfinite_aggregate_arrival(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    module = importlib.import_module("inventory_policy_lab.simulate")
-    monkeypatch.setattr(module, "_BATCH_AFTER", 0)
+    monkeypatch.setitem(_review_sq.__globals__, "_BATCH_AFTER", 0)
     # Emulate an extreme rounding estimate to exercise the numerical guard
     # without constructing an array or iterating through astronomical lots.
-    monkeypatch.setattr(module.math, "floor", lambda _: 10**307)
-    ledger = module._Ledger(net=0.0, warmup=0, arrivals={})
+    monkeypatch.setattr(math, "floor", lambda _: 10**307)
+    ledger = _Ledger(net=0.0, warmup=0, arrivals={})
     with pytest.raises(DataError, match="arrival exceeds numeric range"):
-        module._review_sq(ledger, 0, level=0, quantity=1e10, lead=0)
+        _review_sq(ledger, 0, level=0, quantity=1e10, lead=0)
     assert ledger.orders == 0
