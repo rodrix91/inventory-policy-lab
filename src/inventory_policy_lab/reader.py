@@ -157,11 +157,13 @@ def read_demand(path: str | os.PathLike[str], cost_columns: bool = False) -> Dem
     columns are read too (ADR 0014).
     """
     file = Path(path)
-    if not file.exists():
-        raise InputFileError(f"file not found: {file}")
-    if not file.is_file():
-        raise InputFileError(f"not a file: {file}")
     try:
+        # File metadata probes can themselves fail on restricted or unreliable
+        # filesystems. Treat them like any other read failure.
+        if not file.exists():
+            raise InputFileError(f"file not found: {file}")
+        if not file.is_file():
+            raise InputFileError(f"not a file: {file}")
         with file.open(encoding="utf-8-sig", newline="") as handle:
             reader = csv.reader(handle, strict=True)
             rows = list(reader)
