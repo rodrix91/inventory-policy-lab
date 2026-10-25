@@ -21,15 +21,19 @@ def abc_classes(values: Mapping[str, float], a: float = 0.80, b: float = 0.95) -
     the item means the largest item is always ``A``, even when it alone is
     more than ``a`` of the total. When the total is zero, every item is ``C``.
     Scale large finite item values if their sum would overflow, so ABC shares
-    stay meaningful rather than making every SKU an A-class item.
+    stay meaningful rather than making every SKU an A-class item. Both class
+    cutoffs and item values are validated here, even when this public function
+    is called without the higher-level Config validation.
     """
+    if not (math.isfinite(a) and math.isfinite(b) and 0 < a < b <= 1):
+        raise ValueError("ABC thresholds must satisfy 0 < a < b <= 1")
+    if any(not math.isfinite(value) or value < 0 for value in values.values()):
+        raise ValueError("ABC item values must be finite and non-negative")
     total = sum(values.values())
     if not math.isfinite(total):
-        # Every item can be finite while their sum overflows to infinity.
+        # Every item is finite but their sum can overflow to infinity.
         # Scale before summing so cumulative ABC shares still reflect the
         # relative values rather than silently making every item class A.
-        if any(not math.isfinite(value) or value < 0 for value in values.values()):
-            raise ValueError("ABC item values must be finite and non-negative")
         maximum = max(values.values())
         scaled = {name: value / maximum for name, value in values.items()}
         total = math.fsum(scaled.values())

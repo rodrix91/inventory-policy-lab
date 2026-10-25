@@ -40,6 +40,48 @@ def test_abc_rejects_non_finite_values(invalid: float) -> None:
         abc_classes({"a": invalid, "b": 1e308, "c": 1e308})
 
 
+@pytest.mark.parametrize(
+    "values",
+    [
+        {"a": 100.0, "b": -1.0},  # A finite, otherwise-plausible total
+        {"a": 1.0, "b": -1.0},  # Previously all C from a zero total
+        {"a": 0.0, "b": -0.001},
+        {"a": 1e308, "b": 1e308, "c": -0.01},
+    ],
+)
+def test_abc_rejects_negative_item_values_before_scoring(values: dict[str, float]) -> None:
+    with pytest.raises(ValueError, match="ABC item values must be finite and non-negative"):
+        abc_classes(values)
+
+
+@pytest.mark.parametrize(
+    ("a", "b"),
+    [
+        (0.0, 0.95),
+        (-0.1, 0.95),
+        (0.9, 0.9),
+        (0.96, 0.95),
+        (0.8, 1.01),
+        (math.nan, 0.95),
+        (0.8, math.nan),
+        (math.inf, 0.95),
+        (0.8, math.inf),
+        (-math.inf, 0.95),
+    ],
+)
+def test_abc_rejects_invalid_cutoffs_even_when_used_directly(a: float, b: float) -> None:
+    with pytest.raises(ValueError, match="ABC thresholds must satisfy"):
+        abc_classes({"a": 75.0, "b": 25.0}, a=a, b=b)
+
+
+def test_abc_accepts_valid_upper_boundary_and_zero_values() -> None:
+    assert abc_classes({"a": 75.0, "b": 25.0}, a=0.8, b=1.0) == {
+        "a": "A",
+        "b": "A",
+    }
+    assert abc_classes({"a": 0.0, "b": 0.0}) == {"a": "C", "b": "C"}
+
+
 @pytest.mark.parametrize("quantity", ["1e308", "1e307"])
 def test_library_rejects_unrepresentable_annual_value_before_policy(quantity: str) -> None:
     rows = [["sku", "period", "quantity", "unit_cost"]]

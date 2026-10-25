@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Harden the standalone `abc_classes()` API: reject negative annual consumption values even when their sum stays finite, and reject non-finite, reversed or out-of-range A/B cumulative-share thresholds before assigning priorities. Previously, negative items could silently distort ABC classes or turn a canceling total into all-C output; the CLI's existing configuration and CSV validation already guarded these cases. Preserve ordinary inputs, all-zero inventories, and overflow-safe finite totals. Add focused regression tests.
+
 - Prevent coefficient-of-variation and Syntetos-Boylan demand-pattern calculations from overflowing on individually finite, large demand observations when the intermediate sum exceeds floating-point range. Normalize by the largest observation only when the original mean computation overflows, preserving ordinary-scale results and existing classifications. Add targeted API regression tests for smooth, intermittent, erratic and lumpy demand, and unchanged zero-demand behavior.
 
 - Prevent effectively unbounded (s, Q) replay loops when very large demand requires many identical lots of a small EOQ. Preserve per-order arithmetic for normal workloads, then aggregate same-time lots in constant time while counting every order. Reject quantities too small to advance the floating-point position and counts beyond reliable numeric precision with controlled data errors (CLI exit 4), keeping existing report files untouched. Add API, warm-up, delayed-arrival, large-batch and CLI regressions (issue #72).
