@@ -21,9 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
         ('sku,period,quantity\n"A\n', "unexpected end of data"),
     ],
 )
-def test_malformed_quotes_raise_data_error(
-    tmp_path: Path, source: str, message: str
-) -> None:
+def test_malformed_quotes_raise_data_error(tmp_path: Path, source: str, message: str) -> None:
     path = tmp_path / "malformed.csv"
     path.write_text(source, encoding="utf-8")
     with pytest.raises(DataError, match="malformed CSV quoting near line") as info:
