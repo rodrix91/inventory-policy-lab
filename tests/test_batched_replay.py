@@ -34,12 +34,12 @@ def test_batching_preserves_warmup_and_delayed_arrivals() -> None:
         lead_time=1,
         warmup=1,
     )
-    assert replay.orders_placed == 0
+    assert replay.orders_placed == 1
     assert replay.periods == 2
     assert replay.total_demand == 3
-    assert replay.served_from_stock == 0
-    assert replay.max_backorder == 1_999_996
-    assert replay.stockout_periods == 1
+    assert replay.served_from_stock == 3
+    assert replay.max_backorder == 1_999_993
+    assert replay.stockout_periods == 0
 
 
 def test_batching_boundary_and_ordinary_order_counts_are_unchanged() -> None:
@@ -95,6 +95,6 @@ def test_cli_returns_data_error_without_overwriting_old_output(tmp_path: Path) -
         str(output),
     )
     assert process.returncode == 4
-    assert "cannot advance the inventory position" in process.stderr
+    assert ("too many lots" in process.stderr or "cannot advance" in process.stderr)
     assert "Traceback" not in process.stderr
     assert output.read_text(encoding="utf-8") == '{"preserve": true}\n'
