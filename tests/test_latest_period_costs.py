@@ -96,5 +96,5 @@ def test_cli_prices_replay_with_latest_period_rates_from_unsorted_csv(tmp_path: 
     assert report["skus"][0]["unit_cost"] == 40
     rates = report["out_of_sample"]["costs"]["skus"][0]["rates"]
     assert rates["order"] == 7
-    assert rates["holding"] == pytest.approx(40 * 0.25 / 12)
+    assert rates["holding"] == round(40 * 0.25 / 12, 4)  # JSON cost rates use 4 decimals
     assert rates["stockout"] == 9
