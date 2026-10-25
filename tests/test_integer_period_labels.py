@@ -60,9 +60,7 @@ def test_equivalent_integer_labels_are_one_period(
 def test_padded_integer_file_is_accepted_by_cli(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    content = "sku,period,quantity\n" + "".join(
-        f"A,{period:02d},5\n" for period in range(1, 9)
-    )
+    content = "sku,period,quantity\n" + "".join(f"A,{period:02d},5\n" for period in range(1, 9))
     source = write_csv(tmp_path / "padded.csv", content)
     assert read_demand(source).calendar == tuple(str(i) for i in range(1, 9))
     assert main([str(source), "--holdout", "2", "--format", "json"]) == 0
