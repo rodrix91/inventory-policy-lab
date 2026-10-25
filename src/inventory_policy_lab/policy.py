@@ -66,8 +66,13 @@ def safety_stock(
     """
     z = NormalDist().inv_cdf(service_level)
     protection = lead_time + review_period
-    variance = protection * sigma_demand**2 + demand_per_period**2 * sigma_lead_time**2
-    return z, z * math.sqrt(variance)
+    # Evaluate the square root as a Euclidean norm: squaring a large finite
+    # demand/sigma can overflow even when the resulting stock is representable.
+    deviation = math.hypot(
+        math.sqrt(protection) * sigma_demand,
+        demand_per_period * sigma_lead_time,
+    )
+    return z, z * deviation
 
 
 def bootstrap_safety_stock(
