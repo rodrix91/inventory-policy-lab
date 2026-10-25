@@ -99,7 +99,16 @@ def backtest(series: Sequence[float], name: str, method: Method, holdout: int) -
     forecasts = tuple(method(series[:t]) for t in range(start, len(series)))
     errors = [f - a for f, a in zip(forecasts, series[start:], strict=True)]
     mae = statistics.fmean(abs(e) for e in errors)
-    rmse = math.sqrt(statistics.fmean(e * e for e in errors))
+    # Squaring a finite error can overflow, even when its RMSE is finite.
+    # Normalize first, then restore the scale after taking the square root.
+    # This also keeps the public RMSE and --sigma rmse finite for large units.
+    maximum_error = max(abs(e) for e in errors)
+    rmse = (
+        maximum_error
+        * math.sqrt(math.fsum((e / maximum_error) ** 2 for e in errors) / len(errors))
+        if maximum_error
+        else 0.0
+    )
     scale = naive_scale(series[:start])
     return BacktestResult(
         method=name,
