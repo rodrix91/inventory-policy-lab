@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Harden ABC inventory classification against numeric overflow: scale finite per-SKU values before cumulative-share calculations when their total exceeds float range, avoiding silent misclassification of every SKU as A. Reject an overflowing annualized consumption value with an actionable SKU-specific data error (CLI exit 4) before forecasting, preserving any existing output report. Add API and CLI regression tests for large finite values and unchanged normal behavior.
+
 - Fix misleading cost selection on unsorted ERP exports: take each SKU's most recent **period** with a non-empty `unit_cost`, and (with `--cost-columns`) independently select latest-period `order_cost` and `stockout_cost`; use the last non-empty row to resolve ties in the same period. Previously the final CSV row won even if it belonged to an older period, potentially changing ABC, EOQ and replay costs. Support integer, month and date calendars, preserve default opt-in cost-column rules and existing report-on-error safeguards; add parser and CLI regressions.
 
 - Reject duplicate `--class-service-levels` entries after normalizing ABC class names to uppercase. Previously `A=0.99,a=0.8` silently overwrote the intended 99% service target with 80%; now the CLI exits 2 without replacing any existing report. Add regressions for exact, case-insensitive and whitespace-normalized duplicates.
