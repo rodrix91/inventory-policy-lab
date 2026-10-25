@@ -6,15 +6,15 @@ Expected columns (header names are case-insensitive and trimmed):
 - ``period`` (or ``date``): ``YYYY-MM`` months, ``YYYY-MM-DD`` dates, or integers.
   Every row must use the same kind.
 - ``quantity`` (or ``qty`` / ``demand``): demand in the period, a number >= 0.
-- ``unit_cost`` (optional): cost of one unit; the most recent non-empty value per
-  SKU is used.
+- ``unit_cost`` (optional): cost of one unit; the non-empty value from the
+  latest period per SKU is used (last non-empty row wins within that period).
 - ``lead_time`` (optional): an observed replenishment lead time in periods. All
   non-empty values of a SKU are treated as lead-time observations, each dated
   by the period of its row (the out-of-sample replay trains on the earlier ones).
 - ``order_cost`` and ``stockout_cost`` (optional, read only with
   ``cost_columns=True``, the ``--cost-columns`` option): the cost per order
   placed and per unit short of the SKU, to price the out-of-sample replay
-  (ADR 0014); the most recent non-empty value per SKU is used, like ``unit_cost``.
+  (ADR 0014); the latest-period non-empty value per SKU is used, like ``unit_cost``.
   Without the option these columns are ignored like any other extra column.
 
 Several rows for the same SKU and period are summed (transaction lines). Each
@@ -206,6 +206,11 @@ def parse_rows(
     lead_times: dict[str, list[float]] = {}
     lead_time_periods: dict[str, list[str]] = {}
     sku_costs: dict[str, dict[str, float]] = {name: {} for name in COST_COLUMNS}
+    # Keep cost values from the most recent chronological period, not simply
+    # the last physical CSV row; ties within a period retain input-row order.
+    latest_cost_periods: dict[str, dict[str, int]] = {
+        name: {} for name in ("unit_cost", *COST_COLUMNS)
+    }
     kinds: set[str] = set()
     data_rows = 0
 
@@ -241,6 +246,12 @@ def parse_rows(
             # Calendar labels are canonical integers. Normalize row values too
             # so '01', '1' and '-0' cannot produce missing calendar positions.
             period = str(int(period))
+        if kind == "integer":
+            period_rank = int(period)
+        elif kind == "month":
+            period_rank = _month_index(period)
+        else:
+            period_rank = date.fromisoformat(period).toordinal()
         if not quantity_text:
             raise DataError(f"line {line}: empty quantity for sku {sku!r}")
         quantity = _number(quantity_text, "quantity", line)
@@ -264,7 +275,12 @@ def parse_rows(
                 cost = _number(cost_text, "unit_cost", line)
                 if cost < 0:
                     raise DataError(f"line {line}: negative unit_cost {cost_text}")
-                costs[sku] = cost  # the most recent row wins
+                if (
+                    sku not in latest_cost_periods["unit_cost"]
+                    or period_rank >= latest_cost_periods["unit_cost"][sku]
+                ):
+                    costs[sku] = cost
+                    latest_cost_periods["unit_cost"][sku] = period_rank
         if "lead_time" in columns:
             lead_text = row[columns["lead_time"]].strip()
             if lead_text:
@@ -280,7 +296,12 @@ def parse_rows(
                     value = _number(text, name, line)
                     if value < 0:
                         raise DataError(f"line {line}: negative {name} {text}")
-                    sku_costs[name][sku] = value  # the most recent row wins
+                    if (
+                        sku not in latest_cost_periods[name]
+                        or period_rank >= latest_cost_periods[name][sku]
+                    ):
+                        sku_costs[name][sku] = value
+                        latest_cost_periods[name][sku] = period_rank
 
     if not totals:
         raise DataError(f"{source} has a header but no data rows")

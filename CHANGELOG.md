@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Fix misleading cost selection on unsorted ERP exports: take each SKU's most recent **period** with a non-empty `unit_cost`, and (with `--cost-columns`) independently select latest-period `order_cost` and `stockout_cost`; use the last non-empty row to resolve ties in the same period. Previously the final CSV row won even if it belonged to an older period, potentially changing ABC, EOQ and replay costs. Support integer, month and date calendars, preserve default opt-in cost-column rules and existing report-on-error safeguards; add parser and CLI regressions.
+
 - Reject duplicate `--class-service-levels` entries after normalizing ABC class names to uppercase. Previously `A=0.99,a=0.8` silently overwrote the intended 99% service target with 80%; now the CLI exits 2 without replacing any existing report. Add regressions for exact, case-insensitive and whitespace-normalized duplicates.
 
 - Bound automatic month and integer calendar expansion to 100,000 periods, rejecting huge gaps with a controlled data error (exit 4) rather than allocating billions of zero-demand observations. Also reject integer period labels longer than 128 digits before numeric conversion. Add library and CLI regressions, including preservation of pre-existing output reports.
