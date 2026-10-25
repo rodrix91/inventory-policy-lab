@@ -19,9 +19,7 @@ from inventory_policy_lab import parse_rows, read_demand
         ("2026-01-31", "2026-02-01"),
     ],
 )
-def test_latest_nonempty_cost_is_chronological_not_last_csv_row(
-    older: str, newer: str
-) -> None:
+def test_latest_nonempty_cost_is_chronological_not_last_csv_row(older: str, newer: str) -> None:
     rows = [
         ["sku", "period", "quantity", "unit_cost", "order_cost", "stockout_cost"],
         ["A", newer, "4", "30", "70", "90"],
@@ -83,13 +81,19 @@ def test_cli_prices_replay_with_latest_period_rates_from_unsorted_csv(tmp_path: 
 
     result = run_module(
         str(path),
-        "--holdout", "2",
-        "--test-periods", "2",
-        "--format", "json",
+        "--holdout",
+        "2",
+        "--test-periods",
+        "2",
+        "--format",
+        "json",
         "--cost-columns",
-        "--holding-cost-rate", "0.25",
-        "--order-cost", "5",
-        "--stockout-cost", "1",
+        "--holding-cost-rate",
+        "0.25",
+        "--order-cost",
+        "5",
+        "--stockout-cost",
+        "1",
     )
     assert result.returncode == 0, result.stderr
     report = json.loads(result.stdout)
