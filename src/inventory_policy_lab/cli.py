@@ -41,11 +41,17 @@ def _class_levels(text: str) -> dict[str, float]:
         try:
             if not sep:
                 raise ValueError
-            levels[name.strip().upper()] = float(value)
+            level = float(value)
         except ValueError:
             raise argparse.ArgumentTypeError(
                 f"expected CLASS=LEVEL pairs like A=0.99,B=0.95, got {text!r}"
             ) from None
+        class_name = name.strip().upper()
+        if class_name in levels:
+            raise argparse.ArgumentTypeError(
+                f"duplicate --class-service-levels class {class_name!r}; specify each class once"
+            )
+        levels[class_name] = level
     return levels
 
 

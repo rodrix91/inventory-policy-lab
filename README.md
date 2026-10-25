@@ -302,7 +302,7 @@ The building blocks are public too: `read_demand`, `abc_classes`, `xyz_class`, `
 | `--format markdown\|json` | markdown | Output format |
 | `-o, --output FILE` | stdout | Write the report to a file |
 | `--service-level P` | 0.95 | Target cycle service level, 0.5 <= P < 1 |
-| `--class-service-levels A=0.99,B=0.95,C=0.9` | none | Service level per ABC class |
+| `--class-service-levels A=0.99,B=0.95,C=0.9` | none | Service level per ABC class; repeated class names (including case variants such as `a` and `A`) are rejected as usage errors rather than silently overriding the earlier value |
 | `--lead-time L`, `--lead-time-std S` | 1, 0 | Lead time (periods) for SKUs without `lead_time` values |
 | `--review-period R` | 1 | Periods between reviews, added to the protection interval; 0 = continuous review. A whole number of at least 1 with `--policy RS` or `RsS` |
 | `--policy sQ\|RS\|RsS` | sQ | `sQ`: reorder point s and fixed order quantity Q, checked every period; `RS`: review every R periods and order up to S; `RsS`: review every R periods and order up to S = s + Q only when the position is at or below s; see [ADR 0007](docs/decisions/0007-periodic-review-and-dynamic-levels.md) and [ADR 0013](docs/decisions/0013-periodic-review-rss-policy.md) |
