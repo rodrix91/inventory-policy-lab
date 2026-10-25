@@ -46,10 +46,10 @@ def test_library_policy_uses_finite_eoq_for_large_valid_costs() -> None:
     rows.extend(["S1", str(i), "1e130", "1"] for i in range(1, 9))
     report = analyze(
         parse_rows(rows),
-        Config(holdout=2, ordering_cost=1e180, holding_rate=1e160),
+        Config(holdout=2, ordering_cost=1e220, holding_rate=1e80),
     )
     sku = report.skus[0]
-    expected = math.sqrt(2 * 12) * 1e75
+    expected = math.sqrt(2 * 12) * 1e135
     assert sku.policy.eoq == pytest.approx(expected, rel=1e-12)
     assert sku.order_quantity == pytest.approx(expected, rel=1e-12)
     assert sku.order_quantity_source == "eoq"
@@ -65,9 +65,9 @@ def test_cli_json_contains_finite_eoq_instead_of_infinity(tmp_path: Path) -> Non
         "--holdout",
         "2",
         "--ordering-cost",
-        "1e180",
+        "1e220",
         "--holding-rate",
-        "1e160",
+        "1e80",
         "--format",
         "json",
     )
@@ -75,5 +75,5 @@ def test_cli_json_contains_finite_eoq_instead_of_infinity(tmp_path: Path) -> Non
     data = json.loads(result.stdout)
     eoq_units = data["skus"][0]["policy"]["eoq"]
     assert math.isfinite(eoq_units)
-    assert eoq_units == pytest.approx(math.sqrt(24) * 1e75, rel=1e-12)
+    assert eoq_units == pytest.approx(math.sqrt(24) * 1e135, rel=1e-12)
     assert data["skus"][0]["policy"]["order_quantity_source"] == "eoq"
