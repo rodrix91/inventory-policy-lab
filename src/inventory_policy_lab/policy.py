@@ -193,10 +193,28 @@ def eoq(annual_demand: float, ordering_cost: float, holding_cost: float) -> floa
 
     ``D`` is units per year, ``S`` the cost per order and ``H`` the cost of
     holding one unit for a year. Undefined when ``D`` or ``H`` is not positive.
+    If intermediate multiplication overflows or underflows, compute the same
+    finite quantity in log space without changing ordinary-sized results.
     """
     if annual_demand <= 0 or holding_cost <= 0:
         return None
-    return math.sqrt(2 * annual_demand * ordering_cost / holding_cost)
+    radicand = 2 * annual_demand * ordering_cost / holding_cost
+    if 0 < radicand < math.inf:
+        return math.sqrt(radicand)
+    if ordering_cost <= 0:
+        return math.sqrt(radicand)
+    # Valid inputs can overflow while multiplying D and S (or underflow
+    # before division by H), even though their final EOQ is representable.
+    # Keep the ordinary arithmetic path unchanged; use log space only when
+    # that intermediate result is zero or non-finite.
+    log_quantity = 0.5 * (
+        math.log(2) + math.log(annual_demand) + math.log(ordering_cost) - math.log(holding_cost)
+    )
+    try:
+        return math.exp(log_quantity)
+    except OverflowError:
+        # Preserve the old infinite result when even the final EOQ cannot fit.
+        return math.inf
 
 
 def build_policy(

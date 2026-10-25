@@ -416,7 +416,7 @@ s      = D x (L + R) + SS
 
 With too little history for any error, the SKU uses the demand bootstrap and the report says so; it also lists how many errors each SKU used. In the out-of-sample replay the errors come from the training periods only. See [ADR 0008](docs/decisions/0008-residual-bootstrap-and-period-safety-stock.md) (Trapero, Cardós & Kourentzes, 2019, for empirical safety stocks from lead-time forecast errors).
 
-**EOQ.** `Q* = sqrt(2 x A x S / H)` with `A = D x periods per year`, `S` the cost per order and `H = holding rate x unit cost`. Without EOQ settings, `Q = D x order cover`; with a zero forecast, Q = 1 unit so the replay can run (noted in the report).
+**EOQ.** `Q* = sqrt(2 x A x S / H)` with `A = D x periods per year`, `S` the cost per order and `H = holding rate x unit cost`. For extreme but finite input values, the implementation avoids intermediate float overflow or underflow using a log-space fallback, preserving a representable EOQ rather than reporting an artificial infinity or zero; ordinary-sized calculations are unchanged. Without EOQ settings, `Q = D x order cover`; with a zero forecast, Q = 1 unit so the replay can run (noted in the report).
 
 **Periodic review, order-up-to (R, S)** (`--policy RS`). The position is reviewed every `R` periods and an order brings it back up to `S`; the order must cover the `L + R` periods until the next review's order arrives, so `S` has the reorder-point formula and the same safety stock (Silver, Pyke & Thomas, 2017):
 
