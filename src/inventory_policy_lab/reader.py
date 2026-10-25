@@ -223,6 +223,10 @@ def parse_rows(
                 f"line {line}: period {period!r} mixes period formats "
                 f"({' and '.join(sorted(kinds))}); use one format for the whole file"
             )
+        if kind == "integer":
+            # Calendar labels are canonical integers. Normalize row values too
+            # so '01', '1' and '-0' cannot produce missing calendar positions.
+            period = str(int(period))
         if not quantity_text:
             raise DataError(f"line {line}: empty quantity for sku {sku!r}")
         quantity = _number(quantity_text, "quantity", line)
