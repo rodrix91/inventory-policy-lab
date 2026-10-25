@@ -189,3 +189,51 @@ def test_cli_read_failure_preserves_report(
     assert "permission denied by test" in captured.err
     assert "Traceback" not in captured.err
     assert output.read_text(encoding="utf-8") == "verified report\n"
+
+
+@pytest.mark.parametrize(
+    ("probe", "error"),
+    [
+        ("exists", PermissionError("metadata access denied")),
+        ("is_file", OSError("filesystem metadata error")),
+    ],
+)
+def test_metadata_probe_errors_are_clean_input_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, probe: str, error: OSError
+) -> None:
+    source = write_csv(tmp_path / "restricted.csv", "sku,period,quantity\na,1,4\n")
+
+    def fail_metadata(self: Path) -> bool:
+        raise error
+
+    monkeypatch.setattr(Path, probe, fail_metadata)
+    with pytest.raises(InputFileError, match="cannot read") as info:
+        read_demand(source)
+    assert info.value.exit_code == 3
+    assert str(source) in str(info.value)
+    assert str(error) in str(info.value)
+
+
+def test_cli_metadata_failure_keeps_existing_report(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from inventory_policy_lab.cli import main
+
+    source = write_csv(tmp_path / "restricted.csv", "sku,period,quantity\na,1,4\n")
+    output = tmp_path / "existing.json"
+    output.write_text("previous valid report\n", encoding="utf-8")
+    real_is_file = Path.is_file
+
+    def fail_input_metadata(self: Path) -> bool:
+        if self == source:
+            raise PermissionError("restricted input metadata")
+        return real_is_file(self)
+
+    monkeypatch.setattr(Path, "is_file", fail_input_metadata)
+    assert main([str(source), "--format", "json", "--output", str(output)]) == 3
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "cannot read" in captured.err
+    assert "restricted input metadata" in captured.err
+    assert "Traceback" not in captured.err
+    assert output.read_text(encoding="utf-8") == "previous valid report\n"
