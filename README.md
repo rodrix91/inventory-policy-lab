@@ -209,7 +209,7 @@ One row per SKU and period, long format. Header names are case-insensitive. **Am
 | `lead_time` | no | An observed replenishment lead time in periods. All non-empty values of a SKU are treated as observations (mean and standard deviation) |
 | `order_cost`, `stockout_cost` | no | Read only with `--cost-columns`: the SKU's cost per order placed and per unit short, to price the out-of-sample replay; the most recent non-empty value per SKU is used ([ADR 0014](docs/decisions/0014-cost-rates-per-sku.md)) |
 
-- Several rows for the same SKU and period are summed.
+- Several rows for the same SKU and period are summed. If individually finite quantities overflow the numeric range when combined (for example, `1e308 + 1e308`), the CSV is rejected as a data error (exit `4`) rather than generating an infinite demand forecast; existing report files are preserved.
 - A SKU's series starts at its first period in the file and ends at the file's last period. Periods in between without a row count as zero demand (the report notes how many). For months and integers the calendar is complete; for dates it is the set of dates present, since the frequency cannot be inferred.
 - Demand is what customers asked for. Net returns out before the analysis: negative quantities are rejected.
 

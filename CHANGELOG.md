@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Reject numeric overflow when summing individually finite transaction quantities for the same SKU and period. Avoid propagating `Infinity` into demand histories, forecasts or inventory recommendations; provide an actionable line/SKU/period error (exit 4) and preserve earlier output reports. Library and CLI regressions cover overflow and valid large observations for distinct periods/SKUs.
+
 - Extend clean CSV input error handling to filesystem metadata checks (`exists`/`is_file`) that can fail on restricted or unreliable storage. These now return input exit code 3 without tracebacks or overwriting existing reports, with library and CLI regressions.
 
 - Handle CSV input permission errors and other filesystem read failures as clear input errors (CLI exit 3) instead of uncaught tracebacks, while preserving existing report files. Library and CLI regressions cover permission denial, I/O failure and unchanged prior output.
