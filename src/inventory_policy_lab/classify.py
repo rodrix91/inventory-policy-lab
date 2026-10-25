@@ -25,9 +25,7 @@ def abc_classes(values: Mapping[str, float], a: float = 0.80, b: float = 0.95) -
     cutoffs and item values are validated here, even when this public function
     is called without the higher-level Config validation.
     """
-    if not (
-        math.isfinite(a) and math.isfinite(b) and 0 < a < b <= 1
-    ):
+    if not (math.isfinite(a) and math.isfinite(b) and 0 < a < b <= 1):
         raise ValueError("ABC thresholds must satisfy 0 < a < b <= 1")
     if any(not math.isfinite(value) or value < 0 for value in values.values()):
         raise ValueError("ABC item values must be finite and non-negative")
