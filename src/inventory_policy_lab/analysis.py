@@ -896,12 +896,19 @@ def analyze(data: DemandData, config: Config | None = None) -> Report:
         )
 
     basis = "value" if data.has_unit_cost else "quantity"
-    values = {
-        h.sku: statistics.fmean(h.demand)
-        * config.periods_per_year
-        * (h.unit_cost if h.unit_cost is not None else 1.0)
-        for h in data.skus
-    }
+    values: dict[str, float] = {}
+    for history in data.skus:
+        annual_value = (
+            statistics.fmean(history.demand)
+            * config.periods_per_year
+            * (history.unit_cost if history.unit_cost is not None else 1.0)
+        )
+        if not math.isfinite(annual_value):
+            raise DataError(
+                f"sku {history.sku!r}: annual consumption {basis} exceeds the finite "
+                "numeric range; check quantity, unit_cost and --periods-per-year"
+            )
+        values[history.sku] = annual_value
     classes = abc_classes(values, *config.abc_thresholds)
     results = tuple(_analyze_sku(h, config, classes[h.sku], values[h.sku]) for h in data.skus)
     out_of_sample = None
