@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import statistics
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -19,11 +20,24 @@ def abc_classes(values: Mapping[str, float], a: float = 0.80, b: float = 0.95) -
     while it is below ``b``, and ``C`` after that. Testing the share before
     the item means the largest item is always ``A``, even when it alone is
     more than ``a`` of the total. When the total is zero, every item is ``C``.
+    Scale large finite item values if their sum would overflow, so ABC shares
+    stay meaningful rather than making every SKU an A-class item.
     """
     total = sum(values.values())
+    if not math.isfinite(total):
+        # Every item can be finite while their sum overflows to infinity.
+        # Scale before summing so cumulative ABC shares still reflect the
+        # relative values rather than silently making every item class A.
+        if any(not math.isfinite(value) or value < 0 for value in values.values()):
+            raise ValueError("ABC item values must be finite and non-negative")
+        maximum = max(values.values())
+        scaled = {name: value / maximum for name, value in values.items()}
+        total = math.fsum(scaled.values())
+        ordered = sorted(scaled.items(), key=lambda item: (-item[1], item[0]))
+    else:
+        ordered = sorted(values.items(), key=lambda item: (-item[1], item[0]))
     if total <= 0:
         return dict.fromkeys(values, "C")
-    ordered = sorted(values.items(), key=lambda item: (-item[1], item[0]))
     classes: dict[str, str] = {}
     cumulative = 0.0
     for name, value in ordered:
