@@ -104,8 +104,7 @@ def backtest(series: Sequence[float], name: str, method: Method, holdout: int) -
     # This also keeps the public RMSE and --sigma rmse finite for large units.
     maximum_error = max(abs(e) for e in errors)
     rmse = (
-        maximum_error
-        * math.sqrt(math.fsum((e / maximum_error) ** 2 for e in errors) / len(errors))
+        maximum_error * math.sqrt(math.fsum((e / maximum_error) ** 2 for e in errors) / len(errors))
         if maximum_error
         else 0.0
     )
