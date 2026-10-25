@@ -37,7 +37,7 @@ def test_abc_normal_values_and_empty_or_zero_data_remain_unchanged() -> None:
 @pytest.mark.parametrize("invalid", [math.inf, -math.inf, math.nan, -1e307])
 def test_abc_rejects_non_finite_values(invalid: float) -> None:
     with pytest.raises(ValueError, match="ABC item values must be finite and non-negative"):
-        abc_classes({"a": invalid, "b": 1e308})
+        abc_classes({"a": invalid, "b": 1e308, "c": 1e308})
 
 
 def test_library_rejects_unrepresentable_annual_value_before_policy() -> None:
