@@ -296,7 +296,10 @@ def parse_rows(
                     value = _number(text, name, line)
                     if value < 0:
                         raise DataError(f"line {line}: negative {name} {text}")
-                    if sku not in latest_cost_periods[name] or period_rank >= latest_cost_periods[name][sku]:
+                    if (
+                        sku not in latest_cost_periods[name]
+                        or period_rank >= latest_cost_periods[name][sku]
+                    ):
                         sku_costs[name][sku] = value
                         latest_cost_periods[name][sku] = period_rank
 
