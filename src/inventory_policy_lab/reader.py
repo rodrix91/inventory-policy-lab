@@ -51,6 +51,8 @@ COST_COLUMNS = ("order_cost", "stockout_cost")  # read only with cost_columns (A
 _MONTH = re.compile(r"^(\d{4})-(\d{2})$")
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _INT = re.compile(r"^-?\d+$")
+MAX_CALENDAR_PERIODS = 100_000
+MAX_INTEGER_PERIOD_DIGITS = 128
 
 
 @dataclass(frozen=True)
@@ -111,10 +113,16 @@ def _calendar(kind: str, values: Iterable[str]) -> tuple[str, ...]:
     distinct = set(values)
     if kind == "month":
         indexes = [_month_index(v) for v in distinct]
-        return tuple(_month_label(i) for i in range(min(indexes), max(indexes) + 1))
+        start, end = min(indexes), max(indexes)
+        if end - start + 1 > MAX_CALENDAR_PERIODS:
+            raise DataError(f"month calendar exceeds {MAX_CALENDAR_PERIODS} periods")
+        return tuple(_month_label(i) for i in range(start, end + 1))
     if kind == "integer":
         numbers = [int(v) for v in distinct]
-        return tuple(str(i) for i in range(min(numbers), max(numbers) + 1))
+        start, end = min(numbers), max(numbers)
+        if end - start + 1 > MAX_CALENDAR_PERIODS:
+            raise DataError(f"integer calendar exceeds {MAX_CALENDAR_PERIODS} periods")
+        return tuple(str(i) for i in range(start, end + 1))
     return tuple(sorted(distinct))
 
 
@@ -224,6 +232,12 @@ def parse_rows(
                 f"({' and '.join(sorted(kinds))}); use one format for the whole file"
             )
         if kind == "integer":
+            # Bound conversion before int() so maliciously long labels cannot
+            # hit Python's digit limits or consume excessive parsing resources.
+            if len(period.lstrip("-")) > MAX_INTEGER_PERIOD_DIGITS:
+                raise DataError(
+                    f"line {line}: integer period exceeds {MAX_INTEGER_PERIOD_DIGITS} digits"
+                )
             # Calendar labels are canonical integers. Normalize row values too
             # so '01', '1' and '-0' cannot produce missing calendar positions.
             period = str(int(period))
