@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Prevent coefficient-of-variation and Syntetos-Boylan demand-pattern calculations from overflowing on individually finite, large demand observations when the intermediate sum exceeds floating-point range. Normalize by the largest observation only when the original mean computation overflows, preserving ordinary-scale results and existing classifications. Add targeted API regression tests for smooth, intermittent, erratic and lumpy demand, and unchanged zero-demand behavior.
+
 - Prevent effectively unbounded (s, Q) replay loops when very large demand requires many identical lots of a small EOQ. Preserve per-order arithmetic for normal workloads, then aggregate same-time lots in constant time while counting every order. Reject quantities too small to advance the floating-point position and counts beyond reliable numeric precision with controlled data errors (CLI exit 4), keeping existing report files untouched. Add API, warm-up, delayed-arrival, large-batch and CLI regressions (issue #72).
 
 - Stabilize economic order quantity (EOQ) for extreme but finite ordering/holding costs and demand. The original arithmetic remains unchanged when its intermediate value is finite and nonzero; otherwise a log-space fallback recovers any representable positive order quantity, preventing false infinity or zero from intermediate overflow/underflow. Preserve legacy zero/undefined cost behavior, standard EOQ formulas, report schema and ordinary-sized results. Add direct API, pipeline and subprocess CLI regressions.
