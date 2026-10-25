@@ -391,6 +391,8 @@ SS = z x sqrt((L + R) x sigma_D² + D² x sigma_L²)
 s  = D x (L + R) + SS
 ```
 
+**Numerical reliability:** RMSE is computed after scaling forecast errors before squaring them, so a large but finite error does not turn into `Infinity` or a tiny nonzero error into zero. The normal safety-stock formula similarly uses a stable Euclidean norm instead of separately squaring demand and lead-time deviations. Both changes preserve the textbook formulas and usual results while avoiding intermediate overflow/underflow; genuinely unrepresentable final results still require valid input scales.
+
 `D` is the forecast per period, `sigma_D` the sample standard deviation of demand per period (or the holdout RMSE with `--sigma rmse`), `L` and `sigma_L` the mean and sample standard deviation of the observed lead times (or the defaults), and `R` the review period. Demand is reviewed once per period in the data, so `R = 1` by default: an order placed now must cover demand until the next order can arrive, `L + R` periods later. `R = 0` gives the continuous-review textbook formula. See [ADR 0003](docs/decisions/0003-policy-and-replay.md).
 
 **Bootstrap safety stock** (`--safety-stock bootstrap`). Instead of assuming normal demand, each SKU draws N protection intervals: the length is a lead time drawn from the SKU's observed lead times (or the default `L`) plus `R`, rounded half up to whole periods, and the demand is the sum of that many periods drawn with replacement from the SKU's own history. The quantile P of those sums (nearest rank) is the stock that covered the interval in a share P of the draws:
