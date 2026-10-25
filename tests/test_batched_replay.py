@@ -96,7 +96,7 @@ def test_cli_returns_data_error_without_overwriting_old_output(tmp_path: Path) -
         str(output),
     )
     assert process.returncode == 4
-    assert ("too many lots" in process.stderr or "cannot advance" in process.stderr)
+    assert "too many lots" in process.stderr or "cannot advance" in process.stderr
     assert "Traceback" not in process.stderr
     assert output.read_text(encoding="utf-8") == '{"preserve": true}\n'
 
