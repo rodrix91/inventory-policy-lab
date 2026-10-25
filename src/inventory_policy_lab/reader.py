@@ -163,7 +163,8 @@ def read_demand(path: str | os.PathLike[str], cost_columns: bool = False) -> Dem
         raise InputFileError(f"not a file: {file}")
     try:
         with file.open(encoding="utf-8-sig", newline="") as handle:
-            rows = list(csv.reader(handle))
+            reader = csv.reader(handle, strict=True)
+            rows = list(reader)
     except FileNotFoundError:
         raise InputFileError(f"file not found: {file}") from None
     except IsADirectoryError:
@@ -171,6 +172,10 @@ def read_demand(path: str | os.PathLike[str], cost_columns: bool = False) -> Dem
     except UnicodeDecodeError as exc:
         raise InputFileError(
             f"{file} is not valid UTF-8 (byte {exc.start}); re-save it as UTF-8"
+        ) from None
+    except csv.Error as exc:
+        raise DataError(
+            f"{file}: malformed CSV quoting near line {reader.line_num}: {exc}"
         ) from None
     return parse_rows(rows, source=file.as_posix(), cost_columns=cost_columns)
 
