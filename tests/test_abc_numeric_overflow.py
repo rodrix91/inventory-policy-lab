@@ -40,9 +40,10 @@ def test_abc_rejects_non_finite_values(invalid: float) -> None:
         abc_classes({"a": invalid, "b": 1e308, "c": 1e308})
 
 
-def test_library_rejects_unrepresentable_annual_value_before_policy() -> None:
+@pytest.mark.parametrize("quantity", ["1e308", "1e307"])
+def test_library_rejects_unrepresentable_annual_value_before_policy(quantity: str) -> None:
     rows = [["sku", "period", "quantity", "unit_cost"]]
-    rows.extend(["A", str(i), "1e308", "2"] for i in range(1, 9))
+    rows.extend(["A", str(i), quantity, "2"] for i in range(1, 9))
     data = parse_rows(rows)
     with pytest.raises(DataError, match="sku 'A': annual consumption value exceeds"):
         analyze(data, Config(holdout=2))
