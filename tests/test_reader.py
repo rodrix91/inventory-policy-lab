@@ -237,3 +237,47 @@ def test_cli_metadata_failure_keeps_existing_report(
     assert "restricted input metadata" in captured.err
     assert "Traceback" not in captured.err
     assert output.read_text(encoding="utf-8") == "previous valid report\n"
+
+
+def test_aggregated_finite_quantities_must_remain_finite() -> None:
+    source = rows(
+        "sku,period,quantity\nA,2026-01,1e308\nA,2026-01,1e308\n"
+    )
+    with pytest.raises(
+        DataError, match=r"line 3: total quantity for sku 'A' in period '2026-01'"
+    ) as error:
+        parse_rows(source)
+    assert "exceeds the finite numeric range" in str(error.value)
+    assert error.value.exit_code == 4
+
+
+def test_distinct_skus_and_periods_do_not_overflow_each_other() -> None:
+    source = rows(
+        "sku,period,quantity\n"
+        "A,2026-01,1e308\n"
+        "A,2026-02,1e308\n"
+        "B,2026-01,1e308\n"
+    )
+    data = parse_rows(source)
+    assert data.skus[0].demand == (1e308, 1e308)
+    assert data.skus[1].demand == (1e308, 0.0)
+
+
+def test_cli_overflow_preserves_existing_report(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from inventory_policy_lab.cli import main
+
+    source = write_csv(
+        tmp_path / "overflow.csv",
+        "sku,period,quantity\nA,2026-01,1e308\nA,2026-01,1e308\n",
+    )
+    output = tmp_path / "previous.json"
+    output.write_text('{"status":"verified"}\n', encoding="utf-8")
+    assert main([str(source), "--format", "json", "--output", str(output)]) == 4
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "line 3: total quantity for sku 'A'" in captured.err
+    assert "exceeds the finite numeric range" in captured.err
+    assert "Traceback" not in captured.err
+    assert output.read_text(encoding="utf-8") == '{"status":"verified"}\n'
