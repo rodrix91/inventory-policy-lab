@@ -49,7 +49,15 @@ def abc_classes(values: Mapping[str, float], a: float = 0.80, b: float = 0.95) -
 
 def coefficient_of_variation(demand: Sequence[float]) -> float | None:
     """Population standard deviation over mean of per-period demand; ``None`` if the mean is 0."""
-    mean = statistics.fmean(demand)
+    try:
+        mean = statistics.fmean(demand)
+    except OverflowError:
+        # fmean first sums the inputs, which can overflow even when their
+        # mean and coefficient of variation are finite. Demand is non-negative,
+        # so scaling by the largest observation preserves the CV exactly.
+        maximum = max(demand)
+        normalized = [value / maximum for value in demand]
+        return statistics.pstdev(normalized) / statistics.fmean(normalized)
     if mean == 0:
         return None
     return statistics.pstdev(demand) / mean
@@ -85,7 +93,8 @@ def demand_profile(
     if not sizes:
         return DemandProfile(adi=None, cv2=None, nonzero_periods=0, category="no demand")
     adi = len(demand) / len(sizes)
-    cv2 = (statistics.pstdev(sizes) / statistics.fmean(sizes)) ** 2
+    cv = coefficient_of_variation(sizes) or 0.0
+    cv2 = cv**2
     if adi < adi_cutoff:
         category = "smooth" if cv2 < cv2_cutoff else "erratic"
     else:
