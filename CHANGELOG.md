@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Extend clean CSV input error handling to filesystem metadata checks (`exists`/`is_file`) that can fail on restricted or unreliable storage. These now return input exit code 3 without tracebacks or overwriting existing reports, with library and CLI regressions.
 
+- Normalize zero-padded and signed-zero integer-period values before aggregating demand and observed lead times, fixing `KeyError` from accepted inputs such as `01`/`002`. Equivalent integer spellings now share a calendar bucket; month and date handling remain unchanged. Add parser and end-to-end CLI regressions (issue #64).
+
 - Handle CSV input permission errors and other filesystem read failures as clear input errors (CLI exit 3) instead of uncaught tracebacks, while preserving existing report files. Library and CLI regressions cover permission denial, I/O failure and unchanged prior output.
 
 - Reject malformed CSV quoting (unterminated quoted fields and text after closing quotes) before inventory analysis, with an actionable source line and data-error exit code 4. Correctly quoted commas and multiline fields remain supported. Added reader and CLI regressions verifying that existing report files survive invalid input.
