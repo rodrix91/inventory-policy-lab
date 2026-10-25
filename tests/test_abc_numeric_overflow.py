@@ -49,9 +49,7 @@ def test_abc_rejects_non_finite_values(invalid: float) -> None:
         {"a": 1e308, "b": 1e308, "c": -0.01},
     ],
 )
-def test_abc_rejects_negative_item_values_before_scoring(
-    values: dict[str, float],
-) -> None:
+def test_abc_rejects_negative_item_values_before_scoring(values: dict[str, float]) -> None:
     with pytest.raises(ValueError, match="ABC item values must be finite and non-negative"):
         abc_classes(values)
 
