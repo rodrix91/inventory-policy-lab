@@ -339,7 +339,7 @@ Exit codes: `0` report written, `2` invalid option or value, `3` input file miss
 
 All demand quantities are per period; lead times are in periods.
 
-**ABC.** Annual consumption value = mean demand per period x periods per year x unit cost (annual units when there is no `unit_cost` column). Items are sorted by value; an item is A while the cumulative share of the items *before* it is below 80%, B while it is below 95%, C after that. Testing the share before the item keeps the largest item in A even when it alone exceeds 80%.
+**ABC.** Annual consumption value = mean demand per period x periods per year x unit cost (annual units when there is no `unit_cost` column). An annual value that exceeds the finite numeric range is rejected as a data error (exit `4`) rather than entering an invalid report. When each item's annual value is finite but their sum would overflow, ABC shares are calculated after common-factor normalization, preserving the correct ranking and class thresholds. Items are sorted by value; an item is A while the cumulative share of the items *before* it is below 80%, B while it is below 95%, C after that. Testing the share before the item keeps the largest item in A even when it alone exceeds 80%.
 
 **XYZ.** `CV = population standard deviation / mean` of demand per period: X if CV <= 0.5, Y if CV <= 1.0, else Z (also Z when there is no demand). Cut-offs vary in practice; both sets of thresholds are options.
 
