@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Stabilize economic order quantity (EOQ) for extreme but finite ordering/holding costs and demand. The original arithmetic remains unchanged when its intermediate value is finite and nonzero; otherwise a log-space fallback recovers any representable positive order quantity, preventing false infinity or zero from intermediate overflow/underflow. Preserve legacy zero/undefined cost behavior, standard EOQ formulas, report schema and ordinary-sized results. Add direct API, pipeline and subprocess CLI regressions.
+
 - Stabilize holdout forecast RMSE and normal safety-stock calculations: scale errors before squaring and use `math.hypot` for demand/lead-time deviations, preventing finite but very large values from turning into `Infinity` and tiny nonzero errors from underflowing to zero. Keep the same forecast selection, normal formulas, public API and JSON schema; add overflow, underflow, zero-error and ordinary-sized regression tests.
 
 - Harden ABC inventory classification against numeric overflow: scale finite per-SKU values before cumulative-share calculations when their total exceeds float range, avoiding silent misclassification of every SKU as A. Reject an overflowing annualized consumption value with an actionable SKU-specific data error (CLI exit 4) before forecasting, preserving any existing output report. Add API and CLI regression tests for large finite values and unchanged normal behavior.
