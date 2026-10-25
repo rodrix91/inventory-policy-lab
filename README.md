@@ -331,7 +331,7 @@ The building blocks are public too: `read_demand`, `abc_classes`, `xyz_class`, `
 | `--holdout H` | 6 | Periods held out for the backtest |
 | `--ma-window W`, `--ses-alpha a`, `--croston-alpha a` | 3, 0.2, 0.1 | Method parameters |
 
-Exit codes: `0` report written, `2` invalid option or value, `3` input file missing, unreadable or not UTF-8 (or output not writable), `4` invalid data, `5` history too short for the holdout (needs at least holdout + 2 periods, in the training window with `--test-periods`).
+Exit codes: `0` report written, `2` invalid option or value, `3` input file missing, unreadable or not UTF-8 (including permission or I/O errors; previously written output is preserved), `4` invalid data, `5` history too short for the holdout (needs at least holdout + 2 periods, in the training window with `--test-periods`).
 
 ## Methods
 
