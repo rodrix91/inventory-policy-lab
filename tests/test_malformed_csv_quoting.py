@@ -33,7 +33,7 @@ def test_malformed_quotes_raise_data_error(tmp_path: Path, source: str, message:
 
 def test_quoted_commas_and_multiline_sku_are_valid(tmp_path: Path) -> None:
     path = tmp_path / "valid.csv"
-    path.write_text('sku,period,quantity\n"North, A",1,12\n"South\nB",1,5\n', encoding="utf-8")
+    path.write_bytes(b'sku,period,quantity\n"North, A",1,12\n"South\nB",1,5\n')
     data = read_demand(path)
     assert data.rows == 2
     assert [(history.sku, history.demand) for history in data.skus] == [
