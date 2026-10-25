@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Handle CSV input permission errors and other filesystem read failures as clear input errors (CLI exit 3) instead of uncaught tracebacks, while preserving existing report files. Library and CLI regressions cover permission denial, I/O failure and unchanged prior output.
+
 - Reject malformed CSV quoting (unterminated quoted fields and text after closing quotes) before inventory analysis, with an actionable source line and data-error exit code 4. Correctly quoted commas and multiline fields remain supported. Added reader and CLI regressions verifying that existing report files survive invalid input.
 
 - Fail closed on ambiguous ERP/CSV headers for consumed inventory fields: repeated headers (even with case/whitespace differences) and alternative aliases (`quantity`/`qty`/`demand`, `period`/`date`) are rejected with actionable field names and positions instead of silently choosing one and changing forecast inputs. This also covers optional costs and lead times, and opt-in per-SKU cost columns. Non-consumed extra columns remain compatible. Added library and CLI regressions, including preservation of an existing output report on error.
