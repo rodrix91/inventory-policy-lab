@@ -240,9 +240,7 @@ def test_cli_metadata_failure_keeps_existing_report(
 
 
 def test_aggregated_finite_quantities_must_remain_finite() -> None:
-    source = rows(
-        "sku,period,quantity\nA,2026-01,1e308\nA,2026-01,1e308\n"
-    )
+    source = rows("sku,period,quantity\nA,2026-01,1e308\nA,2026-01,1e308\n")
     with pytest.raises(
         DataError, match=r"line 3: total quantity for sku 'A' in period '2026-01'"
     ) as error:
@@ -252,12 +250,7 @@ def test_aggregated_finite_quantities_must_remain_finite() -> None:
 
 
 def test_distinct_skus_and_periods_do_not_overflow_each_other() -> None:
-    source = rows(
-        "sku,period,quantity\n"
-        "A,2026-01,1e308\n"
-        "A,2026-02,1e308\n"
-        "B,2026-01,1e308\n"
-    )
+    source = rows("sku,period,quantity\nA,2026-01,1e308\nA,2026-02,1e308\nB,2026-01,1e308\n")
     data = parse_rows(source)
     assert data.skus[0].demand == (1e308, 1e308)
     assert data.skus[1].demand == (1e308, 0.0)
