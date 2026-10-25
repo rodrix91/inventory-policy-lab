@@ -152,7 +152,7 @@ def test_open_race_errors_are_input_errors(
 def test_unreadable_csv_errors_are_input_errors(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, error: OSError, explanation: str
 ) -> None:
-    source = write_csv(tmp_path / "blocked.csv", "sku,period,quantity\\na,1,5\\n")
+    source = write_csv(tmp_path / "blocked.csv", "sku,period,quantity\na,1,5\n")
 
     def fail_open(self: Path, *args: object, **kwargs: object) -> object:
         raise error
@@ -170,9 +170,9 @@ def test_cli_read_failure_preserves_report(
 ) -> None:
     from inventory_policy_lab.cli import main
 
-    source = write_csv(tmp_path / "blocked.csv", "sku,period,quantity\\na,1,5\\n")
+    source = write_csv(tmp_path / "blocked.csv", "sku,period,quantity\na,1,5\n")
     output = tmp_path / "existing.json"
-    output.write_text("verified report\\n", encoding="utf-8")
+    output.write_text("verified report\n", encoding="utf-8")
     real_open = Path.open
 
     def deny_input(self: Path, *args: object, **kwargs: object) -> object:
@@ -187,4 +187,4 @@ def test_cli_read_failure_preserves_report(
     assert "cannot read" in captured.err
     assert "permission denied by test" in captured.err
     assert "Traceback" not in captured.err
-    assert output.read_text(encoding="utf-8") == "verified report\\n"
+    assert output.read_text(encoding="utf-8") == "verified report\n"
