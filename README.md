@@ -211,6 +211,7 @@ One row per SKU and period, long format. Header names are case-insensitive. **Am
 
 - Several rows for the same SKU and period are summed. If individually finite quantities overflow the numeric range when combined (for example, `1e308 + 1e308`), the CSV is rejected as a data error (exit `4`) rather than generating an infinite demand forecast; existing report files are preserved.
 - A SKU's series starts at its first period in the file and ends at the file's last period. Periods in between without a row count as zero demand (the report notes how many). For months and integers the calendar is complete; for dates it is the set of dates present, since the frequency cannot be inferred.
+- Integer periods are interpreted numerically: zero-padded labels (`01`, `002`) and equivalent representations (`-0` and `0`) share a canonical calendar period. Demand and observed lead-time dates use the same normalized period labels, so equivalent spellings aggregate rather than causing a calendar lookup error. Month and date formats are unchanged.
 - Demand is what customers asked for. Net returns out before the analysis: negative quantities are rejected.
 
 ## Worked example (checked by hand)
