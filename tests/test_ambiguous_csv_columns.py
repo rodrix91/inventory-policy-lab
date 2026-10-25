@@ -67,7 +67,16 @@ def test_cli_ambiguous_quantity_preserves_existing_output(tmp_path: Path) -> Non
     output.write_text("existing verified report\n", encoding="utf-8")
     env = {**os.environ, "PYTHONPATH": str(ROOT / "src")}
     run = subprocess.run(
-        [sys.executable, "-m", "inventory_policy_lab", str(source), "--format", "json", "--output", str(output)],
+        [
+            sys.executable,
+            "-m",
+            "inventory_policy_lab",
+            str(source),
+            "--format",
+            "json",
+            "--output",
+            str(output),
+        ],
         cwd=ROOT,
         env=env,
         capture_output=True,
