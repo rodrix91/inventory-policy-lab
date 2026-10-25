@@ -175,3 +175,38 @@ def test_trend_seasonal_options(capsys: pytest.CaptureFixture[str]) -> None:
     assert "season length 6, from 12 periods" in capsys.readouterr().out
     assert main([WORKED, "--holdout", "2", "--season-length", "4"]) == 2
     assert "only applies with trend_seasonal (--trend-seasonal)" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "selection",
+    [
+        "A=0.99,A=0.8",
+        "a=0.99,A=0.8",
+        "A=0.99, a =0.8",
+        "C=0.95,B=0.92,c=0.8",
+    ],
+)
+def test_duplicate_class_service_level_is_usage_error_without_overwrite(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], selection: str
+) -> None:
+    previous = tmp_path / "policy.json"
+    previous.write_text('{"status":"approved"}\n', encoding="utf-8")
+    with pytest.raises(SystemExit) as excinfo:
+        main(
+            [
+                WORKED,
+                "--holdout",
+                "2",
+                "--format",
+                "json",
+                "--output",
+                str(previous),
+                "--class-service-levels",
+                selection,
+            ]
+        )
+    assert excinfo.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "duplicate --class-service-levels class" in captured.err
+    assert previous.read_text(encoding="utf-8") == '{"status":"approved"}\n'
