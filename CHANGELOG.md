@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Fail closed when the reusable GitHub Action's CLI reports success without creating a **fresh** report: compare the pre-existing output's file identity, size and nanosecond modification time with the post-run output so an old report cannot falsely produce `succeeded=true` or a usable `report-path`. Preserve existing files on failure and accept fresh atomic replacements and first-run outputs; add cross-platform runner regression tests without changing the standalone analysis CLI.
+
 - Harden reusable GitHub Action boundary handling: reject CR/LF/NUL and other terminal controls in CSV paths, report paths and extra arguments before invoking the CLI or creating a report directory, while preserving tabs as normal argument separators. Choose a JSON job-summary Markdown fence longer than any backtick run in untrusted report text, avoiding premature code-block termination. Preserve ordinary inputs, raw JSON and standalone CLI behavior; add failure-path and regression tests.
 
 - Validate every demand observation, including warm-up periods, before running public `(s,Q)`, `(R,S)` and `(R,s,S)` inventory replays. Reject negative, `NaN` and infinite demand with a zero-based period in `ValueError`, avoiding fictitious stock gains, invalid fill rates and non-finite metrics; preserve normal and zero-demand replays and existing option-validation precedence. Add cross-policy regression tests.
