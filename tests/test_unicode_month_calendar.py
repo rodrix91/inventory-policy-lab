@@ -58,10 +58,7 @@ def test_file_reader_normalizes_months_without_changing_sku_or_amount(
 ) -> None:
     path = tmp_path / "monthly.csv"
     path.write_text(
-        "sku,period,quantity\n"
-        "item-α,٢٠٢٦-٠١,3\n"
-        "item-α,2026-01,4\n"
-        "item-α,२०२६-०२,8\n",
+        "sku,period,quantity\nitem-α,٢٠٢٦-٠١,3\nitem-α,2026-01,4\nitem-α,२०२६-०२,8\n",
         encoding="utf-8",
     )
     data = read_demand(path)
@@ -77,18 +74,11 @@ def test_cli_json_reports_original_nonzero_demand_for_unicode_months(
 ) -> None:
     source = tmp_path / "unicode-months.csv"
     source.write_text(
-        "sku,period,quantity\n"
-        "A,٢٠٢٦-٠١,3\n"
-        "A,2026-01,2\n"
-        "A,२०२६-०२,4\n"
-        "A,۲۰۲۶-۰۳,5\n"
-        "A,2026-04,6\n",
+        "sku,period,quantity\nA,٢٠٢٦-٠١,3\nA,2026-01,2\nA,२०२६-०२,4\nA,۲۰۲۶-۰۳,5\nA,2026-04,6\n",
         encoding="utf-8",
     )
     target = tmp_path / "report.json"
-    assert main(
-        [str(source), "--holdout", "1", "--format", "json", "--output", str(target)]
-    ) == 0
+    assert main([str(source), "--holdout", "1", "--format", "json", "--output", str(target)]) == 0
     captured = capsys.readouterr()
     assert captured.out == ""
     assert captured.err == ""
