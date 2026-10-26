@@ -244,6 +244,12 @@ def parse_rows(
                 f"line {line}: period {period!r} mixes period formats "
                 f"({' and '.join(sorted(kinds))}); use one format for the whole file"
             )
+        if kind == "month":
+            # Python's Unicode-aware \d accepts non-ASCII decimal digits.
+            # Normalize each row like the calendar labels; otherwise a valid
+            # Unicode month would not match its ASCII calendar entry, silently
+            # turning observed demand into a zero-filled period.
+            period = _month_label(_month_index(period))
         if kind == "integer":
             # Bound conversion before int() so maliciously long labels cannot
             # hit Python's digit limits or consume excessive parsing resources.
