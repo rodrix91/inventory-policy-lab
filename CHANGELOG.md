@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Validate every demand observation, including warm-up periods, before running public `(s,Q)`, `(R,S)` and `(R,s,S)` inventory replays. Reject negative, `NaN` and infinite demand with a zero-based period in `ValueError`, avoiding fictitious stock gains, invalid fill rates and non-finite metrics; preserve normal and zero-demand replays and existing option-validation precedence. Add cross-policy regression tests.
+
 - Reject negative and non-finite `lead_time` values in all three standalone inventory replay APIs (`simulate`, `simulate_periodic`, `simulate_rss`) before placing inventory orders. Prevent backdated arrivals and confusing NaN/infinity integer conversions while preserving valid half-up rounding, warm-up behavior and existing error precedence. Add cross-policy regression tests.
 
 - Reject negative and non-finite lead time, review period and observed lead-time values in both public bootstrap safety-stock and forecast-residual APIs before sampling. Report a clear `ValueError` identifying the invalid setting or `lead_times` position instead of silently using invalid intervals; preserve zero-duration results, seeded valid draws, and sample-count validation precedence. Add parameterized regressions and documentation.

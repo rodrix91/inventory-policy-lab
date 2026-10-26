@@ -94,6 +94,13 @@ def _review_period(review_period: int) -> int:
     return review_period
 
 
+def _check_demand(demand: Sequence[float]) -> None:
+    """Reject impossible demand before any inventory state is mutated."""
+    for index, quantity in enumerate(demand):
+        if not math.isfinite(quantity) or quantity < 0:
+            raise ValueError(f"demand[{index}] must be finite and non-negative, got {quantity}")
+
+
 def _lead_periods(lead_time: float) -> int:
     """Round finite, non-negative lead time half up to whole replay periods."""
     if not math.isfinite(lead_time) or lead_time < 0:
@@ -222,6 +229,7 @@ def simulate(
     _check_warmup(demand, warmup)
     start, levels = _levels(reorder_point, len(demand), "reorder_point")
     lead = _lead_periods(lead_time)
+    _check_demand(demand)
     ledger = _Ledger(net=start + first, warmup=warmup, arrivals={})
     for t, quantity in enumerate(demand):
         ledger.serve(t, quantity)
@@ -248,6 +256,7 @@ def simulate_periodic(
     _check_warmup(demand, warmup)
     start, levels = _levels(order_up_to, len(demand), "order_up_to")
     lead = _lead_periods(lead_time)
+    _check_demand(demand)
     ledger = _Ledger(net=start, warmup=warmup, arrivals={})
     for t, quantity in enumerate(demand):
         ledger.serve(t, quantity)
@@ -284,6 +293,7 @@ def simulate_rss(
     _check_warmup(demand, warmup)
     start, levels = _levels(reorder_point, len(demand), "reorder_point")
     lead = _lead_periods(lead_time)
+    _check_demand(demand)
     ledger = _Ledger(net=start + first, warmup=warmup, arrivals={})
     for t, quantity in enumerate(demand):
         ledger.serve(t, quantity)
