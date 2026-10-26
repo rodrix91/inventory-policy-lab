@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Harden reusable GitHub Action boundary handling: reject CR/LF/NUL and other terminal controls in CSV paths, report paths and extra arguments before invoking the CLI or creating a report directory, while preserving tabs as normal argument separators. Choose a JSON job-summary Markdown fence longer than any backtick run in untrusted report text, avoiding premature code-block termination. Preserve ordinary inputs, raw JSON and standalone CLI behavior; add failure-path and regression tests.
+
 - Validate every demand observation, including warm-up periods, before running public `(s,Q)`, `(R,S)` and `(R,s,S)` inventory replays. Reject negative, `NaN` and infinite demand with a zero-based period in `ValueError`, avoiding fictitious stock gains, invalid fill rates and non-finite metrics; preserve normal and zero-demand replays and existing option-validation precedence. Add cross-policy regression tests.
 
 - Reject negative and non-finite `lead_time` values in all three standalone inventory replay APIs (`simulate`, `simulate_periodic`, `simulate_rss`) before placing inventory orders. Prevent backdated arrivals and confusing NaN/infinity integer conversions while preserving valid half-up rounding, warm-up behavior and existing error precedence. Add cross-policy regression tests.
