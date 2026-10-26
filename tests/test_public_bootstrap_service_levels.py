@@ -29,9 +29,12 @@ def test_valid_quantile_levels_remain_supported(level: float) -> None:
     )
     assert demand_quantile == 5.0
     assert stock == 0.0
-    assert residual_bootstrap_quantile(
-        {1: (2.0,)}, level, lead_time=1, samples=10, rng=random.Random(123)
-    ) == 2.0
+    assert (
+        residual_bootstrap_quantile(
+            {1: (2.0,)}, level, lead_time=1, samples=10, rng=random.Random(123)
+        )
+        == 2.0
+    )
 
 
 def test_invalid_sample_count_retains_existing_precedence() -> None:
