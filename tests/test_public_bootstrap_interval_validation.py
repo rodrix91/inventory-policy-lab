@@ -17,28 +17,23 @@ from inventory_policy_lab import bootstrap_safety_stock, residual_bootstrap_quan
 def test_invalid_interval_inputs_fail_before_bootstrap(
     method: str, invalid: float, field: str
 ) -> None:
-    options = {
-        "lead_time": 1.0,
-        "review_period": 0.0,
-        "lead_times": (1.0,),
-    }
-    if field == "lead_times":
-        options[field] = (1.0, invalid)
-        label = "lead_times[1]"
-    else:
-        options[field] = invalid
-        label = field
+    lead_time = invalid if field == "lead_time" else 1.0
+    review_period = invalid if field == "review_period" else 0.0
+    lead_times = (1.0, invalid) if field == "lead_times" else (1.0,)
+    label = "lead_times[1]" if field == "lead_times" else field
     rng = random.Random(27)
     prior_state = rng.getstate()
-    with pytest.raises(ValueError, match=re.escape(f"{label} must be finite and non-negative")):
+    with pytest.raises(
+        ValueError, match=re.escape(f"{label} must be finite and non-negative")
+    ):
         if method == "demand":
             bootstrap_safety_stock(
                 [2.0, 4.0],
                 0.9,
                 3.0,
-                lead_time=options["lead_time"],
-                review_period=options["review_period"],
-                lead_times=options["lead_times"],
+                lead_time=lead_time,
+                review_period=review_period,
+                lead_times=lead_times,
                 samples=20,
                 rng=rng,
             )
@@ -46,9 +41,9 @@ def test_invalid_interval_inputs_fail_before_bootstrap(
             residual_bootstrap_quantile(
                 {1: (2.0,)},
                 0.9,
-                lead_time=options["lead_time"],
-                review_period=options["review_period"],
-                lead_times=options["lead_times"],
+                lead_time=lead_time,
+                review_period=review_period,
+                lead_times=lead_times,
                 samples=20,
                 rng=rng,
             )
