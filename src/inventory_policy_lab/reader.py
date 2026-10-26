@@ -200,6 +200,7 @@ def parse_rows(
         raise DataError(f"{source} is empty")
     columns = _resolve_columns(rows[0], cost_columns)
     width = max(columns.values()) + 1
+    header_width = len(rows[0])
 
     totals: dict[str, dict[str, float]] = {}
     costs: dict[str, float] = {}
@@ -222,9 +223,9 @@ def parse_rows(
         # Even ignored ERP columns must preserve the header's width: silently
         # dropping an extra cell or a missing trailing field can conceal a
         # misaligned export and lead to unreliable inventory decisions.
-        if len(row) != len(rows[0]):
+        if len(row) != header_width:
             raise DataError(
-                f"line {line}: expected {len(rows[0])} fields from header, found {len(row)}"
+                f"line {line}: expected {header_width} fields from header, found {len(row)}"
             )
         data_rows += 1
         sku = row[columns["sku"]].strip()
