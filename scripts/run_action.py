@@ -225,7 +225,7 @@ def main() -> int:
             new_report = report_path.stat()
         except OSError:
             new_report = None
-        if new_report is None or (
+        if new_report is None or not report_path.is_file() or (
             old_report is not None
             and (
                 old_report.st_dev,
