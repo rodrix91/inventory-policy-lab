@@ -298,6 +298,8 @@ The building blocks are public too: `read_demand`, `abc_classes`, `xyz_class`, `
 
 **Numeric safety:** policy durations, demand annualization, order coverage, EOQ rates and ABC-XYZ thresholds must be finite numbers. Inputs such as `--lead-time NaN`, `--periods-per-year inf` or `--xyz-thresholds 0.5,inf` fail with exit code `2` and do not replace an existing report. JSON and Markdown calculations with valid finite values are unchanged.
 
+**Standalone XYZ validation:** `xyz_class(cv, x, y)` rejects negative, `NaN`, or infinite coefficients of variation, as well as non-finite or incorrectly ordered cutoffs. Valid cutoffs satisfy `0 < x < y`, matching `Config.xyz_thresholds`. Pass `cv=None` for a no-demand item, which remains category `Z` with valid cutoffs. These checks prevent silent misclassification in direct library calls; normal CLI results and finite inputs are unchanged.
+
 | Option | Default | Meaning |
 |---|---|---|
 | `--format markdown\|json` | markdown | Output format |
