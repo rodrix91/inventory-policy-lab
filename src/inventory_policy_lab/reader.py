@@ -219,6 +219,13 @@ def parse_rows(
             continue
         if len(row) < width:
             raise DataError(f"line {line}: expected at least {width} fields, found {len(row)}")
+        # Even ignored ERP columns must preserve the header's width: silently
+        # dropping an extra cell or a missing trailing field can conceal a
+        # misaligned export and lead to unreliable inventory decisions.
+        if len(row) != len(rows[0]):
+            raise DataError(
+                f"line {line}: expected {len(rows[0])} fields from header, found {len(row)}"
+            )
         data_rows += 1
         sku = row[columns["sku"]].strip()
         period = row[columns["period"]].strip()
