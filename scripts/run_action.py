@@ -185,6 +185,15 @@ def main() -> int:
     existing = env.get("PYTHONPATH")
     env["PYTHONPATH"] = src if not existing else os.pathsep.join((src, existing))
 
+    # Preserve the previous report. A zero-exit subprocess cannot claim success
+    # merely because an old report happens to exist at the destination.
+    try:
+        old_report = report_path.stat()
+    except FileNotFoundError:
+        old_report = None
+    except OSError as exc:
+        return _fail(f"Cannot inspect existing report: {exc}", 3)
+
     command = [
         sys.executable,
         "-m",
@@ -211,9 +220,28 @@ def main() -> int:
         sys.stderr.write(completed.stderr)
 
     code = completed.returncode
-    if code == 0 and not report_path.is_file():
-        print("Analysis completed without creating the report file.", file=sys.stderr)
-        code = 3
+    if code == 0:
+        try:
+            new_report = report_path.stat()
+        except OSError:
+            new_report = None
+        if new_report is None or (
+            old_report is not None
+            and (
+                old_report.st_dev,
+                old_report.st_ino,
+                old_report.st_size,
+                old_report.st_mtime_ns,
+            )
+            == (
+                new_report.st_dev,
+                new_report.st_ino,
+                new_report.st_size,
+                new_report.st_mtime_ns,
+            )
+        ):
+            print("Analysis completed without creating a fresh report file.", file=sys.stderr)
+            code = 3
 
     succeeded = code == 0
     _append_output("exit-code", str(code))
