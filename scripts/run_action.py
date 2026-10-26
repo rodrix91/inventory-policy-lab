@@ -18,8 +18,7 @@ def _reject_input_controls(value: str, label: str, *, allow_tab: bool = False) -
         raise ValueError(f"Action {label} must not contain line breaks.")
     # Tab remains a normal shlex argument separator, not part of CSV/report paths.
     if any(
-        (ord(char) < 32 and (char != "\t" or not allow_tab))
-        or 127 <= ord(char) <= 159
+        (ord(char) < 32 and (char != "\t" or not allow_tab)) or 127 <= ord(char) <= 159
         for char in value
     ):
         raise ValueError(f"Action {label} must not contain terminal control characters.")
