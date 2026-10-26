@@ -76,8 +76,7 @@ def test_valid_extra_columns_and_explicit_empty_cells_remain_accepted() -> None:
 def test_quoted_commas_and_multiline_fields_remain_valid(tmp_path: Path) -> None:
     source = tmp_path / "valid.csv"
     source.write_text(
-        'sku,period,quantity,note\nA,1,4,"city, branch"\n'
-        'A,2,3,"multiple\nlines"\n',
+        'sku,period,quantity,note\nA,1,4,"city, branch"\nA,2,3,"multiple\nlines"\n',
         encoding="utf-8",
     )
     parsed = read_demand(source)
@@ -92,9 +91,7 @@ def test_quoted_commas_and_multiline_fields_remain_valid(tmp_path: Path) -> None
         "sku,period,quantity,notes\nA,1,4\n",
     ],
 )
-def test_cli_fails_closed_and_preserves_existing_json_report(
-    tmp_path: Path, content: str
-) -> None:
+def test_cli_fails_closed_and_preserves_existing_json_report(tmp_path: Path, content: str) -> None:
     source = tmp_path / "bad.csv"
     source.write_text(content, encoding="utf-8")
     report = tmp_path / "verified.json"
