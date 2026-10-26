@@ -79,7 +79,7 @@ def test_valid_argument_tabs_are_still_accepted(
     def complete(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
         assert command[4:6] == ["--holdout", "2"]
         Path(command[-1]).write_text("{}\n", encoding="utf-8")
-        return run_action.subprocess.CompletedProcess(command, 0, "", "")
+        return subprocess.CompletedProcess(command, 0, "", "")
 
     with patch.object(run_action.subprocess, "run", side_effect=complete):
         assert run_action.main() == 0
