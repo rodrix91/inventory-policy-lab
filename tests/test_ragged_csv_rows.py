@@ -43,7 +43,14 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_every_nonblank_row_must_match_header_width(
     header: list[str], row: list[str], message: str, cost_columns: bool
 ) -> None:
-    with pytest.raises(DataError, match=message) as info:
+    # When cost parsing is enabled, order_cost becomes a consumed field.
+    # Keep the existing "expected at least" wording for required-field gaps.
+    expected = (
+        "line 2: expected at least 4 fields, found 3"
+        if cost_columns and header[-1] == "order_cost"
+        else message
+    )
+    with pytest.raises(DataError, match=expected) as info:
         parse_rows([header, row], cost_columns=cost_columns)
     assert info.value.exit_code == 4
 
