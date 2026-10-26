@@ -75,6 +75,12 @@ def safety_stock(
     return z, z * deviation
 
 
+def _check_bootstrap_service_level(service_level: float) -> None:
+    """Reject invalid nearest-rank quantiles before drawing random samples."""
+    if not 0 < service_level <= 1:
+        raise ValueError(f"bootstrap service_level must be in (0, 1], got {service_level}")
+
+
 def bootstrap_safety_stock(
     demand: Sequence[float],
     service_level: float,
@@ -98,9 +104,12 @@ def bootstrap_safety_stock(
     Safety stock is that quantile minus the expected interval demand
     ``D * (L + R)``, floored at zero: the reorder point is never set below the
     forecast over the interval. Pass a seeded ``rng`` for reproducible results.
+    A bootstrap nearest-rank quantile requires ``0 < service_level <= 1``;
+    invalid levels raise ``ValueError`` before any random draw.
     """
     if samples < 1:
         raise ValueError("samples must be at least 1")
+    _check_bootstrap_service_level(service_level)
     if not demand:
         raise ValueError("demand history is empty")
     rng = rng or random.Random(0)
@@ -169,10 +178,12 @@ def residual_bootstrap_quantile(
     periods ``P`` (half up) and draws one error from ``errors[P]``; ``P = 0``
     draws 0. The quantile (nearest rank) is the safety stock that covered the
     forecast error in that share of draws, before any floor (ADR 0008).
-    Raises ``ValueError`` when an interval length that can be drawn has no errors.
+    Raises ``ValueError`` when an interval length that can be drawn has no errors
+    or the quantile level is outside ``(0, 1]``.
     """
     if samples < 1:
         raise ValueError("samples must be at least 1")
+    _check_bootstrap_service_level(service_level)
     candidates = tuple(lead_times) if lead_times else (lead_time,)
     for lead in candidates:
         periods = protection_periods(lead, review_period)
