@@ -23,9 +23,7 @@ def test_invalid_interval_inputs_fail_before_bootstrap(
     label = "lead_times[1]" if field == "lead_times" else field
     rng = random.Random(27)
     prior_state = rng.getstate()
-    with pytest.raises(
-        ValueError, match=re.escape(f"{label} must be finite and non-negative")
-    ):
+    with pytest.raises(ValueError, match=re.escape(f"{label} must be finite and non-negative")):
         if method == "demand":
             bootstrap_safety_stock(
                 [2.0, 4.0],
