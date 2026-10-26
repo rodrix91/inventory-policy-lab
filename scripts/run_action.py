@@ -3,12 +3,26 @@
 from __future__ import annotations
 
 import os
+import re
 import shlex
 import subprocess
 import sys
 from pathlib import Path
 
 FORMATS = {"markdown", "json"}
+
+
+def _reject_input_controls(value: str, label: str, *, allow_tab: bool = False) -> None:
+    """Keep external Action inputs from changing logs, paths or CLI boundaries."""
+    if "\n" in value or "\r" in value:
+        raise ValueError(f"Action {label} must not contain line breaks.")
+    # Tab remains a normal shlex argument separator, not part of CSV/report paths.
+    if any(
+        (ord(char) < 32 and (char != "\t" or not allow_tab))
+        or 127 <= ord(char) <= 159
+        for char in value
+    ):
+        raise ValueError(f"Action {label} must not contain terminal control characters.")
 
 
 def _append_output(name: str, value: str) -> None:
@@ -86,8 +100,7 @@ def _resolve_input_path(raw: str) -> Path:
         raise ValueError("GITHUB_WORKSPACE is required for the Action.")
     if raw == "-":
         raise ValueError("Action input path must name a CSV inside GITHUB_WORKSPACE.")
-    if "\n" in raw or "\r" in raw:
-        raise ValueError("Action input path must not contain line breaks.")
+    _reject_input_controls(raw, "input path")
     path = Path(raw)
     if path.is_absolute():
         raise ValueError("Action input path must be relative to GITHUB_WORKSPACE.")
@@ -108,9 +121,12 @@ def _write_summary(path: Path, report_format: str) -> None:
     with Path(target).open("a", encoding="utf-8") as handle:
         handle.write("## inventory-policy-lab\n\n")
         if report_format == "json":
-            handle.write("```json\n")
+            # The payload can contain untrusted backticks in SKU labels.
+            maximum = max((len(run) for run in re.findall(r"`+", text)), default=0)
+            fence = "`" * max(3, maximum + 1)
+            handle.write(f"{fence}json\n")
             handle.write(text.rstrip())
-            handle.write("\n```\n")
+            handle.write(f"\n{fence}\n")
         else:
             handle.write(text)
             if not text.endswith("\n"):
@@ -132,6 +148,7 @@ def main() -> int:
 
     raw_args = os.getenv("INVENTORY_INPUT_ARGS", "")
     try:
+        _reject_input_controls(raw_args, "args", allow_tab=True)
         extra_args = shlex.split(raw_args)
     except ValueError as exc:
         return _fail(f"Invalid action args: {exc}")
@@ -149,13 +166,11 @@ def main() -> int:
         return _fail(str(exc))
 
     try:
-        report_path = _resolve_report_path(
-            os.getenv("INVENTORY_INPUT_REPORT_PATH", ""), report_format
-        )
+        raw_report_path = os.getenv("INVENTORY_INPUT_REPORT_PATH", "")
+        _reject_input_controls(raw_report_path, "report-path")
+        report_path = _resolve_report_path(raw_report_path, report_format)
     except ValueError as exc:
         return _fail(str(exc))
-    if "\n" in str(report_path) or "\r" in str(report_path):
-        return _fail("Action report-path must not contain line breaks.")
     try:
         report_path.parent.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
