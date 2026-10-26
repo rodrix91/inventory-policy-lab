@@ -66,6 +66,8 @@ steps:
 
 The Action returns the CLI result directly: a nonzero inventory-policy-lab exit code fails the step unless the caller uses `continue-on-error`.
 
+The reusable Action rejects newline, carriage return, NUL and other terminal-control characters in its CSV path, report path and additional arguments before starting an analysis, preventing deceptive workflow logs or malformed Action output lines. Horizontal tabs remain valid separators between `args` tokens. JSON GitHub job summaries choose a Markdown fence long enough to keep untrusted SKU strings containing backticks inside the code block; the JSON artifact is not modified. These safeguards apply to the Action runner, not to standalone CLI input values.
+
 | Output | Meaning |
 |---|---|
 | `exit-code` | CLI exit code (`0` success; `2` invalid option; `3` missing/unreadable input; `4` invalid data; `5` history too short) |
