@@ -62,9 +62,26 @@ def safety_stock(
     ``z = NormalDist().inv_cdf(service_level)``: the protection interval is the
     lead time ``L`` plus the review period ``R`` (``R = 0`` is continuous
     review). Assumes independent, normally distributed demand per period and
-    lead time (Silver, Pyke & Thomas, 2017).
+    lead time (Silver, Pyke & Thomas, 2017). Like the CLI configuration,
+    the standalone API requires a service level in [0.5, 1), and finite,
+    non-negative demand, variability and protection-period inputs.
     """
+    if not 0.5 <= service_level < 1:
+        raise ValueError(f"service_level must be at least 0.5 and below 1, got {service_level}")
+    for name, value in (
+        ("demand_per_period", demand_per_period),
+        ("sigma_demand", sigma_demand),
+        ("lead_time", lead_time),
+        ("sigma_lead_time", sigma_lead_time),
+        ("review_period", review_period),
+    ):
+        if not math.isfinite(value) or value < 0:
+            raise ValueError(f"{name} must be finite and non-negative, got {value}")
     z = NormalDist().inv_cdf(service_level)
+    # A 50% service level requires no extra stock. Avoid 0 * infinity
+    # becoming NaN when finite inputs have an unrepresentable intermediate.
+    if z == 0:
+        return z, 0.0
     protection = lead_time + review_period
     # Evaluate the square root as a Euclidean norm: squaring a large finite
     # demand/sigma can overflow even when the resulting stock is representable.
