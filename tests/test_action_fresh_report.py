@@ -17,6 +17,7 @@ run_action = load_script("run_action")
     [
         ("stale", True, 0, 3),
         ("missing", False, 0, 3),
+        ("directory", False, 0, 3),
         ("replaced", True, 0, 0),
         ("created", False, 0, 0),
         ("failure", True, 2, 2),
@@ -61,6 +62,8 @@ def test_action_checks_that_a_successful_cli_created_a_new_report(
             temp = report.with_name("new-result.json")
             temp.write_text('{"fresh": true}\n', encoding="utf-8")
             temp.replace(report)
+        elif mode == "directory":
+            report.mkdir()
         elif mode == "created":
             report.write_text('{"fresh": true}\n', encoding="utf-8")
         return subprocess.CompletedProcess(command, subprocess_code, "", "")
@@ -79,3 +82,5 @@ def test_action_checks_that_a_successful_cli_created_a_new_report(
         assert report.read_text(encoding="utf-8") == '{"stale": true}\n'
     elif mode == "missing":
         assert not report.exists()
+    elif mode == "directory":
+        assert report.is_dir()
