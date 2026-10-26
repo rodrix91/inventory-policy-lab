@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Callable, Sequence
 
 import pytest
 
@@ -18,9 +19,11 @@ def test_direct_moving_average_rejects_nonpositive_windows(window: int) -> None:
 
 @pytest.mark.parametrize("alpha", [0.0, -0.1, 1.01, math.nan, math.inf, -math.inf])
 @pytest.mark.parametrize("method", [ses, croston, sba])
-def test_direct_smoothing_rejects_invalid_alpha(method, alpha: float) -> None:
+def test_direct_smoothing_rejects_invalid_alpha(
+    method: Callable[[Sequence[float], float], float], alpha: float
+) -> None:
     with pytest.raises(ValueError, match="alpha must be in"):
-        method([0, 5, 0, 10], alpha=alpha)
+        method([0, 5, 0, 10], alpha)
 
 
 def test_direct_forecasts_preserve_valid_boundary_and_short_history_results() -> None:
@@ -43,6 +46,9 @@ def test_same_smoothing_guards_apply_even_to_zero_demand() -> None:
 
 def test_direct_api_thresholds_match_config_validation() -> None:
     Config(ma_window=1, ses_alpha=1, croston_alpha=1).validate()
-    for setting in ({"ma_window": 0}, {"ses_alpha": 0}, {"croston_alpha": 1.5}):
-        with pytest.raises(ConfigError):
-            Config(**setting).validate()
+    with pytest.raises(ConfigError, match="moving-average window"):
+        Config(ma_window=0).validate()
+    with pytest.raises(ConfigError, match="ses alpha"):
+        Config(ses_alpha=0).validate()
+    with pytest.raises(ConfigError, match="croston alpha"):
+        Config(croston_alpha=1.5).validate()
