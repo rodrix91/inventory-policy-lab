@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Normalize accepted Unicode decimal digits in monthly `YYYY-MM` periods to canonical ASCII month labels **before** summing demand, recording lead-time periods and building the calendar. Previously `_period_kind` accepted e.g. Arabic-Indic `٢٠٢٦-٠١` but the calendar emitted `2026-01`, silently hiding the observed demand behind a zero-filled month. Add regression tests for Arabic-Indic, Devanagari, Persian and ASCII months, equivalent-month aggregation, real missing months, UTF-8 file reading and a JSON CLI report. Existing integer and date period semantics remain unchanged.
+
 - Reject ragged demand-export CSV records before model calculations: each non-blank row must match the full header width, including auxiliary or opt-in cost columns. Previously excess cells or omitted trailing ignored columns could be silently accepted, concealing faulty source exports. Preserve the existing actionable error for missing required fields, blank-record handling, explicitly empty cells and quoted commas/multiline values. Add parser, standalone CLI and GitHub Action regression checks, including preservation of existing reports on failure.
 
 - Fail closed when the reusable GitHub Action's CLI reports success without creating a **fresh** report: compare the pre-existing output's file identity, size and nanosecond modification time with the post-run output so an old report cannot falsely produce `succeeded=true` or a usable `report-path`. Preserve existing files on failure and accept fresh atomic replacements and first-run outputs; add cross-platform runner regression tests without changing the standalone analysis CLI.
