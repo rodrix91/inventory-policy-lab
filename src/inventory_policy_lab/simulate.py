@@ -94,6 +94,13 @@ def _review_period(review_period: int) -> int:
     return review_period
 
 
+def _lead_periods(lead_time: float) -> int:
+    """Round finite, non-negative lead time half up to whole replay periods."""
+    if not math.isfinite(lead_time) or lead_time < 0:
+        raise ValueError(f"lead_time must be finite and non-negative, got {lead_time}")
+    return int(lead_time + 0.5)
+
+
 @dataclass
 class _Ledger:
     """Stock, orders on the way and the scores of one replay."""
@@ -214,7 +221,7 @@ def simulate(
     first, quantities = _levels(order_quantity, len(demand), "order_quantity")
     _check_warmup(demand, warmup)
     start, levels = _levels(reorder_point, len(demand), "reorder_point")
-    lead = int(lead_time + 0.5)
+    lead = _lead_periods(lead_time)
     ledger = _Ledger(net=start + first, warmup=warmup, arrivals={})
     for t, quantity in enumerate(demand):
         ledger.serve(t, quantity)
@@ -240,7 +247,7 @@ def simulate_periodic(
     review = _review_period(review_period)
     _check_warmup(demand, warmup)
     start, levels = _levels(order_up_to, len(demand), "order_up_to")
-    lead = int(lead_time + 0.5)
+    lead = _lead_periods(lead_time)
     ledger = _Ledger(net=start, warmup=warmup, arrivals={})
     for t, quantity in enumerate(demand):
         ledger.serve(t, quantity)
@@ -276,7 +283,7 @@ def simulate_rss(
     first, quantities = _levels(order_quantity, len(demand), "order_quantity")
     _check_warmup(demand, warmup)
     start, levels = _levels(reorder_point, len(demand), "reorder_point")
-    lead = int(lead_time + 0.5)
+    lead = _lead_periods(lead_time)
     ledger = _Ledger(net=start + first, warmup=warmup, arrivals={})
     for t, quantity in enumerate(demand):
         ledger.serve(t, quantity)
