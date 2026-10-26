@@ -33,9 +33,7 @@ def test_action_checks_that_a_successful_cli_created_a_new_report(
 ) -> None:
     workspace = tmp_path / "workspace"
     workspace.mkdir()
-    (workspace / "demand.csv").write_text(
-        "sku,period,demand\nA,2026-01,2\n", encoding="utf-8"
-    )
+    (workspace / "demand.csv").write_text("sku,period,demand\nA,2026-01,2\n", encoding="utf-8")
     output = tmp_path / "github-output.txt"
     report = workspace / "reports" / "result.json"
     report.parent.mkdir()
