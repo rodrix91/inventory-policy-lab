@@ -16,9 +16,7 @@ run_action = load_script("run_action")
 @pytest.mark.parametrize("label", ["input path", "report-path", "args"])
 def test_action_controls_fail_closed(control: str, label: str) -> None:
     with pytest.raises(ValueError, match="line breaks|terminal control characters"):
-        run_action._reject_input_controls(
-            f"safe{control}unsafe", label, allow_tab=label == "args"
-        )
+        run_action._reject_input_controls(f"safe{control}unsafe", label, allow_tab=label == "args")
 
 
 def test_tab_is_only_allowed_for_shell_argument_separation() -> None:
@@ -36,9 +34,7 @@ def test_main_rejects_unsafe_values_before_subprocess_or_report_directory(
 ) -> None:
     workspace = tmp_path / "workspace"
     workspace.mkdir()
-    (workspace / "demand.csv").write_text(
-        "sku,period,demand\nA,2026-01,2\n", encoding="utf-8"
-    )
+    (workspace / "demand.csv").write_text("sku,period,demand\nA,2026-01,2\n", encoding="utf-8")
     outputs = tmp_path / "outputs.txt"
     values = {
         "INVENTORY_INPUT_PATH": "demand.csv",
@@ -62,9 +58,7 @@ def test_main_rejects_unsafe_values_before_subprocess_or_report_directory(
         assert run_action.main() == 2
         mocked.assert_not_called()
     assert not (workspace / "reports").exists()
-    assert outputs.read_text(encoding="utf-8") == (
-        "exit-code=2\nsucceeded=false\nreport-path=\n"
-    )
+    assert outputs.read_text(encoding="utf-8") == ("exit-code=2\nsucceeded=false\nreport-path=\n")
 
 
 def test_valid_argument_tabs_are_still_accepted(
@@ -72,9 +66,7 @@ def test_valid_argument_tabs_are_still_accepted(
 ) -> None:
     workspace = tmp_path / "workspace"
     workspace.mkdir()
-    (workspace / "demand.csv").write_text(
-        "sku,period,demand\nA,2026-01,2\n", encoding="utf-8"
-    )
+    (workspace / "demand.csv").write_text("sku,period,demand\nA,2026-01,2\n", encoding="utf-8")
     monkeypatch.setenv("GITHUB_WORKSPACE", str(workspace))
     monkeypatch.setenv("INVENTORY_ACTION_PATH", str(ROOT))
     monkeypatch.setenv("INVENTORY_INPUT_PATH", "demand.csv")
