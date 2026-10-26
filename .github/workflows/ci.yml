@@ -183,6 +183,17 @@ jobs:
           report-path: reports/action-report.json
           summary: "false"
 
+      - name: Ragged demand export fails before inventory modelling
+        id: ragged
+        continue-on-error: true
+        uses: ./
+        with:
+          path: examples/ragged-demand.csv
+          args: --holdout 2
+          format: json
+          report-path: reports/ragged-report.json
+          summary: "false"
+
       - name: Missing input fails cleanly
         id: missing
         continue-on-error: true
@@ -268,6 +279,10 @@ jobs:
 
       - name: Verify Action outputs and report
         env:
+          RAGGED_CODE: ${{ steps.ragged.outputs.exit-code }}
+          RAGGED_SUCCEEDED: ${{ steps.ragged.outputs.succeeded }}
+          RAGGED_PATH: ${{ steps.ragged.outputs.report-path }}
+          RAGGED_OUTCOME: ${{ steps.ragged.outcome }}
           INPUT_ESCAPE_CODE: ${{ steps.input-escape.outputs.exit-code }}
           INPUT_ESCAPE_SUCCEEDED: ${{ steps.input-escape.outputs.succeeded }}
           INPUT_ESCAPE_PATH: ${{ steps.input-escape.outputs.report-path }}
@@ -304,6 +319,11 @@ jobs:
           ESCAPE_PATH: ${{ steps.escape.outputs.report-path }}
           ESCAPE_OUTCOME: ${{ steps.escape.outcome }}
         run: |
+          test "$RAGGED_CODE" = 4
+          test "$RAGGED_SUCCEEDED" = false
+          test -z "$RAGGED_PATH"
+          test "$RAGGED_OUTCOME" = failure
+          test ! -e reports/ragged-report.json
           test "$INPUT_ESCAPE_CODE" = 2
           test "$INPUT_ESCAPE_SUCCEEDED" = false
           test -z "$INPUT_ESCAPE_PATH"
