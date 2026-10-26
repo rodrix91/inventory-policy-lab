@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Reject ragged demand-export CSV records before model calculations: each non-blank row must match the full header width, including auxiliary or opt-in cost columns. Previously excess cells or omitted trailing ignored columns could be silently accepted, concealing faulty source exports. Preserve the existing actionable error for missing required fields, blank-record handling, explicitly empty cells and quoted commas/multiline values. Add parser, standalone CLI and GitHub Action regression checks, including preservation of existing reports on failure.
+
 - Fail closed when the reusable GitHub Action's CLI reports success without creating a **fresh** report: compare the pre-existing output's file identity, size and nanosecond modification time with the post-run output so an old report cannot falsely produce `succeeded=true` or a usable `report-path`. Preserve existing files on failure and accept fresh atomic replacements and first-run outputs; add cross-platform runner regression tests without changing the standalone analysis CLI.
 
 - Harden reusable GitHub Action boundary handling: reject CR/LF/NUL and other terminal controls in CSV paths, report paths and extra arguments before invoking the CLI or creating a report directory, while preserving tabs as normal argument separators. Choose a JSON job-summary Markdown fence longer than any backtick run in untrusted report text, avoiding premature code-block termination. Preserve ordinary inputs, raw JSON and standalone CLI behavior; add failure-path and regression tests.
