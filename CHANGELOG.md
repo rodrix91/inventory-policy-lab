@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Apply CLI-consistent finite, non-negative demand, variability and duration validation and the `[0.5, 1)` normal cycle-service-level range to public `safety_stock()` / `build_policy()` calls. Reject unsafe negative or non-finite inputs before calculations; at exactly 50% service return a zero safety stock without creating `0 * infinity` from extreme finite protection intervals. Preserve valid replenishment-policy formulas and add parameterized public-API regressions.
+
 - Validate nearest-rank bootstrap `service_level` in the standalone demand and forecast-residual APIs before drawing any samples. Reject zero, negative, above-one, NaN and infinite quantiles with `ValueError` instead of selecting an invalid quantile or raising `IndexError`. Preserve established valid `(0, 1]` quantiles (including 0.3, 0.4 and 1.0), sample-count error precedence, existing CLI policy and report outputs; add parameterized regressions.
 
 - Validate finite and non-negative demand, ordering cost and holding cost in standalone public `eoq()` calls before any early return. Reject `NaN`, infinities and negative costs with `ValueError` to prevent silently invalid EOQ or misleading undefined results; preserve all valid zero-input semantics and numerical-overflow stability. Add parameterized input and boundary regressions.
