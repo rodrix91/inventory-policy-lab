@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
@@ -75,7 +76,9 @@ def test_valid_argument_tabs_are_still_accepted(
     monkeypatch.setenv("INVENTORY_INPUT_FORMAT", "json")
     monkeypatch.setenv("INVENTORY_INPUT_SUMMARY", "false")
 
-    def complete(command: list[str], **_kwargs: object):
+    def complete(
+        command: list[str], **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
         assert command[4:6] == ["--holdout", "2"]
         Path(command[-1]).write_text("{}\n", encoding="utf-8")
         return run_action.subprocess.CompletedProcess(command, 0, "", "")
