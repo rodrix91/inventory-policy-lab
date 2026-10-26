@@ -68,9 +68,17 @@ def coefficient_of_variation(demand: Sequence[float]) -> float | None:
 
 
 def xyz_class(cv: float | None, x: float = 0.5, y: float = 1.0) -> str:
-    """``X`` if CV <= x, ``Y`` if CV <= y, else ``Z`` (also when there is no demand)."""
+    """Classify non-negative finite CV using finite, strictly increasing cutoffs.
+
+    ``None`` (no demand) remains class ``Z``. The standalone library API
+    validates settings as rigorously as the higher-level configuration does.
+    """
+    if not (math.isfinite(x) and math.isfinite(y) and 0 < x < y):
+        raise ValueError("XYZ thresholds must satisfy finite 0 < x < y")
     if cv is None:
         return "Z"
+    if not (math.isfinite(cv) and cv >= 0):
+        raise ValueError("XYZ coefficient of variation must be finite and non-negative")
     return "X" if cv <= x else "Y" if cv <= y else "Z"
 
 
