@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Validate the standalone `xyz_class()` API against invalid numerical segmentation settings and coefficients of variation, including NaN, infinity, negative CV, zero/reversed cutoffs, and missing-demand calls with invalid thresholds. Apply the same finite `0 < x < y` rule as `Config`, preserve the original X/Y/Z categories for legitimate values, and add parameterized regression coverage for public API callers.
+
 - Harden the standalone `abc_classes()` API: reject negative annual consumption values even when their sum stays finite, and reject non-finite, reversed or out-of-range A/B cumulative-share thresholds before assigning priorities. Previously, negative items could silently distort ABC classes or turn a canceling total into all-C output; the CLI's existing configuration and CSV validation already guarded these cases. Preserve ordinary inputs, all-zero inventories, and overflow-safe finite totals. Add focused regression tests.
 
 - Prevent coefficient-of-variation and Syntetos-Boylan demand-pattern calculations from overflowing on individually finite, large demand observations when the intermediate sum exceeds floating-point range. Normalize by the largest observation only when the original mean computation overflows, preserving ordinary-scale results and existing classifications. Add targeted API regression tests for smooth, intermittent, erratic and lumpy demand, and unchanged zero-demand behavior.
