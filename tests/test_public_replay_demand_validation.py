@@ -29,9 +29,7 @@ def test_invalid_demand_is_rejected_even_during_warmup(
     data = [1.0, 2.0, 3.0]
     data[position] = invalid
     # The first two periods are unscored but must still be valid.
-    with pytest.raises(
-        ValueError, match=rf"demand\[{position}\] must be finite and non-negative"
-    ):
+    with pytest.raises(ValueError, match=rf"demand\[{position}\] must be finite and non-negative"):
         replay(data, lead_time=0.0, warmup=2, **settings)
 
 
@@ -55,9 +53,7 @@ def test_existing_input_error_precedence_is_preserved() -> None:
     with pytest.raises(ValueError, match="review_period must be at least 1"):
         simulate_periodic([-1.0], order_up_to=5.0, review_period=0, lead_time=0.0)
     with pytest.raises(ValueError, match="order_quantity must be positive"):
-        simulate_rss(
-            [-1.0], reorder_point=3.0, order_quantity=0.0, review_period=2, lead_time=0.0
-        )
+        simulate_rss([-1.0], reorder_point=3.0, order_quantity=0.0, review_period=2, lead_time=0.0)
 
 
 def test_invalid_demand_is_checked_before_any_period_can_be_scored() -> None:
