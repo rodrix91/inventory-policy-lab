@@ -107,9 +107,7 @@ def _check_bootstrap_intervals(
             raise ValueError(f"{name} must be finite and non-negative, got {value}")
     for position, lead in enumerate(lead_times):
         if not math.isfinite(lead) or lead < 0:
-            raise ValueError(
-                f"lead_times[{position}] must be finite and non-negative, got {lead}"
-            )
+            raise ValueError(f"lead_times[{position}] must be finite and non-negative, got {lead}")
 
 
 def bootstrap_safety_stock(
