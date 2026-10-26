@@ -98,6 +98,20 @@ def _check_bootstrap_service_level(service_level: float) -> None:
         raise ValueError(f"bootstrap service_level must be in (0, 1], got {service_level}")
 
 
+def _check_bootstrap_intervals(
+    lead_time: float, review_period: float, lead_times: Sequence[float]
+) -> None:
+    """Validate every possible bootstrap duration before random sampling."""
+    for name, value in (("lead_time", lead_time), ("review_period", review_period)):
+        if not math.isfinite(value) or value < 0:
+            raise ValueError(f"{name} must be finite and non-negative, got {value}")
+    for position, lead in enumerate(lead_times):
+        if not math.isfinite(lead) or lead < 0:
+            raise ValueError(
+                f"lead_times[{position}] must be finite and non-negative, got {lead}"
+            )
+
+
 def bootstrap_safety_stock(
     demand: Sequence[float],
     service_level: float,
@@ -122,11 +136,14 @@ def bootstrap_safety_stock(
     ``D * (L + R)``, floored at zero: the reorder point is never set below the
     forecast over the interval. Pass a seeded ``rng`` for reproducible results.
     A bootstrap nearest-rank quantile requires ``0 < service_level <= 1``;
-    invalid levels raise ``ValueError`` before any random draw.
+    invalid levels and invalid lead/review times (negative or non-finite,
+    including individual ``lead_times`` entries) raise ``ValueError``
+    before any random draw.
     """
     if samples < 1:
         raise ValueError("samples must be at least 1")
     _check_bootstrap_service_level(service_level)
+    _check_bootstrap_intervals(lead_time, review_period, lead_times)
     if not demand:
         raise ValueError("demand history is empty")
     rng = rng or random.Random(0)
@@ -196,11 +213,14 @@ def residual_bootstrap_quantile(
     draws 0. The quantile (nearest rank) is the safety stock that covered the
     forecast error in that share of draws, before any floor (ADR 0008).
     Raises ``ValueError`` when an interval length that can be drawn has no errors
-    or the quantile level is outside ``(0, 1]``.
+    or the quantile level is outside ``(0, 1]``, or any lead/review time
+    is negative or non-finite. All possible ``lead_times`` are checked
+    before drawing a random sample.
     """
     if samples < 1:
         raise ValueError("samples must be at least 1")
     _check_bootstrap_service_level(service_level)
+    _check_bootstrap_intervals(lead_time, review_period, lead_times)
     candidates = tuple(lead_times) if lead_times else (lead_time,)
     for lead in candidates:
         periods = protection_periods(lead, review_period)
