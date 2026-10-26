@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Validate finite and non-negative demand, ordering cost and holding cost in standalone public `eoq()` calls before any early return. Reject `NaN`, infinities and negative costs with `ValueError` to prevent silently invalid EOQ or misleading undefined results; preserve all valid zero-input semantics and numerical-overflow stability. Add parameterized input and boundary regressions.
+
 - Validate public forecast-method parameters directly: reject zero and negative moving-average windows, which otherwise silently select full or incorrect history slices, and reject out-of-range/non-finite SES, Croston and SBA smoothing factors. Match existing `Config` checks, preserve all valid forecasts and report schemas, and add parameterized regression tests for numerical boundaries, no-demand series and API/CLI consistency.
 
 - Validate the standalone `xyz_class()` API against invalid numerical segmentation settings and coefficients of variation, including NaN, infinity, negative CV, zero/reversed cutoffs, and missing-demand calls with invalid thresholds. Apply the same finite `0 < x < y` rule as `Config`, preserve the original X/Y/Z categories for legitimate values, and add parameterized regression coverage for public API callers.
