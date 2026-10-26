@@ -21,12 +21,20 @@ def naive(history: Sequence[float]) -> float:
 
 
 def moving_average(history: Sequence[float], window: int = 3) -> float:
-    """Mean of the last ``window`` periods (fewer when the history is shorter)."""
+    """Mean of the last ``window`` periods (fewer when the history is shorter).
+
+    Require a positive window even for standalone callers. Python's ``[-0:]``
+    slice would otherwise silently average every period instead of zero.
+    """
+    if window < 1:
+        raise ValueError(f"moving-average window must be at least 1, got {window}")
     return statistics.fmean(history[-window:])
 
 
 def ses(history: Sequence[float], alpha: float = 0.2) -> float:
     """Simple exponential smoothing, level initialised with the first observation."""
+    if not 0 < alpha <= 1:
+        raise ValueError(f"ses alpha must be in (0, 1], got {alpha}")
     level = history[0]
     for value in history[1:]:
         level += alpha * (value - level)
@@ -59,6 +67,8 @@ def _croston_parts(history: Sequence[float], alpha: float) -> tuple[float, float
 
 def croston(history: Sequence[float], alpha: float = 0.1) -> float:
     """Croston (1972): smoothed size divided by smoothed interval; 0 without demand."""
+    if not 0 < alpha <= 1:
+        raise ValueError(f"croston alpha must be in (0, 1], got {alpha}")
     parts = _croston_parts(history, alpha)
     return 0.0 if parts is None else parts[0] / parts[1]
 
