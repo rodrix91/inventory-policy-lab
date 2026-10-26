@@ -195,7 +195,17 @@ def eoq(annual_demand: float, ordering_cost: float, holding_cost: float) -> floa
     holding one unit for a year. Undefined when ``D`` or ``H`` is not positive.
     If intermediate multiplication overflows or underflows, compute the same
     finite quantity in log space without changing ordinary-sized results.
+    Reject invalid standalone inputs instead of silently returning NaN or
+    using a negative cost to obtain a misleading quantity. Zero demand or
+    holding cost still returns None; zero ordering cost still returns zero.
     """
+    for name, value in (
+        ("annual demand", annual_demand),
+        ("ordering cost", ordering_cost),
+        ("holding cost", holding_cost),
+    ):
+        if not math.isfinite(value) or value < 0:
+            raise ValueError(f"{name} must be finite and non-negative, got {value}")
     if annual_demand <= 0 or holding_cost <= 0:
         return None
     radicand = 2 * annual_demand * ordering_cost / holding_cost
