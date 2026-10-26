@@ -29,7 +29,8 @@ def test_tab_is_only_allowed_for_shell_argument_separation() -> None:
 
 
 @pytest.mark.parametrize("label", ["input path", "report-path", "args"])
-@pytest.mark.parametrize("control", ["\n", "\x00", "\x1b", "\x7f", "\x85"])
+# Environment variables cannot contain NUL; the direct guard covers it separately.
+@pytest.mark.parametrize("control", ["\n", "\x1b", "\x7f", "\x85"])
 def test_main_rejects_unsafe_values_before_subprocess_or_report_directory(
     control: str, label: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
