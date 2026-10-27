@@ -25,7 +25,7 @@ def test_gzip_and_plain_readers_agree_with_original_history(tmp_path: Path) -> N
 
 
 def test_gzip_utf8_bom_and_quoted_cells_use_standard_parser(tmp_path: Path) -> None:
-    original = "\ufeffsku,period,quantity,extra\nA,2026-01,3,\"North, East\"\nA,2026-02,4,South\n"
+    original = '\ufeffsku,period,quantity,extra\nA,2026-01,3,"North, East"\nA,2026-02,4,South\n'
     plain = tmp_path / "source.csv"
     compressed = tmp_path / "source.csv.gz"
     plain.write_text(original, encoding="utf-8")
