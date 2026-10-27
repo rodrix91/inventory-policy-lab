@@ -229,7 +229,15 @@ def read_demand(
                 # Preserve the first physical line, including quoted multi-line CSV.
                 lines = chain((first,), handle) if first else handle
             reader = csv.reader(lines, delimiter=DELIMITERS[delimiter], strict=True)
-            rows = list(reader)
+            rows: list[list[str]] = []
+            record_lines: list[int] = []
+            previous_end = 0
+            for row in reader:
+                # csv.reader.line_num counts physical lines, including those inside
+                # quoted multiline fields. Preserve each record's starting line.
+                record_lines.append(previous_end + 1 + line_offset)
+                rows.append(row)
+                previous_end = reader.line_num
     except FileNotFoundError:
         raise InputFileError(f"file not found: {file}") from None
     except IsADirectoryError:
@@ -257,7 +265,11 @@ def read_demand(
     except OSError as exc:
         raise InputFileError(f"cannot read {file}: {exc}") from None
     return parse_rows(
-        rows, source=file.as_posix(), cost_columns=cost_columns, line_offset=line_offset
+        rows,
+        source=file.as_posix(),
+        cost_columns=cost_columns,
+        line_offset=line_offset,
+        record_lines=record_lines,
     )
 
 
@@ -267,8 +279,12 @@ def parse_rows(
     cost_columns: bool = False,
     *,
     line_offset: int = 0,
+    record_lines: list[int] | None = None,
 ) -> DemandData:
-    """Parse CSV records; ``line_offset`` accounts for an optional Excel hint."""
+    """Parse CSV records, with optional physical start lines from ``csv.reader``.
+
+    Direct callers without ``record_lines`` retain record-based numbering.
+    """
     if not rows:
         raise DataError(f"{source} is empty")
     columns = _resolve_columns(rows[0], cost_columns)
@@ -288,7 +304,8 @@ def parse_rows(
     kinds: set[str] = set()
     data_rows = 0
 
-    for line, row in enumerate(rows[1:], start=2 + line_offset):
+    for index, row in enumerate(rows[1:], start=1):
+        line = record_lines[index] if record_lines is not None else index + 1 + line_offset
         if not any(cell.strip() for cell in row):
             continue
         if len(row) < width:
