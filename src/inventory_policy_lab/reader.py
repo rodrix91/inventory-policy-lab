@@ -3,7 +3,7 @@
 Expected columns (header names are case-insensitive and trimmed):
 
 - ``sku``: item identifier.
-- ``period`` (or ``date``): ``YYYY-MM`` months, ``YYYY-MM-DD`` dates, or integers.
+- ``period`` (or ``date``): ``YYYY-MM`` months (years 0001-9999), ``YYYY-MM-DD`` dates, or integers.
   Every row must use the same kind.
 - ``quantity`` (or ``qty`` / ``demand``): demand in the period, a number >= 0.
 - ``unit_cost`` (optional): cost of one unit; the non-empty value from the
@@ -92,7 +92,7 @@ class DemandData:
 
 def _period_kind(value: str) -> str:
     match = _MONTH.match(value)
-    if match and 1 <= int(match.group(2)) <= 12:
+    if match and int(match.group(1)) >= 1 and 1 <= int(match.group(2)) <= 12:
         return "month"
     if _DATE.match(value):
         try:

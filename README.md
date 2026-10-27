@@ -258,7 +258,7 @@ One row per SKU and period, long format. Header names are case-insensitive. **Am
 | Column | Required | Meaning |
 |---|---|---|
 | `sku` | yes | Item identifier |
-| `period` or `date` | yes | `YYYY-MM`, `YYYY-MM-DD`, or an integer; one format per file |
+| `period` or `date` | yes | `YYYY-MM` (years 0001–9999), `YYYY-MM-DD`, or an integer; one format per file |
 | `quantity` (`qty`, `demand`) | yes | Demand in the period, a number >= 0 |
 | `unit_cost` | no | Cost of one unit; the non-empty value from the latest chronological period per SKU is used (last non-empty row breaks ties within the same period). Needed for ABC by value and for EOQ |
 | `lead_time` | no | An observed replenishment lead time in periods. All non-empty values of a SKU are treated as observations (mean and standard deviation) |
