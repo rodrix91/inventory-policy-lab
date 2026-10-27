@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Read `.csv.gz` demand-history exports directly in the CLI, Python API, and reusable GitHub Action using standard-library gzip text streams (case-insensitive `.gz` suffix). Preserve existing strict CSV, UTF-8 BOM, model inputs, report schemas and file safety. Damaged or truncated gzip inputs return input exit `3` without overwriting existing reports; malformed but decodable CSV remains a data error (`4`). Add parity and error-regression tests.
+
 - Strengthen the reusable GitHub Action's successful-report contract: reject freshly created but malformed JSON, empty/partial Markdown, missing dataset/SKU summaries, duplicate SKU entries and implausible fill rates before returning `succeeded=true` or exposing `report-path`. Preserve the standalone CLI's output, the prior freshness protections and existing files on failures; add synthetic and real end-to-end regression coverage.
 
 - Normalize accepted Unicode decimal digits in monthly `YYYY-MM` periods to canonical ASCII month labels **before** summing demand, recording lead-time periods and building the calendar. Previously `_period_kind` accepted e.g. Arabic-Indic `٢٠٢٦-٠١` but the calendar emitted `2026-01`, silently hiding the observed demand behind a zero-filled month. Add regression tests for Arabic-Indic, Devanagari, Persian and ASCII months, equivalent-month aggregation, real missing months, UTF-8 file reading and a JSON CLI report. Existing integer and date period semantics remain unchanged.

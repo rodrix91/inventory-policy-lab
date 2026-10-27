@@ -28,9 +28,11 @@ frequency cannot be known.
 from __future__ import annotations
 
 import csv
+import gzip
 import math
 import os
 import re
+import zlib
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date
@@ -172,7 +174,13 @@ def read_demand(path: str | os.PathLike[str], cost_columns: bool = False) -> Dem
             raise InputFileError(f"file not found: {file}")
         if not file.is_file():
             raise InputFileError(f"not a file: {file}")
-        with file.open(encoding="utf-8-sig", newline="") as handle:
+        # Demand exports can be stored as gzip without extracting a temporary
+        # plaintext file. The CSV parser and UTF-8 BOM handling are unchanged.
+        if file.suffix.lower() == ".gz":
+            stream = gzip.open(file, "rt", encoding="utf-8-sig", newline="")
+        else:
+            stream = file.open(encoding="utf-8-sig", newline="")
+        with stream as handle:
             reader = csv.reader(handle, strict=True)
             rows = list(reader)
     except FileNotFoundError:
@@ -187,6 +195,8 @@ def read_demand(path: str | os.PathLike[str], cost_columns: bool = False) -> Dem
         raise DataError(
             f"{file}: malformed CSV quoting near line {reader.line_num}: {exc}"
         ) from None
+    except (EOFError, zlib.error) as exc:
+        raise InputFileError(f"cannot decompress {file}: {exc}") from None
     except OSError as exc:
         raise InputFileError(f"cannot read {file}: {exc}") from None
     return parse_rows(rows, source=file.as_posix(), cost_columns=cost_columns)
