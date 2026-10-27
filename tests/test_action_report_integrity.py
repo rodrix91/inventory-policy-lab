@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-
 from conftest import EXAMPLES, load_script, run_module, valid_action_report_json
 
 run_action = load_script("run_action")
