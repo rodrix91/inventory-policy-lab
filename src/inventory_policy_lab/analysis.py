@@ -928,11 +928,16 @@ def analyze(data: DemandData, config: Config | None = None) -> Report:
     )
 
 
-def analyze_file(path: str | os.PathLike[str], config: Config | None = None) -> Report:
+def analyze_file(
+    path: str | os.PathLike[str],
+    config: Config | None = None,
+    *,
+    encoding: str = "utf-8-sig",
+) -> Report:
     """Read ``path`` with :func:`read_demand` and :func:`analyze` it.
 
     The ``order_cost`` and ``stockout_cost`` columns are read when
     ``config.cost_columns`` is set (ADR 0014).
     """
     cost_columns = config is not None and config.cost_columns
-    return analyze(read_demand(path, cost_columns=cost_columns), config)
+    return analyze(read_demand(path, cost_columns=cost_columns, encoding=encoding), config)

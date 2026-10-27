@@ -27,6 +27,7 @@ frequency cannot be known.
 
 from __future__ import annotations
 
+import codecs
 import csv
 import gzip
 import math
@@ -38,7 +39,7 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
-from .errors import DataError, InputFileError
+from .errors import ConfigError, DataError, InputFileError
 
 COLUMN_ALIASES: dict[str, tuple[str, ...]] = {
     "sku": ("sku",),
@@ -160,12 +161,26 @@ def _resolve_columns(header: list[str], cost_columns: bool = False) -> dict[str,
     return found
 
 
-def read_demand(path: str | os.PathLike[str], cost_columns: bool = False) -> DemandData:
+def read_demand(
+    path: str | os.PathLike[str],
+    cost_columns: bool = False,
+    *,
+    encoding: str = "utf-8-sig",
+) -> DemandData:
     """Read ``path`` and return its demand history, one :class:`SkuHistory` per SKU.
 
     With ``cost_columns`` the optional ``order_cost`` and ``stockout_cost``
-    columns are read too (ADR 0014).
+    columns are read too (ADR 0014). The optional encoding is a Python
+    text codec; UTF-8 with optional BOM is the default.
     """
+    try:
+        codec = codecs.lookup(encoding)
+    except LookupError:
+        raise ConfigError(f"unknown input encoding {encoding!r}") from None
+    if not getattr(codec, "_is_text_encoding", True):
+        raise ConfigError(f"input encoding {encoding!r} is not a text codec")
+    # Decode UTF-8 aliases with BOM support to preserve column identities.
+    decoder = "utf-8-sig" if codec.name in ("utf-8", "utf-8-sig") else codec.name
     file = Path(path)
     try:
         # File metadata probes can themselves fail on restricted or unreliable
@@ -174,12 +189,11 @@ def read_demand(path: str | os.PathLike[str], cost_columns: bool = False) -> Dem
             raise InputFileError(f"file not found: {file}")
         if not file.is_file():
             raise InputFileError(f"not a file: {file}")
-        # Demand exports can be stored as gzip without extracting a temporary
-        # plaintext file. The CSV parser and UTF-8 BOM handling are unchanged.
+        # Plain and gzip-compressed CSV use the same validated text decoder.
         if file.suffix.lower() == ".gz":
-            stream = gzip.open(file, "rt", encoding="utf-8-sig", newline="")
+            stream = gzip.open(file, "rt", encoding=decoder, newline="")
         else:
-            stream = file.open(encoding="utf-8-sig", newline="")
+            stream = file.open(encoding=decoder, newline="")
         with stream as handle:
             reader = csv.reader(handle, strict=True)
             rows = list(reader)
@@ -188,8 +202,18 @@ def read_demand(path: str | os.PathLike[str], cost_columns: bool = False) -> Dem
     except IsADirectoryError:
         raise InputFileError(f"not a file: {file}") from None
     except UnicodeDecodeError as exc:
+        if decoder == "utf-8-sig":
+            raise InputFileError(
+                f"{file} is not valid UTF-8 (byte {exc.start}); re-save it as UTF-8"
+            ) from None
         raise InputFileError(
-            f"{file} is not valid UTF-8 (byte {exc.start}); re-save it as UTF-8"
+            f"{file} is not valid {codec.name} (byte {exc.start}); select the correct --encoding"
+        ) from None
+    except UnicodeError as exc:
+        # Certain decoders (e.g. UTF-16 without a BOM) raise UnicodeError
+        # directly instead of UnicodeDecodeError.
+        raise InputFileError(
+            f"{file} is not valid {codec.name}: {exc}; select the correct --encoding"
         ) from None
     except csv.Error as exc:
         raise DataError(

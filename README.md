@@ -196,13 +196,22 @@ The ABC Pareto of this dataset, drawn as SVG with the standard library by [`scri
 
 ## Input format
 
-**Gzip-compressed demand histories:** The CLI, Python library and reusable GitHub Action can read an input ending in `.gz` (such as `demand.csv.gz`) directly, without extracting it to a temporary CSV or installing additional packages. The file is decompressed as UTF-8 text with the existing BOM and strict CSV checks; uncompressed files retain the same behavior. File extensions are matched case-insensitively. Invalid/truncated compressed streams and invalid UTF-8 return input exit `3`, while valid gzip content with invalid demand rows returns data exit `4`. As before, an existing `--output` report is never replaced on input failure.
+**Gzip-compressed demand histories:** The CLI, Python library and reusable GitHub Action can read an input ending in `.gz` (such as `demand.csv.gz`) directly, without extracting it to a temporary CSV or installing additional packages. The file is decompressed as text using the selected `--encoding` (UTF-8 with an optional BOM by default), with the existing strict CSV checks; uncompressed files retain the same behavior. File extensions are matched case-insensitively. Invalid/truncated compressed streams and source bytes invalid in the chosen encoding return input exit `3`, while valid gzip content with invalid demand rows returns data exit `4`. As before, an existing `--output` report is never replaced on input failure.
 
 ```bash
 python -m inventory_policy_lab examples/demand_synthetic.csv.gz --format json
 ```
 
 The command above illustrates the file naming convention; first gzip a copy of an actual demand CSV (the checked-in example is `examples/demand_synthetic.csv`, uncompressed). The Action's `path` input can likewise point to a workspace-relative `data/demand.csv.gz`.
+
+**Excel and ERP encodings:** CSV and gzip exports use UTF-8 with optional BOM by default. For alternative text encodings, use the explicit `--encoding CODEC` argument with `cp1252`, `latin-1` or `utf-16` (UTF-16 files require their BOM). For example:
+
+```bash
+python -m inventory_policy_lab ventas.csv --encoding cp1252 --format json
+python -m inventory_policy_lab ventas.csv.gz --encoding cp1252 --format json
+```
+
+The Python library accepts `read_demand(path, encoding="cp1252")` and `analyze_file(path, encoding="cp1252")`; the reusable GitHub Action accepts `args: --encoding cp1252`. Invalid codec names and non-text codecs return usage error 2, while invalid bytes return input error 3 without replacing a previous report. No automatic encoding detection, lossless decoding fallback or delimiter guessing is performed.
 
 One row per SKU and period, long format. Header names are case-insensitive. **Ambiguous input columns are rejected:** when two headers refer to the same consumed field (for example, `quantity` alongside `qty` or `demand`, `period` alongside `date`, or `sku` repeated with different capitalization), the parser raises a data error (CLI exit `4`) instead of silently using one of them. The same rule applies to optional `unit_cost` and `lead_time`, and to `order_cost` / `stockout_cost` when `--cost-columns` is enabled. Unrelated extra columns remain untouched. **Every non-blank CSV row must still contain exactly as many fields as the header, including ignored columns.** Extra cells or omitted trailing columns are input data errors (CLI exit `4`) rather than values silently discarded by the model. Explicit empty trailing cells (a final comma) remain valid. Blank records are skipped as before.
 

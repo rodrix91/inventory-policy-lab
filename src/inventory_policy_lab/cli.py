@@ -69,6 +69,12 @@ def build_parser() -> argparse.ArgumentParser:
     add = parser.add_argument
     add("path", type=Path, help="CSV with columns sku, period, quantity[, unit_cost, lead_time]")
     add("--format", choices=("markdown", "json"), default="markdown", help="output format")
+    add(
+        "--encoding",
+        default="utf-8-sig",
+        metavar="CODEC",
+        help="input text encoding, e.g. utf-8, cp1252 or utf-16 (default: UTF-8 with BOM)",
+    )
     add("-o", "--output", type=Path, help="write the report to this file instead of stdout")
     add("--version", action="version", version=f"%(prog)s {__version__}")
 
@@ -409,7 +415,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return EXIT_INPUT
     try:
-        report = analyze_file(args.path, config_from_args(args))
+        report = analyze_file(args.path, config_from_args(args), encoding=args.encoding)
     except InventoryPolicyError as exc:
         print(f"inventory-policy-lab: error: {exc}", file=sys.stderr)
         return exc.exit_code
