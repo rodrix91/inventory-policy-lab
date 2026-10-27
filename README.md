@@ -62,8 +62,13 @@ instead of silently shifting columns. The feature also works with gzip and
 explicit `--encoding`; errors on later rows count the skipped preamble line.
 Ordinary CSV files and `parse_rows` calls retain their previous behavior.
 
+The repository includes a reproducible **synthetic** two-SKU, 12-month Excel
+export at [`examples/regional-excel.csv`](examples/regional-excel.csv). Run the
+following command from the repository root after installing the CLI. It should
+produce a JSON report for 24 demand rows, not a real-world sales forecast.
+
 ```bash
-inventory-policy-lab regional-excel.csv --delimiter semicolon --format json
+inventory-policy-lab examples/regional-excel.csv --delimiter semicolon --format json
 ```
 
 Invalid or ragged rows continue to produce data errors, not silently
