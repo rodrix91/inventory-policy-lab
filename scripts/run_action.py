@@ -183,7 +183,17 @@ def _valid_report_file(path: Path, report_format: str) -> bool:
     ):
         return False
     rate = summary.get("overall_fill_rate")
-    if type(rate) not in (int, float) or not math.isfinite(rate) or not 0 <= rate <= 1:
+    if rate is None:
+        # A valid all-zero-demand report has no defined overall fill rate.
+        if not all(
+            isinstance(item, dict)
+            and isinstance(item.get("simulation"), dict)
+            and type(item["simulation"].get("total_demand")) in (int, float)
+            and item["simulation"]["total_demand"] == 0
+            for item in skus
+        ):
+            return False
+    elif type(rate) not in (int, float) or not math.isfinite(rate) or not 0 <= rate <= 1:
         return False
     return all(
         isinstance(item, dict)
