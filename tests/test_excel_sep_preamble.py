@@ -67,7 +67,10 @@ def test_cli_excel_hint_outputs_report_without_changing_existing_rules(
     excel = tmp_path / "erp.csv"
     output = tmp_path / "report.json"
     excel.write_text("sep=;\n" + _sample(";"), encoding="utf-8")
-    assert main([str(excel), "--delimiter", "semicolon", "--format", "json", "-o", str(output)]) == 0
+    assert (
+        main([str(excel), "--delimiter", "semicolon", "--format", "json", "-o", str(output)])
+        == 0
+    )
     assert capsys.readouterr().err == ""
     report = json.loads(output.read_text(encoding="utf-8"))
     assert report["rows"] == 8
