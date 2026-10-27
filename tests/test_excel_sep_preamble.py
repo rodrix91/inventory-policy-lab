@@ -32,7 +32,8 @@ def test_excel_hint_matches_equivalent_plain_input(
     plain = tmp_path / "plain.csv"
     excel = tmp_path / "excel.csv"
     plain.write_text(_sample(separator), encoding="utf-8")
-    excel.write_text(f"SEP={separator}\r\n" + _sample(separator), encoding="utf-8")
+    # Write exact CRLF bytes; Path.write_text would turn \n into \r\n again on Windows.
+    excel.write_bytes((f"SEP={separator}\r\n" + _sample(separator)).encode("utf-8"))
     expected = read_demand(plain, delimiter=choice)
     parsed = read_demand(excel, delimiter=choice)
     assert replace(parsed, source=expected.source) == expected
