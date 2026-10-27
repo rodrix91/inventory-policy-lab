@@ -26,7 +26,7 @@ class ConfigError(InventoryPolicyError, ValueError):
 
 
 class InputFileError(InventoryPolicyError):
-    """The CSV file is missing, unreadable, or not UTF-8."""
+    """The CSV file is missing, unreadable, or invalid in its selected text encoding."""
 
     exit_code = EXIT_INPUT
 
