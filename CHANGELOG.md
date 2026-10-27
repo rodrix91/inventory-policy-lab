@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Recognize an optional Excel `sep=;` (or another supported single-character `sep=` declaration) on the first CSV line when it agrees with the explicit `--delimiter`. Exclude it from parsed data, preserve source line numbers and quoted headers, and reject contradictory/unsupported hints as data errors before replacing existing reports. Works identically with gzip and selected text encodings; add positive/negative regression cases.
+
 - Add explicit `--delimiter` choices (`comma`, `semicolon`, `tab`, `pipe`) for regional ERP and spreadsheet demand exports. Preserve comma as the default, strict CSV row checks, encoding support, gzip parity, cost columns and analysis semantics. Extend the Python `read_demand` and `analyze_file` APIs, and cover valid sources, quoted fields, malformed rows, unsupported options, CLI, and existing-output safety with regression tests.
 
 - Accept explicitly configured demand CSV text encodings via `--encoding CODEC` in the CLI, Python API, and reusable GitHub Action, including gzip streams. Default UTF-8 BOM behavior is unchanged. Unknown or binary codecs fail as usage error 2; undecodable content fails as input error 3 without replacing saved reports. Add cp1252 and UTF-16 parity and failure-path regressions.
