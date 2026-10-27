@@ -210,6 +210,12 @@ def read_demand(
             f"{file} is not valid {codec.name} (byte {exc.start}); "
             "select the correct --encoding"
         ) from None
+    except UnicodeError as exc:
+        # Certain decoders (e.g. UTF-16 without a BOM) raise UnicodeError
+        # directly instead of UnicodeDecodeError.
+        raise InputFileError(
+            f"{file} is not valid {codec.name}: {exc}; select the correct --encoding"
+        ) from None
     except csv.Error as exc:
         raise DataError(
             f"{file}: malformed CSV quoting near line {reader.line_num}: {exc}"
