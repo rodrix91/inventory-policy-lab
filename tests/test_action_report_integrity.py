@@ -87,6 +87,19 @@ def test_rejects_incomplete_or_contradictory_json_report(
     assert not run_action._valid_report_file(json_report, "json")
 
 
+def test_all_zero_demand_reports_retain_their_legitimate_null_fill_rate(
+    json_report: Path,
+) -> None:
+    payload = json.loads(valid_action_report_json())
+    payload["summary"]["overall_fill_rate"] = None
+    payload["skus"][0]["simulation"]["total_demand"] = 0.0
+    json_report.write_text(json.dumps(payload), encoding="utf-8")
+    assert run_action._valid_report_file(json_report, "json")
+    payload["skus"][0]["simulation"]["total_demand"] = 5.0
+    json_report.write_text(json.dumps(payload), encoding="utf-8")
+    assert not run_action._valid_report_file(json_report, "json")
+
+
 def test_rejects_duplicate_skus_and_malformed_json(tmp_path: Path, json_report: Path) -> None:
     payload = json.loads(valid_action_report_json())
     payload["skus"].append(dict(payload["skus"][0]))
