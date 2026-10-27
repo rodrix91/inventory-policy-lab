@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Add explicit `--delimiter` choices (`comma`, `semicolon`, `tab`, `pipe`) for regional ERP and spreadsheet demand exports. Preserve comma as the default, strict CSV row checks, encoding support, gzip parity, cost columns and analysis semantics. Extend the Python `read_demand` and `analyze_file` APIs, and cover valid sources, quoted fields, malformed rows, unsupported options, CLI, and existing-output safety with regression tests.
+
 - Accept explicitly configured demand CSV text encodings via `--encoding CODEC` in the CLI, Python API, and reusable GitHub Action, including gzip streams. Default UTF-8 BOM behavior is unchanged. Unknown or binary codecs fail as usage error 2; undecodable content fails as input error 3 without replacing saved reports. Add cp1252 and UTF-16 parity and failure-path regressions.
 
 - Read `.csv.gz` demand-history exports directly in the CLI, Python API, and reusable GitHub Action using standard-library gzip text streams (case-insensitive `.gz` suffix). Preserve existing strict CSV, UTF-8 BOM, model inputs, report schemas and file safety. Damaged or truncated gzip inputs return input exit `3` without overwriting existing reports; malformed but decodable CSV remains a data error (`4`). Add parity and error-regression tests.
