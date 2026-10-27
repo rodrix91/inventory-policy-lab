@@ -15,10 +15,7 @@ from inventory_policy_lab.cli import main
 
 def _sample(separator: str, sku: str = "Caña") -> str:
     header = separator.join(("sku", "period", "quantity"))
-    values = [
-        separator.join((sku, str(period), str(period + 1)))
-        for period in range(1, 9)
-    ]
+    values = [separator.join((sku, str(period), str(period + 1))) for period in range(1, 9)]
     return "\n".join((header, *values)) + "\n"
 
 
@@ -42,9 +39,7 @@ def test_excel_hint_matches_equivalent_plain_input(
 
 
 @pytest.mark.parametrize("codec", ("cp1252", "utf-16"))
-def test_excel_hint_gzip_with_explicit_encoding(
-    tmp_path: Path, codec: str
-) -> None:
+def test_excel_hint_gzip_with_explicit_encoding(tmp_path: Path, codec: str) -> None:
     original = _sample(";")
     plain = tmp_path / "plain.csv"
     packed = tmp_path / "excel.csv.gz"
@@ -97,9 +92,8 @@ def test_conflicting_or_unknown_preamble_is_data_error_and_keeps_report(
     with pytest.raises(DataError, match=message) as info:
         read_demand(excel, delimiter=choice)
     assert info.value.exit_code == 4
-    assert main([
-        str(excel), "--delimiter", choice, "--format", "json", "-o", str(output)
-    ]) == 4
+    args = [str(excel), "--delimiter", choice, "--format", "json", "-o", str(output)]
+    assert main(args) == 4
     captured = capsys.readouterr()
     assert message in captured.err
     assert "Traceback" not in captured.err
@@ -109,9 +103,7 @@ def test_conflicting_or_unknown_preamble_is_data_error_and_keeps_report(
 
 def test_data_error_line_counts_excel_preamble(tmp_path: Path) -> None:
     excel = tmp_path / "bad-quantity.csv"
-    excel.write_text(
-        "sep=;\nsku;period;quantity\nA;1;invalid\n", encoding="utf-8"
-    )
+    excel.write_text("sep=;\nsku;period;quantity\nA;1;invalid\n", encoding="utf-8")
     with pytest.raises(DataError, match="line 3: quantity") as info:
         read_demand(excel, delimiter="semicolon")
     assert info.value.exit_code == 4
@@ -119,9 +111,7 @@ def test_data_error_line_counts_excel_preamble(tmp_path: Path) -> None:
 
 def test_malformed_quoting_line_counts_excel_preamble(tmp_path: Path) -> None:
     excel = tmp_path / "unclosed-quote.csv"
-    excel.write_text(
-        'sep=;\nsku;period;quantity\n"A;1;3\n', encoding="utf-8"
-    )
+    excel.write_text('sep=;\nsku;period;quantity\n"A;1;3\n', encoding="utf-8")
     with pytest.raises(DataError, match="malformed CSV quoting near line 3"):
         read_demand(excel, delimiter="semicolon")
 
