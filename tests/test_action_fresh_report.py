@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from conftest import ROOT, load_script
+from conftest import ROOT, load_script, valid_action_report_json
 
 run_action = load_script("run_action")
 
@@ -20,6 +20,7 @@ run_action = load_script("run_action")
         ("directory", False, 0, 3),
         ("replaced", True, 0, 0),
         ("created", False, 0, 0),
+        ("invalid", False, 0, 3),
         ("failure", True, 2, 2),
     ],
 )
@@ -58,12 +59,14 @@ def test_action_checks_that_a_successful_cli_created_a_new_report(
         assert Path(command[-1]) == report
         if mode == "replaced":
             temp = report.with_name("new-result.json")
-            temp.write_text('{"fresh": true}\n', encoding="utf-8")
+            temp.write_text(valid_action_report_json(), encoding="utf-8")
             temp.replace(report)
         elif mode == "directory":
             report.mkdir()
         elif mode == "created":
-            report.write_text('{"fresh": true}\n', encoding="utf-8")
+            report.write_text(valid_action_report_json(), encoding="utf-8")
+        elif mode == "invalid":
+            report.write_text('{"not_a_report": true}\n', encoding="utf-8")
         return subprocess.CompletedProcess(command, subprocess_code, "", "")
 
     with patch.object(run_action.subprocess, "run", side_effect=fake_run) as runner:

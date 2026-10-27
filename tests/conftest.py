@@ -31,6 +31,41 @@ def write_csv(path: Path, text: str) -> Path:
     return path
 
 
+def valid_action_report_json() -> str:
+    """Minimal structurally valid synthetic report for Action boundary tests."""
+    import json
+
+    return (
+        json.dumps(
+            {
+                "tool": "inventory-policy-lab",
+                "version": "0.10.0",
+                "source": "synthetic-test.csv",
+                "rows": 1,
+                "periods": 1,
+                "first_period": "2026-01",
+                "last_period": "2026-01",
+                "settings": {},
+                "summary": {
+                    "skus": 1,
+                    "abc_xyz": {"A": {"X": 1, "Y": 0, "Z": 0}},
+                    "overall_fill_rate": 1.0,
+                },
+                "skus": [
+                    {
+                        "sku": "A",
+                        "periods": 1,
+                        "forecast": {},
+                        "policy": {},
+                        "simulation": {},
+                    }
+                ],
+            }
+        )
+        + "\n"
+    )
+
+
 def load_script(name: str) -> ModuleType:
     """Import ``scripts/<name>.py`` as a module (the scripts are not a package)."""
     spec = importlib.util.spec_from_file_location(name, ROOT / "scripts" / f"{name}.py")

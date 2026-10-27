@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from conftest import ROOT, load_script
+from conftest import ROOT, load_script, valid_action_report_json
 
 run_action = load_script("run_action")
 
@@ -118,7 +118,7 @@ def test_runner_passes_valid_workspace_input_to_cli(
         assert command[3] == str(source.resolve())
         assert command[4:6] == ["--holdout", "2"]
         output = Path(command[-1])
-        output.write_text('{"summary": {}}\n', encoding="utf-8")
+        output.write_text(valid_action_report_json(), encoding="utf-8")
         return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
 
     with patch.object(run_action.subprocess, "run", side_effect=fake_run) as mocked:

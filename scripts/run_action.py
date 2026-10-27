@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import math
 import os
 import re
 import shlex
@@ -132,6 +134,80 @@ def _write_summary(path: Path, report_format: str) -> None:
                 handle.write("\n")
 
 
+def _valid_report_file(path: Path, report_format: str) -> bool:
+    """A fresh file is not an analysis success without a real report."""
+    try:
+        text = path.read_text(encoding="utf-8")
+        if report_format == "markdown":
+            return (
+                text.startswith("# Inventory policy report\n\n")
+                and text.endswith("\n")
+                and all(
+                    section in text
+                    for section in (
+                        "\n## ABC-XYZ matrix\n",
+                        "\n## Demand patterns (Syntetos-Boylan)\n",
+                        "\n## Policy per SKU\n",
+                        "\n## Forecast backtest (",
+                    )
+                )
+            )
+        report = json.loads(text)
+    except (OSError, UnicodeError, ValueError):
+        return False
+    if not isinstance(report, dict):
+        return False
+    summary = report.get("summary")
+    skus = report.get("skus")
+    rows = report.get("rows")
+    periods = report.get("periods")
+    if (
+        report.get("tool") != "inventory-policy-lab"
+        or not isinstance(report.get("version"), str)
+        or not report["version"]
+        or not isinstance(report.get("source"), str)
+        or not report["source"]
+        or type(rows) is not int
+        or rows < 1
+        or type(periods) is not int
+        or periods < 1
+        or not isinstance(report.get("first_period"), str)
+        or not isinstance(report.get("last_period"), str)
+        or not isinstance(report.get("settings"), dict)
+        or not isinstance(summary, dict)
+        or not isinstance(skus, list)
+        or not skus
+        or type(summary.get("skus")) is not int
+        or summary["skus"] != len(skus)
+        or not isinstance(summary.get("abc_xyz"), dict)
+    ):
+        return False
+    rate = summary.get("overall_fill_rate")
+    if rate is None:
+        # A valid all-zero-demand report has no defined overall fill rate.
+        if not all(
+            isinstance(item, dict)
+            and isinstance(item.get("simulation"), dict)
+            and type(item["simulation"].get("total_demand")) in (int, float)
+            and item["simulation"]["total_demand"] == 0
+            for item in skus
+        ):
+            return False
+    elif type(rate) not in (int, float) or not math.isfinite(rate) or not 0 <= rate <= 1:
+        return False
+    return all(
+        isinstance(item, dict)
+        and isinstance(item.get("sku"), str)
+        and bool(item["sku"])
+        and type(item.get("periods")) is int
+        and item["periods"] > 0
+        and isinstance(item.get("forecast"), dict)
+        and isinstance(item.get("policy"), dict)
+        and isinstance(item.get("simulation"), dict)
+        for item in skus
+    ) and len({item["sku"] for item in skus}) == len(skus)
+
+
 def main() -> int:
     csv_path = os.getenv("INVENTORY_INPUT_PATH", "")
     if not csv_path:
@@ -246,6 +322,10 @@ def main() -> int:
         ):
             print("Analysis completed without creating a fresh report file.", file=sys.stderr)
             code = 3
+
+    if code == 0 and not _valid_report_file(report_path, report_format):
+        print("Analysis wrote an invalid or incomplete report file.", file=sys.stderr)
+        code = 3
 
     succeeded = code == 0
     _append_output("exit-code", str(code))
