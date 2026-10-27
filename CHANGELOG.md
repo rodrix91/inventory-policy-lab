@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Reject impossible monthly demand periods with year `0000` (including equivalent Unicode decimal-digit labels), consistently with existing strict validation of ISO calendar dates. Keep years `0001` through `9999` valid, preserve source-line diagnostics, and leave any previously generated report untouched on failure; add API and CLI regression tests.
+
 - Report the actual physical CSV source line for invalid demand values or row widths after quoted multiline fields, including skipped Excel `sep=` preambles, CRLF/gzip exports, and embedded newlines in the header. Preserve the public `parse_rows` record-number behavior for pre-parsed lists, error exit codes, and previously written reports; add parser and real CLI regression tests.
 
 - Include a runnable, synthetic semicolon-delimited Excel `sep=;` example at `examples/regional-excel.csv` (two SKUs, 12 months). Make the README quickstart point to this real file and add API/CLI regression tests so the documented example cannot silently disappear or become invalid.
