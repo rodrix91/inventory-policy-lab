@@ -36,9 +36,7 @@ def test_invalid_year_zero_in_file_preserves_existing_json_report(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     source = tmp_path / "bad-year.csv"
-    source.write_text(
-        "sku,period,quantity\nA,2026-01,5\nA,0000-02,7\n", encoding="utf-8"
-    )
+    source.write_text("sku,period,quantity\nA,2026-01,5\nA,0000-02,7\n", encoding="utf-8")
     target = tmp_path / "verified-report.json"
     previous = '{"report":"previously verified"}\n'
     target.write_text(previous, encoding="utf-8")
