@@ -47,10 +47,7 @@ def test_multiline_fields_keep_physical_source_positions(
 
 
 def test_excel_hint_and_crlf_multiline_field_with_gzip(tmp_path: Path) -> None:
-    source = (
-        'sep=;\r\nsku;period;quantity;notes\r\n'
-        'A;1;2;"two\r\nlines"\r\nB;2;bad;ok\r\n'
-    )
+    source = 'sep=;\r\nsku;period;quantity;notes\r\nA;1;2;"two\r\nlines"\r\nB;2;bad;ok\r\n'
     path = tmp_path / "demand.csv.gz"
     path.write_bytes(gzip.compress(source.encode("utf-8-sig")))
     with pytest.raises(DataError, match="line 5: quantity 'bad'") as info:
