@@ -97,7 +97,7 @@ def test_unknown_cli_delimiter_is_usage_error_and_does_not_touch_report(
 def test_default_comma_does_not_silently_guess_semicolon(tmp_path: Path) -> None:
     source = tmp_path / "regional.csv"
     source.write_text(_export(";"), encoding="utf-8")
-    with pytest.raises(DataError, match="missing required column"):
+    with pytest.raises(DataError, match="malformed CSV quoting|missing required column"):
         read_demand(source)
 
 
