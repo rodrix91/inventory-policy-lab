@@ -225,7 +225,7 @@ def read_demand(
                 line_offset = 1
             else:
                 # Preserve the first physical line, including quoted multi-line CSV.
-                lines = chain((first,), handle)
+                lines = chain((first,), handle) if first else handle
             reader = csv.reader(lines, delimiter=DELIMITERS[delimiter], strict=True)
             rows = list(reader)
     except FileNotFoundError:
