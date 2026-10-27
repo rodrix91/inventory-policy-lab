@@ -207,8 +207,7 @@ def read_demand(
                 f"{file} is not valid UTF-8 (byte {exc.start}); re-save it as UTF-8"
             ) from None
         raise InputFileError(
-            f"{file} is not valid {codec.name} (byte {exc.start}); "
-            "select the correct --encoding"
+            f"{file} is not valid {codec.name} (byte {exc.start}); select the correct --encoding"
         ) from None
     except UnicodeError as exc:
         # Certain decoders (e.g. UTF-16 without a BOM) raise UnicodeError
