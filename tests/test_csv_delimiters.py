@@ -110,9 +110,7 @@ def test_semicolon_malformed_rows_fail_without_replacing_previous_report(
         read_demand(source, delimiter="semicolon")
     saved = tmp_path / "existing.json"
     saved.write_text('{"previous": true}\n', encoding="utf-8")
-    code = main(
-        [str(source), "--delimiter", "semicolon", "--format", "json", "-o", str(saved)]
-    )
+    code = main([str(source), "--delimiter", "semicolon", "--format", "json", "-o", str(saved)])
     assert code == 4
     assert "expected 3 fields" in capsys.readouterr().err
     assert saved.read_text(encoding="utf-8") == '{"previous": true}\n'
