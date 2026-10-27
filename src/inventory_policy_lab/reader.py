@@ -206,6 +206,8 @@ def read_demand(
             first = handle.readline()
             marker = first.rstrip("\r\n")
             is_excel_hint = marker.lower().startswith("sep=") and len(marker) == 5
+            # The input is either the opened text stream or a prefixed iterator.
+            lines: Iterable[str]
             line_offset = 0
             if is_excel_hint:
                 declared = marker[4]
