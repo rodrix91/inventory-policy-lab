@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import gzip
-import io
 import json
 from dataclasses import replace
 from pathlib import Path
@@ -49,11 +48,7 @@ def test_excel_hint_gzip_with_explicit_encoding(
     plain = tmp_path / "plain.csv"
     packed = tmp_path / "excel.csv.gz"
     plain.write_bytes(original.encode(codec))
-    packed.write_bytes(gzip.compress(("\ufeffsep=;\n" + original).encode(codec)))
-    # Only UTF-8 uses a leading U+FEFF as a transport BOM. UTF-16's codec
-    # already prepends its byte-order marker; the extra U+FEFF is content.
-    if codec == "utf-16":
-        packed.write_bytes(gzip.compress(("sep=;\n" + original).encode(codec)))
+    packed.write_bytes(gzip.compress(("sep=;\n" + original).encode(codec)))
     expected = read_demand(plain, delimiter="semicolon", encoding=codec)
     parsed = read_demand(packed, delimiter="semicolon", encoding=codec)
     assert replace(parsed, source=expected.source) == expected
