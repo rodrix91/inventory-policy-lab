@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Include a runnable, synthetic semicolon-delimited Excel `sep=;` example at `examples/regional-excel.csv` (two SKUs, 12 months). Make the README quickstart point to this real file and add API/CLI regression tests so the documented example cannot silently disappear or become invalid.
+
 - Recognize an optional Excel `sep=;` (or another supported single-character `sep=` declaration) on the first CSV line when it agrees with the explicit `--delimiter`. Exclude it from parsed data, preserve source line numbers and quoted headers, and reject contradictory/unsupported hints as data errors before replacing existing reports. Works identically with gzip and selected text encodings; add positive/negative regression cases.
 
 - Add explicit `--delimiter` choices (`comma`, `semicolon`, `tab`, `pipe`) for regional ERP and spreadsheet demand exports. Preserve comma as the default, strict CSV row checks, encoding support, gzip parity, cost columns and analysis semantics. Extend the Python `read_demand` and `analyze_file` APIs, and cover valid sources, quoted fields, malformed rows, unsupported options, CLI, and existing-output safety with regression tests.
