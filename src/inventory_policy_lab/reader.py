@@ -37,6 +37,7 @@ import zlib
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date
+from itertools import chain
 from pathlib import Path
 
 from .errors import ConfigError, DataError, InputFileError
@@ -202,7 +203,30 @@ def read_demand(
         else:
             stream = file.open(encoding=decoder, newline="")
         with stream as handle:
-            reader = csv.reader(handle, delimiter=DELIMITERS[delimiter], strict=True)
+            first = handle.readline()
+            marker = first.rstrip("\r\n")
+            is_excel_hint = marker.lower().startswith("sep=") and len(marker) == 5
+            line_offset = 0
+            if is_excel_hint:
+                declared = marker[4]
+                if declared not in DELIMITERS.values():
+                    raise DataError(
+                        f"{file}: unsupported Excel separator {marker!r}; "
+                        "choose comma, semicolon, tab or pipe"
+                    )
+                if declared != DELIMITERS[delimiter]:
+                    expected = next(name for name, char in DELIMITERS.items() if char == declared)
+                    raise DataError(
+                        f"{file}: Excel declares {expected} separator; "
+                        f"pass --delimiter {expected} instead of {delimiter}"
+                    )
+                # The hint is metadata, not a header or a demand row.
+                lines = handle
+                line_offset = 1
+            else:
+                # Preserve the first physical line, including quoted multi-line CSV.
+                lines = chain((first,), handle)
+            reader = csv.reader(lines, delimiter=DELIMITERS[delimiter], strict=True)
             rows = list(reader)
     except FileNotFoundError:
         raise InputFileError(f"file not found: {file}") from None
@@ -224,19 +248,25 @@ def read_demand(
         ) from None
     except csv.Error as exc:
         raise DataError(
-            f"{file}: malformed CSV quoting near line {reader.line_num}: {exc}"
+            f"{file}: malformed CSV quoting near line {reader.line_num + line_offset}: {exc}"
         ) from None
     except (EOFError, zlib.error) as exc:
         raise InputFileError(f"cannot decompress {file}: {exc}") from None
     except OSError as exc:
         raise InputFileError(f"cannot read {file}: {exc}") from None
-    return parse_rows(rows, source=file.as_posix(), cost_columns=cost_columns)
+    return parse_rows(
+        rows, source=file.as_posix(), cost_columns=cost_columns, line_offset=line_offset
+    )
 
 
 def parse_rows(
-    rows: list[list[str]], source: str = "<rows>", cost_columns: bool = False
+    rows: list[list[str]],
+    source: str = "<rows>",
+    cost_columns: bool = False,
+    *,
+    line_offset: int = 0,
 ) -> DemandData:
-    """Parse already-split CSV rows (header first). Used by :func:`read_demand`."""
+    """Parse CSV records; ``line_offset`` accounts for an optional Excel hint."""
     if not rows:
         raise DataError(f"{source} is empty")
     columns = _resolve_columns(rows[0], cost_columns)
@@ -256,7 +286,7 @@ def parse_rows(
     kinds: set[str] = set()
     data_rows = 0
 
-    for line, row in enumerate(rows[1:], start=2):
+    for line, row in enumerate(rows[1:], start=2 + line_offset):
         if not any(cell.strip() for cell in row):
             continue
         if len(row) < width:
