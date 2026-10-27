@@ -196,6 +196,14 @@ The ABC Pareto of this dataset, drawn as SVG with the standard library by [`scri
 
 ## Input format
 
+**Gzip-compressed demand histories:** The CLI, Python library and reusable GitHub Action can read an input ending in `.gz` (such as `demand.csv.gz`) directly, without extracting it to a temporary CSV or installing additional packages. The file is decompressed as UTF-8 text with the existing BOM and strict CSV checks; uncompressed files retain the same behavior. File extensions are matched case-insensitively. Invalid/truncated compressed streams and invalid UTF-8 return input exit `3`, while valid gzip content with invalid demand rows returns data exit `4`. As before, an existing `--output` report is never replaced on input failure.
+
+```bash
+python -m inventory_policy_lab examples/demand_synthetic.csv.gz --format json
+```
+
+The command above illustrates the file naming convention; first gzip a copy of an actual demand CSV (the checked-in example is `examples/demand_synthetic.csv`, uncompressed). The Action's `path` input can likewise point to a workspace-relative `data/demand.csv.gz`.
+
 One row per SKU and period, long format. Header names are case-insensitive. **Ambiguous input columns are rejected:** when two headers refer to the same consumed field (for example, `quantity` alongside `qty` or `demand`, `period` alongside `date`, or `sku` repeated with different capitalization), the parser raises a data error (CLI exit `4`) instead of silently using one of them. The same rule applies to optional `unit_cost` and `lead_time`, and to `order_cost` / `stockout_cost` when `--cost-columns` is enabled. Unrelated extra columns remain untouched. **Every non-blank CSV row must still contain exactly as many fields as the header, including ignored columns.** Extra cells or omitted trailing columns are input data errors (CLI exit `4`) rather than values silently discarded by the model. Explicit empty trailing cells (a final comma) remain valid. Blank records are skipped as before.
 
 **CSV quoting is validated strictly:** unterminated quoted fields or unexpected text after a closing quote are rejected as data errors (CLI exit `4`) rather than silently changing a SKU or quantity. Valid quoted commas and multiline fields remain supported. Existing `--output` reports are preserved when validation fails.
