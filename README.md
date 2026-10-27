@@ -38,6 +38,25 @@ inventory-policy-lab --help
 
 From a clone you can also run it without installing: `PYTHONPATH=src python -m inventory_policy_lab ...`.
 
+## CSV separators from regional Excel and ERP exports
+
+The default CSV field separator remains a comma. For semicolon-delimited
+spreadsheets, tab-separated exports, or pipe-delimited ERP files, opt in to
+`--delimiter semicolon`, `--delimiter tab`, or `--delimiter pipe`
+respectively. Explicit separators work for plain and gzip-compressed
+CSV files, `--encoding` (including cp1252 or UTF-16) and the reusable
+Action's `args` input. Existing comma-separated workflows do not change.
+
+```bash
+inventory-policy-lab demand-export.csv --delimiter semicolon --format json
+inventory-policy-lab demand-export.csv.gz --delimiter pipe --encoding cp1252
+```
+
+The separator must be specified explicitly; there is no automatic
+delimiter guessing. An Excel `sep=;` preamble is **not** recognized as
+a header and must be removed before processing. Invalid or ragged rows
+continue to produce data errors, not silently adjusted demand quantities.
+
 ## GitHub Action
 
 The repository also exposes a composite GitHub Action for running the same inventory-policy analysis inside a workflow. It uses the CLI's own atomic `--output` path and does not add runtime dependencies.

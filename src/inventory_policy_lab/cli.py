@@ -68,6 +68,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add = parser.add_argument
     add("path", type=Path, help="CSV with columns sku, period, quantity[, unit_cost, lead_time]")
+    add(
+        "--delimiter",
+        choices=("comma", "semicolon", "tab", "pipe"),
+        default="comma",
+        help="input CSV field separator (default: comma)",
+    )
     add("--format", choices=("markdown", "json"), default="markdown", help="output format")
     add(
         "--encoding",
@@ -415,7 +421,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return EXIT_INPUT
     try:
-        report = analyze_file(args.path, config_from_args(args), encoding=args.encoding)
+        report = analyze_file(
+            args.path, config_from_args(args), encoding=args.encoding, delimiter=args.delimiter
+        )
     except InventoryPolicyError as exc:
         print(f"inventory-policy-lab: error: {exc}", file=sys.stderr)
         return exc.exit_code

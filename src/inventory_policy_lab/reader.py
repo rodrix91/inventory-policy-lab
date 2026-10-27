@@ -49,6 +49,7 @@ COLUMN_ALIASES: dict[str, tuple[str, ...]] = {
     "lead_time": ("lead_time",),
 }
 REQUIRED = ("sku", "period", "quantity")
+DELIMITERS = {"comma": ",", "semicolon": ";", "tab": "\t", "pipe": "|"}
 COST_COLUMNS = ("order_cost", "stockout_cost")  # read only with cost_columns (ADR 0014)
 
 _MONTH = re.compile(r"^(\d{4})-(\d{2})$")
@@ -166,13 +167,19 @@ def read_demand(
     cost_columns: bool = False,
     *,
     encoding: str = "utf-8-sig",
+    delimiter: str = "comma",
 ) -> DemandData:
     """Read ``path`` and return its demand history, one :class:`SkuHistory` per SKU.
 
     With ``cost_columns`` the optional ``order_cost`` and ``stockout_cost``
     columns are read too (ADR 0014). The optional encoding is a Python
     text codec; UTF-8 with optional BOM is the default.
+    The delimiter keyword selects a field separator; comma remains the default.
     """
+    if delimiter not in DELIMITERS:
+        raise ConfigError(
+            f"unknown CSV delimiter {delimiter!r}; choose comma, semicolon, tab or pipe"
+        )
     try:
         codec = codecs.lookup(encoding)
     except LookupError:
@@ -195,7 +202,7 @@ def read_demand(
         else:
             stream = file.open(encoding=decoder, newline="")
         with stream as handle:
-            reader = csv.reader(handle, strict=True)
+            reader = csv.reader(handle, delimiter=DELIMITERS[delimiter], strict=True)
             rows = list(reader)
     except FileNotFoundError:
         raise InputFileError(f"file not found: {file}") from None

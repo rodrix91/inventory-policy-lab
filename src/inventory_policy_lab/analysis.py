@@ -933,6 +933,7 @@ def analyze_file(
     config: Config | None = None,
     *,
     encoding: str = "utf-8-sig",
+    delimiter: str = "comma",
 ) -> Report:
     """Read ``path`` with :func:`read_demand` and :func:`analyze` it.
 
@@ -940,4 +941,6 @@ def analyze_file(
     ``config.cost_columns`` is set (ADR 0014).
     """
     cost_columns = config is not None and config.cost_columns
-    return analyze(read_demand(path, cost_columns=cost_columns, encoding=encoding), config)
+    return analyze(
+        read_demand(path, cost_columns=cost_columns, encoding=encoding, delimiter=delimiter), config
+    )
