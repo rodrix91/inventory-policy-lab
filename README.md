@@ -53,9 +53,21 @@ inventory-policy-lab demand-export.csv.gz --delimiter pipe --encoding cp1252
 ```
 
 The separator must be specified explicitly; there is no automatic
-delimiter guessing. An Excel `sep=;` preamble is **not** recognized as
-a header and must be removed before processing. Invalid or ragged rows
-continue to produce data errors, not silently adjusted demand quantities.
+delimiter guessing. Excel's optional **`sep=;` preamble is now recognized**:
+when it is the first physical line, the declared comma, semicolon, tab or
+pipe is treated as metadata rather than a header or inventory row. Pass the
+matching `--delimiter` (for `sep=;`, use `--delimiter semicolon`); a
+contradictory or unsupported declaration produces a clear data error (exit 4)
+instead of silently shifting columns. The feature also works with gzip and
+explicit `--encoding`; errors on later rows count the skipped preamble line.
+Ordinary CSV files and `parse_rows` calls retain their previous behavior.
+
+```bash
+inventory-policy-lab regional-excel.csv --delimiter semicolon --format json
+```
+
+Invalid or ragged rows continue to produce data errors, not silently
+adjusted demand quantities.
 
 ## GitHub Action
 
