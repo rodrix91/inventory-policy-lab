@@ -100,7 +100,19 @@ def demand_profile(
     ``ADI`` is the number of periods divided by the number of periods with
     demand; ``CV2`` is the squared population coefficient of variation of the
     non-zero demand sizes. A series without demand is ``no demand``.
+    Reject impossible observations and cutoffs in the public API instead of
+    silently treating negative quantities as zero-demand periods.
     """
+    if not (
+        math.isfinite(adi_cutoff)
+        and adi_cutoff > 0
+        and math.isfinite(cv2_cutoff)
+        and cv2_cutoff >= 0
+    ):
+        raise ValueError("demand profile cutoffs must have finite ADI > 0 and CV2 >= 0")
+    for index, quantity in enumerate(demand):
+        if not math.isfinite(quantity) or quantity < 0:
+            raise ValueError(f"demand[{index}] must be finite and non-negative")
     sizes = [q for q in demand if q > 0]
     if not sizes:
         return DemandProfile(adi=None, cv2=None, nonzero_periods=0, category="no demand")
