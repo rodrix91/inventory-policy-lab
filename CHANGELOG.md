@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Advertise Python 3.14 in package metadata following the successful Linux, Windows and macOS CI compatibility matrix; keep runtime requirements, package version, and released tags unchanged.
+
 - Run the existing Linux, Windows and macOS test matrices under Python 3.14, preserving all earlier version checks and quality gates. Keep package metadata and releases unchanged until the exact-head PR CI succeeds.
 
 - Match required and opt-in cost-column aliases using full Unicode `casefold` rather than simple lowercase, so a case-equivalent ERP label (for example `ſku`) is recognized and conflicting columns are rejected instead of silently ignored. Preserve optional cost-column opt-in rules and existing output files on invalid input; add API and CLI regression tests.
