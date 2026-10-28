@@ -23,7 +23,10 @@ def test_unicode_case_equivalent_sku_header_is_recognized(header: str) -> None:
     [
         (["sku", "ſku", "period", "quantity"], "sku"),
         (["ſku", " SKU ", "period", "quantity"], "sku"),
-        (["sku", "period", "quantity", "ſtockout_coſt", "stockout_cost"], "stockout_cost"),
+        (
+            ["sku", "period", "quantity", "ſtockout_coſt", "stockout_cost"],
+            "stockout_cost",
+        ),
     ],
 )
 def test_unicode_case_equivalent_consumed_duplicates_fail_closed(
