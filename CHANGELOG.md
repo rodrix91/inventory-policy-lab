@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Validate finite, non-negative demand observations and finite, meaningful ADI/CV² cutoffs in the public `demand_profile()` API. Previously negative or NaN observations could be silently treated as zero-demand periods, producing misleading smooth/intermittent classifications. Preserve valid classification behavior and add parameterized API regressions.
+
 - Advertise Python 3.14 in package metadata following the successful Linux, Windows and macOS CI compatibility matrix; keep runtime requirements, package version, and released tags unchanged.
 
 - Run the existing Linux, Windows and macOS test matrices under Python 3.14, preserving all earlier version checks and quality gates. Keep package metadata and releases unchanged until the exact-head PR CI succeeds.
