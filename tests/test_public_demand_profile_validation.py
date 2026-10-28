@@ -16,7 +16,7 @@ def test_invalid_demand_is_rejected_before_pattern_classification(
 ) -> None:
     demand = [2.0, 0.0, 3.0]
     demand[position] = invalid
-    with pytest.raises(ValueError, match=rf"demand\\[{position}\\] must be finite and non-negative"):
+    with pytest.raises(ValueError, match=rf"demand\[{position}\] must be finite and non-negative"):
         demand_profile(demand)
 
 
