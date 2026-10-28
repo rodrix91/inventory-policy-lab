@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Match required and opt-in cost-column aliases using full Unicode `casefold` rather than simple lowercase, so a case-equivalent ERP label (for example `ſku`) is recognized and conflicting columns are rejected instead of silently ignored. Preserve optional cost-column opt-in rules and existing output files on invalid input; add API and CLI regression tests.
+
 - Reject impossible monthly demand periods with year `0000` (including equivalent Unicode decimal-digit labels), consistently with existing strict validation of ISO calendar dates. Keep years `0001` through `9999` valid, preserve source-line diagnostics, and leave any previously generated report untouched on failure; add API and CLI regression tests.
 
 - Report the actual physical CSV source line for invalid demand values or row widths after quoted multiline fields, including skipped Excel `sep=` preambles, CRLF/gzip exports, and embedded newlines in the header. Preserve the public `parse_rows` record-number behavior for pre-parsed lists, error exit codes, and previously written reports; add parser and real CLI regression tests.
