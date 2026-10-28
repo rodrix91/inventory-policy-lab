@@ -142,7 +142,9 @@ def _number(text: str, column: str, line: int) -> float:
 
 
 def _resolve_columns(header: list[str], cost_columns: bool = False) -> dict[str, int]:
-    normalized = [name.strip().lower() for name in header]
+    # Full Unicode casefold catches case-equivalent ERP aliases (e.g. long-s)
+    # that .lower() misses; reject ambiguous duplicate consumed columns.
+    normalized = [name.strip().casefold() for name in header]
     found: dict[str, int] = {}
     aliases_of = dict(COLUMN_ALIASES)
     if cost_columns:
