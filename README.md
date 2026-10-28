@@ -40,6 +40,8 @@ From a clone you can also run it without installing: `PYTHONPATH=src python -m i
 
 ## CSV separators from regional Excel and ERP exports
 
+Required column aliases are matched after trimming and full Unicode case folding. This accepts case-equivalent headers such as `ſku` while rejecting an ambiguous file containing both `sku` and `ſku` (data exit code 4), rather than choosing one silently. Cost columns remain optional unless `--cost-columns` is selected.
+
 The default CSV field separator remains a comma. For semicolon-delimited
 spreadsheets, tab-separated exports, or pipe-delimited ERP files, opt in to
 `--delimiter semicolon`, `--delimiter tab`, or `--delimiter pipe`
