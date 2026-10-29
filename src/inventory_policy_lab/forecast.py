@@ -168,7 +168,7 @@ def backtest(series: Sequence[float], name: str, method: Method, holdout: int) -
     scale = naive_scale(series[:start])
     return BacktestResult(
         method=name,
-        forecasts=forecasts,
+        forecasts=tuple(forecasts),
         mae=mae,
         rmse=rmse,
         bias=_stable_fmean(errors),
