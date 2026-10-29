@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 
 import pytest
 
@@ -27,7 +28,7 @@ def test_backtest_scoring_avoids_overflowing_mean_error_and_bias() -> None:
     # finite despite an overflowing intermediate 1e308 + 1e308 sum.
     series = [0.0, 0.0, 0.0, 0.0, 0.0, 1e308]
 
-    def method(history: list[float] | tuple[float, ...]) -> float:
+    def method(history: Sequence[float]) -> float:
         return 1e308 if len(history) < 5 else 0.0
 
     result = backtest(series, "large errors", method, holdout=3)
