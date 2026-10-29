@@ -11,9 +11,7 @@ from inventory_policy_lab import coefficient_of_variation
 
 @pytest.mark.parametrize("invalid", [-1.0, -0.01, math.nan, math.inf, -math.inf])
 @pytest.mark.parametrize("position", [0, 2])
-def test_public_cv_rejects_nonfinite_or_negative_demand(
-    invalid: float, position: int
-) -> None:
+def test_public_cv_rejects_nonfinite_or_negative_demand(invalid: float, position: int) -> None:
     demand = [2.0, 0.0, 3.0]
     demand[position] = invalid
     with pytest.raises(ValueError, match=rf"demand\[{position}\] must be finite and non-negative"):
