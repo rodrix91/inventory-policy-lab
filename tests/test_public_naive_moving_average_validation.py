@@ -26,12 +26,12 @@ def test_invalid_demand_is_rejected_at_original_position(
 ) -> None:
     demand = [2.0, 3.0, 4.0]
     demand[index] = invalid
-    with pytest.raises(ValueError, match=rf"demand\\[{index}\\] must be finite and non-negative"):
+    with pytest.raises(ValueError, match=rf"demand\[{index}\] must be finite and non-negative"):
         forecast(demand)
 
 
 def test_moving_average_validates_earlier_periods_outside_its_window() -> None:
-    with pytest.raises(ValueError, match=r"demand\\[0\\] must be finite and non-negative"):
+    with pytest.raises(ValueError, match=r"demand\[0\] must be finite and non-negative"):
         moving_average([-1.0, 2.0, 4.0], window=1)
 
 
