@@ -18,7 +18,7 @@ def test_direct_intermittent_forecast_rejects_invalid_demand(
 ) -> None:
     demand = [3.0, 0.0, 5.0]
     demand[position] = invalid
-    with pytest.raises(ValueError, match=rf"demand\\[{position}\\] must be finite and non-negative"):
+    with pytest.raises(ValueError, match=rf"demand\[{position}\] must be finite and non-negative"):
         method(demand)
 
 
