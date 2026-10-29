@@ -65,7 +65,11 @@ def _croston_parts(history: Sequence[float], alpha: float) -> tuple[float, float
     size = interval = 0.0
     last = -1
     for index, value in enumerate(history):
-        if value <= 0:
+        # Direct library callers must not silently interpret negative demand
+        # as a zero period or propagate NaN/infinity into a forecast.
+        if not math.isfinite(value) or value < 0:
+            raise ValueError(f"demand[{index}] must be finite and non-negative")
+        if value == 0:
             continue
         gap = index - last
         if last < 0:
