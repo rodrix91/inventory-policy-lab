@@ -351,6 +351,8 @@ for sku in report.skus:
 markdown = render_markdown(report)  # or render_json(report) / report.to_dict()
 ```
 
+**Standalone demand variability validation:** The public `coefficient_of_variation()` helper rejects negative, `NaN` and infinite demand with the zero-based observation index in a `ValueError`, consistently with `demand_profile()`. It returns `None` for empty or zero-only series; other valid demand retains its existing CV calculation.
+
 **Standalone replay demand validation:** The public `simulate()`, `simulate_periodic()` and `simulate_rss()` APIs reject negative, `NaN` and infinite demand, identifying the exact zero-based period with a `ValueError` before any inventory state is changed. This also checks unscored warm-up periods: invalid observations must not artificially add stock or produce unreliable fill-rate metrics. Valid non-negative (including zero) demand, existing warm-up handling and forecast/replenishment behavior remain unchanged.
 
 **Standalone replay lead-time validation:** The public `simulate()`, `simulate_periodic()` and `simulate_rss()` APIs now require a finite, non-negative `lead_time` and raise `ValueError` for negative, `NaN` or infinite durations. This prevents orders being scheduled to arrive in the past and replaces unclear integer-conversion errors. Valid non-negative lead times retain the existing half-up rounding (e.g., `0.49` → 0 periods, `0.5` → 1 period), warm-up handling and inventory metrics.

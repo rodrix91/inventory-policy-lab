@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Validate finite, non-negative demand in the public `coefficient_of_variation()` helper (also when called independently of `demand_profile()`). Previously negative series could yield meaningless negative CV values and NaN/infinity could raise cryptic errors; report the zero-based invalid position consistently with other demand APIs. Empty or zero-only series have no defined CV (`None`). Preserve valid finite demand and include regression tests.
+
 - Test the built wheel as an installed package on Linux, macOS and Windows in isolated virtual environments. Check the installed command, package metadata, PEP 561 `py.typed` marker and a real JSON policy report with the requested holdout, outside the source checkout and without `PYTHONPATH`. Preserve the release version and existing source-distribution checks.
 
 - Reject negative, NaN and infinite demand passed directly to public `croston()` and `sba()` forecasting functions, with the invalid zero-based demand index in `ValueError`. Previously negative values could be skipped as zero periods and non-finite values could contaminate forecasts. Preserve valid zero and positive demand, and add 22 parametrized regression cases.

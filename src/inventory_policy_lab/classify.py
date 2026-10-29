@@ -52,7 +52,16 @@ def abc_classes(values: Mapping[str, float], a: float = 0.80, b: float = 0.95) -
 
 
 def coefficient_of_variation(demand: Sequence[float]) -> float | None:
-    """Population standard deviation over mean of per-period demand; ``None`` if the mean is 0."""
+    """Population standard deviation / mean for valid non-negative demand.
+
+    Return ``None`` for an empty or all-zero history. Reject invalid values
+    here too: the public helper can be called without ``demand_profile()``.
+    """
+    if not demand:
+        return None
+    for index, value in enumerate(demand):
+        if not math.isfinite(value) or value < 0:
+            raise ValueError(f"demand[{index}] must be finite and non-negative")
     try:
         mean = statistics.fmean(demand)
     except OverflowError:
