@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Reject negative, NaN and infinite demand passed directly to public `croston()` and `sba()` forecasting functions, with the invalid zero-based demand index in `ValueError`. Previously negative values could be skipped as zero periods and non-finite values could contaminate forecasts. Preserve valid zero and positive demand, and add 22 parametrized regression cases.
+
 - Validate finite, non-negative demand observations and finite, meaningful ADI/CV² cutoffs in the public `demand_profile()` API. Previously negative or NaN observations could be silently treated as zero-demand periods, producing misleading smooth/intermittent classifications. Preserve valid classification behavior and add parameterized API regressions.
 
 - Advertise Python 3.14 in package metadata following the successful Linux, Windows and macOS CI compatibility matrix; keep runtime requirements, package version, and released tags unchanged.
