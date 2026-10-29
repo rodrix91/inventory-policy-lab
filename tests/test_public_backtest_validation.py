@@ -12,9 +12,7 @@ from inventory_policy_lab import backtest, naive
 
 @pytest.mark.parametrize("invalid", [-1.0, -0.01, math.nan, math.inf, -math.inf])
 @pytest.mark.parametrize("index", [0, 2, 4])
-def test_backtest_rejects_invalid_demand_anywhere(
-    invalid: float, index: int
-) -> None:
+def test_backtest_rejects_invalid_demand_anywhere(invalid: float, index: int) -> None:
     history = [3.0, 4.0, 5.0, 6.0, 7.0]
     history[index] = invalid
     called = []
