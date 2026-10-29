@@ -15,6 +15,20 @@ from dataclasses import dataclass
 Method = Callable[[Sequence[float]], float]
 
 
+def _stable_fmean(values: Sequence[float]) -> float:
+    """Mean of finite values without overflowing an intermediate sum.
+
+    An ordinary mean uses the standard library's accurate fmean. If its
+    intermediate sum overflows although the mean is representable, normalize
+    by the largest magnitude before averaging and restoring the scale.
+    """
+    try:
+        return statistics.fmean(values)
+    except OverflowError:
+        scale = max(abs(value) for value in values)
+        return statistics.fmean(value / scale for value in values) * scale
+
+
 def naive(history: Sequence[float]) -> float:
     """The last observed value."""
     return history[-1]
@@ -28,7 +42,7 @@ def moving_average(history: Sequence[float], window: int = 3) -> float:
     """
     if window < 1:
         raise ValueError(f"moving-average window must be at least 1, got {window}")
-    return statistics.fmean(history[-window:])
+    return _stable_fmean(history[-window:])
 
 
 def ses(history: Sequence[float], alpha: float = 0.2) -> float:
@@ -92,7 +106,7 @@ class BacktestResult:
 
 def naive_scale(train: Sequence[float]) -> float:
     """Mean absolute one-step naive error in the training data (MASE denominator)."""
-    return statistics.fmean(abs(train[i] - train[i - 1]) for i in range(1, len(train)))
+    return _stable_fmean([abs(train[i] - train[i - 1]) for i in range(1, len(train))])
 
 
 def backtest(series: Sequence[float], name: str, method: Method, holdout: int) -> BacktestResult:
@@ -108,7 +122,7 @@ def backtest(series: Sequence[float], name: str, method: Method, holdout: int) -
         raise ValueError("backtest needs holdout >= 1 and at least 2 training periods")
     forecasts = tuple(method(series[:t]) for t in range(start, len(series)))
     errors = [f - a for f, a in zip(forecasts, series[start:], strict=True)]
-    mae = statistics.fmean(abs(e) for e in errors)
+    mae = _stable_fmean([abs(e) for e in errors])
     # Squaring a finite error can overflow, even when its RMSE is finite.
     # Normalize first, then restore the scale after taking the square root.
     # This also keeps the public RMSE and --sigma rmse finite for large units.
@@ -124,7 +138,7 @@ def backtest(series: Sequence[float], name: str, method: Method, holdout: int) -
         forecasts=forecasts,
         mae=mae,
         rmse=rmse,
-        bias=statistics.fmean(errors),
+        bias=_stable_fmean(errors),
         mase=mae / scale if scale > 0 else None,
     )
 
