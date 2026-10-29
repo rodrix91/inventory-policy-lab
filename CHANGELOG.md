@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Reject negative, NaN and infinite demand in the public `ses()` forecasting API, with the zero-based invalid observation index. Require at least one demand period instead of failing with an `IndexError`. Preserve valid zero/positive and very large finite demand forecasts; add 13 parameterized and behavioral regressions without changing package versions or releases.
+
 - Validate finite, non-negative demand in the public `coefficient_of_variation()` helper (also when called independently of `demand_profile()`). Previously negative series could yield meaningless negative CV values and NaN/infinity could raise cryptic errors; report the zero-based invalid position consistently with other demand APIs. Empty or zero-only series have no defined CV (`None`). Preserve valid finite demand and include regression tests.
 
 - Test the built wheel as an installed package on Linux, macOS and Windows in isolated virtual environments. Check the installed command, package metadata, PEP 561 `py.typed` marker and a real JSON policy report with the requested holdout, outside the source checkout and without `PYTHONPATH`. Preserve the release version and existing source-distribution checks.

@@ -46,9 +46,18 @@ def moving_average(history: Sequence[float], window: int = 3) -> float:
 
 
 def ses(history: Sequence[float], alpha: float = 0.2) -> float:
-    """Simple exponential smoothing, level initialised with the first observation."""
+    """Simple exponential smoothing for finite, non-negative demand.
+
+    Direct library callers get an actionable error on invalid demand rather
+    than a NaN/infinite forecast or an accidental negative stock estimate.
+    """
     if not 0 < alpha <= 1:
         raise ValueError(f"ses alpha must be in (0, 1], got {alpha}")
+    if not history:
+        raise ValueError("ses needs at least one observed demand period")
+    for index, value in enumerate(history):
+        if not math.isfinite(value) or value < 0:
+            raise ValueError(f"demand[{index}] must be finite and non-negative")
     level = history[0]
     for value in history[1:]:
         level += alpha * (value - level)
