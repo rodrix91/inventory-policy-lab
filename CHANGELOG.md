@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Reject negative and non-finite observations in direct `backtest()` input, including held-out actual demand, before invoking forecast methods. Also reject invalid custom method predictions (negative, NaN or infinite), reporting the original zero-based period; previously both could contaminate MAE, RMSE, MASE or the forecast table. Preserve valid zero and large finite values and add focused regressions.
+
 - Reject empty, negative, NaN and infinite demand histories in the public `naive()` and `moving_average()` forecasting APIs, including invalid observations outside the moving-average window. Report the original zero-based position, preserve valid zero and large finite forecasts, and add focused regression coverage.
 
 - Reject negative, NaN and infinite demand in the public `ses()` forecasting API, with the zero-based invalid observation index. Require at least one demand period instead of failing with an `IndexError`. Preserve valid zero/positive and very large finite demand forecasts; add 13 parameterized and behavioral regressions without changing package versions or releases.

@@ -139,12 +139,21 @@ def backtest(series: Sequence[float], name: str, method: Method, holdout: int) -
     MASE follows Hyndman & Koehler (2006): MAE over the holdout divided by the
     in-sample MAE of the one-step naive forecast on the training periods. It is
     defined on series with zeros, unlike MAPE. Needs ``holdout >= 1`` and at
-    least two training periods.
+    least two training periods. Demand and forecasts must be finite and
+    non-negative; errors identify the original zero-based series period.
     """
     start = len(series) - holdout
     if holdout < 1 or start < 2:
         raise ValueError("backtest needs holdout >= 1 and at least 2 training periods")
-    forecasts = tuple(method(series[:t]) for t in range(start, len(series)))
+    # Validate the entire series, including holdout actuals which never enter
+    # the first forecast's history. Otherwise NaN may contaminate MAE/MASE.
+    _validate_demand(series, "backtest")
+    forecasts = []
+    for t in range(start, len(series)):
+        forecast = method(series[:t])
+        if not math.isfinite(forecast) or forecast < 0:
+            raise ValueError(f"{name} forecast[{t}] must be finite and non-negative")
+        forecasts.append(forecast)
     errors = [f - a for f, a in zip(forecasts, series[start:], strict=True)]
     mae = _stable_fmean([abs(e) for e in errors])
     # Squaring a finite error can overflow, even when its RMSE is finite.
@@ -159,7 +168,7 @@ def backtest(series: Sequence[float], name: str, method: Method, holdout: int) -
     scale = naive_scale(series[:start])
     return BacktestResult(
         method=name,
-        forecasts=forecasts,
+        forecasts=tuple(forecasts),
         mae=mae,
         rmse=rmse,
         bias=_stable_fmean(errors),
