@@ -29,8 +29,18 @@ def _stable_fmean(values: Sequence[float]) -> float:
         return statistics.fmean(value / scale for value in values) * scale
 
 
+def _validate_demand(history: Sequence[float], method: str) -> None:
+    """Reject invalid demand anywhere in a history, even outside a forecast window."""
+    if not history:
+        raise ValueError(f"{method} needs at least one observed demand period")
+    for index, value in enumerate(history):
+        if not math.isfinite(value) or value < 0:
+            raise ValueError(f"demand[{index}] must be finite and non-negative")
+
+
 def naive(history: Sequence[float]) -> float:
-    """The last observed value."""
+    """The last observed demand, requiring a finite, non-negative history."""
+    _validate_demand(history, "naive")
     return history[-1]
 
 
@@ -42,6 +52,7 @@ def moving_average(history: Sequence[float], window: int = 3) -> float:
     """
     if window < 1:
         raise ValueError(f"moving-average window must be at least 1, got {window}")
+    _validate_demand(history, "moving-average")
     return _stable_fmean(history[-window:])
 
 
