@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import math
-from typing import Any
 from collections.abc import Callable, Sequence
+from typing import Any
 
 import pytest
 
