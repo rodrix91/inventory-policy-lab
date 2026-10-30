@@ -6,6 +6,8 @@ import csv
 import io
 import re
 import tomllib
+from types import SimpleNamespace
+from xml.etree import ElementTree
 
 import pytest
 from conftest import ROOT, load_script
@@ -64,6 +66,51 @@ def test_pareto_svg_is_up_to_date() -> None:
     assert svg.startswith("<svg") and "synthetic example data" in svg
     assert len(re.findall(r"<rect x=\"[\d.]+\" y=\"[\d.]+\" width=\"[\d.]+\" height", svg)) >= 12
     assert make_pareto_svg.main(["--check"]) == 0
+
+
+
+def test_pareto_svg_escapes_external_sku_text(monkeypatch: pytest.MonkeyPatch) -> None:
+    sku = '<script>alert("invalid")</script> & SKU'
+    report = SimpleNamespace(
+        skus=[
+            SimpleNamespace(sku=sku, annual_value=60.0, abc="A"),
+            SimpleNamespace(sku="Another", annual_value=40.0, abc="B"),
+        ],
+        config=SimpleNamespace(abc_thresholds=(0.8, 0.95)),
+    )
+    monkeypatch.setattr(make_pareto_svg, "analyze_file", lambda _: report)
+    svg = make_pareto_svg.build_svg()
+    root = ElementTree.fromstring(svg)
+    texts = [element.text for element in root.iter("{http://www.w3.org/2000/svg}text")]
+    assert sku in texts
+    assert '<script>' not in svg
+    assert '&lt;script&gt;' in svg and '&amp; SKU' in svg
+
+
+@pytest.mark.parametrize(
+    ("values", "error"),
+    [
+        ([], "without SKUs"),
+        ([0.0, 0.0], "positive, finite total"),
+        ([-1.0, 3.0], "non-negative annual values"),
+        ([float("nan"), 3.0], "finite, non-negative annual values"),
+        ([float("inf"), 3.0], "finite, non-negative annual values"),
+        ([1e308, 1e308], "positive, finite total"),
+    ],
+)
+def test_pareto_svg_rejects_invalid_annual_values(
+    monkeypatch: pytest.MonkeyPatch, values: list[float], error: str
+) -> None:
+    report = SimpleNamespace(
+        skus=[
+            SimpleNamespace(sku=f"SKU-{i}", annual_value=value, abc="A")
+            for i, value in enumerate(values)
+        ],
+        config=SimpleNamespace(abc_thresholds=(0.8, 0.95)),
+    )
+    monkeypatch.setattr(make_pareto_svg, "analyze_file", lambda _: report)
+    with pytest.raises(ValueError, match=error):
+        make_pareto_svg.build_svg()
 
 
 def test_readme_samples_check_passes() -> None:
