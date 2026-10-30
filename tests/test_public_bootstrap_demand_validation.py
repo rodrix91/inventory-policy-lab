@@ -19,7 +19,9 @@ def test_invalid_observed_demand_is_rejected_at_original_position(
     history[position] = invalid
     rng = random.Random(33)
     state = rng.getstate()
-    with pytest.raises(ValueError, match=rf"demand\\[{position}\\] must be finite and non-negative"):
+    with pytest.raises(
+        ValueError, match=rf"demand\\[{position}\\] must be finite and non-negative"
+    ):
         bootstrap_safety_stock(
             history, 0.9, 2.0, lead_time=2.0, samples=12, rng=rng
         )
@@ -45,7 +47,7 @@ def test_invalid_values_fail_even_when_interval_rounds_to_zero(invalid: float) -
         bootstrap_safety_stock([1.0, 0.0], 0.9, invalid, lead_time=0.0, samples=2)
 
 
-def test_zero_and_intermitttent_demand_preserve_hand_computed_outputs() -> None:
+def test_zero_and_intermittent_demand_preserve_hand_computed_outputs() -> None:
     quantile, safety = bootstrap_safety_stock(
         [0.0, 4.0], 1.0, 2.0, lead_time=1.0, samples=4,
         rng=random.Random(5),
