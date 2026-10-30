@@ -82,8 +82,8 @@ def test_pareto_svg_escapes_external_sku_text(monkeypatch: pytest.MonkeyPatch) -
     root = ElementTree.fromstring(svg)
     texts = [element.text for element in root.iter("{http://www.w3.org/2000/svg}text")]
     assert sku in texts
-    assert '<script>' not in svg
-    assert '&lt;script&gt;' in svg and '&amp; SKU' in svg
+    assert "<script>" not in svg
+    assert "&lt;script&gt;" in svg and "&amp; SKU" in svg
 
 
 @pytest.mark.parametrize(
