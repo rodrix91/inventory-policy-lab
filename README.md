@@ -8,6 +8,14 @@ Python 3.11+, standard library only at runtime. Library and command line.
 
 **Status: alpha, version 0.10.0.** The methods are textbook methods, implemented and tested carefully, but the tool has not been used on many real datasets yet. Read [Limitations](#limitations) before using its numbers for real orders.
 
+**Standalone residual-bootstrap validation:** The public `residual_bootstrap_quantile()`
+API rejects NaN and infinite forecast errors in every protection interval that can
+actually be sampled, identifying the interval and zero-based observation. It
+validates inputs before drawing from the caller's random generator. Valid
+negative or positive residuals remain supported, and errors in intervals that
+cannot be reached do not affect the result. This is a data-integrity guard,
+not a new forecasting method.
+
 ## Companion data-quality tools
 
 Before using a demand extract for policy analysis:
