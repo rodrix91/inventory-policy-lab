@@ -16,6 +16,8 @@ negative or positive residuals remain supported, and errors in intervals that
 cannot be reached do not affect the result. This is a data-integrity guard,
 not a new forecasting method.
 
+**Public replay warmup validation:** The `simulate()`, `simulate_periodic()` and `simulate_rss()` APIs require `warmup` to be an integer count between 0 and the demand history length, inclusive. Boolean or fractional warmups are rejected before replay rather than silently hiding scored periods. A zero warmup scores the whole history; a warmup equal to the history length scores no periods. Existing valid policy results and CLI settings are unchanged.
+
 ## Companion data-quality tools
 
 Before using a demand extract for policy analysis:
