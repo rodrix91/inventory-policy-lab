@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Reject `NaN` and infinite scalar or per-period `reorder_point`, `order_up_to` and `order_quantity` values in all three public inventory replay APIs (`simulate`, `simulate_periodic`, `simulate_rss`) before stock is mutated or scored. Report the original zero-based period for invalid dynamic values, preserve existing checks for nonpositive quantities and all finite policies, and add cross-policy scalar/dynamic regression tests.
+
 - Reject negative and non-finite observations in direct `backtest()` input, including held-out actual demand, before invoking forecast methods. Also reject invalid custom method predictions (negative, NaN or infinite), reporting the original zero-based period; previously both could contaminate MAE, RMSE, MASE or the forecast table. Preserve valid zero and large finite values and add focused regressions.
 
 - Reject empty, negative, NaN and infinite demand histories in the public `naive()` and `moving_average()` forecasting APIs, including invalid observations outside the moving-average window. Report the original zero-based position, preserve valid zero and large finite forecasts, and add focused regression coverage.
