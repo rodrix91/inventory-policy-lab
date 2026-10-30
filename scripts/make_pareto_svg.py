@@ -29,6 +29,22 @@ WIDTH, HEIGHT = 720, 360
 LEFT, RIGHT, TOP, BOTTOM = 56, 40, 60, 64
 
 
+def _xml_label(value: str) -> str:
+    """Escape a SKU for an XML 1.0 text node, replacing invalid code points."""
+    cleaned = "".join(
+        char
+        if (
+            ord(char) in (9, 10, 13)
+            or 0x20 <= ord(char) <= 0xD7FF
+            or 0xE000 <= ord(char) <= 0xFFFD
+            or 0x10000 <= ord(char) <= 0x10FFFF
+        )
+        else "\ufffd"
+        for char in value
+    )
+    return escape(cleaned)
+
+
 def build_svg() -> str:
     report = analyze_file(ROOT / SOURCE)
     items = sorted(report.skus, key=lambda r: (-r.annual_value, r.sku))
@@ -71,7 +87,7 @@ def build_svg() -> str:
             f'height="{plot_h * share:.1f}" fill="{COLORS[result.abc]}"/>'
         )
         label_x = x0 + step / 2
-        label = escape(result.sku)
+        label = _xml_label(result.sku)
         parts.append(
             f'<text x="{label_x:.1f}" y="{HEIGHT - BOTTOM + 14}" text-anchor="end" '
             f'transform="rotate(-45 {label_x:.1f} {HEIGHT - BOTTOM + 14})">{label}</text>'
