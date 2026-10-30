@@ -87,6 +87,47 @@ def test_pareto_svg_escapes_external_sku_text(monkeypatch: pytest.MonkeyPatch) -
 
 
 @pytest.mark.parametrize(
+    ("sku", "expected"),
+    [
+        ("A\x00B", "A\uFFFDB"),
+        ("A\x08B", "A\uFFFDB"),
+        ("A\x0bB", "A\uFFFDB"),
+        ("A\x1fB", "A\uFFFDB"),
+        ("A\ud800B", "A\uFFFDB"),
+        ("A\udfffB", "A\uFFFDB"),
+        ("A\ufffeB", "A\uFFFDB"),
+        ("A\uffffB", "A\uFFFDB"),
+        ("A\tB", "A\tB"),
+        ("A\nB", "A\nB"),
+        ("A\rB", "A\nB"),
+        ("A\ue000B", "A\ue000B"),
+        ("A\U0001f600B", "A\U0001f600B"),
+        ("A<&B", "A<&B"),
+    ],
+)
+def test_pareto_svg_labels_are_valid_xml_10(sku: str, expected: str) -> None:
+    rendered = make_pareto_svg._xml_label(sku)
+    xml = ElementTree.fromstring(f"<text>{rendered}</text>")
+    assert xml.text == expected
+
+
+def test_pareto_svg_build_survives_control_characters_and_surrogates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    raw_sku = "Item <&\x00\ud800\U0001f600"
+    report = SimpleNamespace(
+        skus=[SimpleNamespace(sku=raw_sku, annual_value=1.0, abc="A")],
+        config=SimpleNamespace(abc_thresholds=(0.8, 0.95)),
+    )
+    monkeypatch.setattr(make_pareto_svg, "analyze_file", lambda _: report)
+    xml = make_pareto_svg.build_svg()
+    root = ElementTree.fromstring(xml)
+    texts = [element.text for element in root.iter("{http://www.w3.org/2000/svg}text")]
+    assert "Item <&\uFFFD\uFFFD\U0001f600" in texts
+    assert "<&" not in xml
+
+
+@pytest.mark.parametrize(
     ("values", "error"),
     [
         ([], "without SKUs"),
