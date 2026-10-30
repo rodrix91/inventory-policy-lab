@@ -20,7 +20,7 @@ def test_invalid_observed_demand_is_rejected_at_original_position(
     rng = random.Random(33)
     state = rng.getstate()
     with pytest.raises(
-        ValueError, match=rf"demand\\[{position}\\] must be finite and non-negative"
+        ValueError, match=rf"demand\[{position}\] must be finite and non-negative"
     ):
         bootstrap_safety_stock(
             history, 0.9, 2.0, lead_time=2.0, samples=12, rng=rng
@@ -41,7 +41,7 @@ def test_invalid_forecast_demand_is_rejected_before_sampling(invalid: float) -> 
 
 @pytest.mark.parametrize("invalid", [-1.0, math.nan, math.inf, -math.inf])
 def test_invalid_values_fail_even_when_interval_rounds_to_zero(invalid: float) -> None:
-    with pytest.raises(ValueError, match=r"demand\\[1\\] must be finite and non-negative"):
+    with pytest.raises(ValueError, match=r"demand\[1\] must be finite and non-negative"):
         bootstrap_safety_stock([1.0, invalid], 0.9, 1.0, lead_time=0.0, samples=2)
     with pytest.raises(ValueError, match="demand_per_period must be finite and non-negative"):
         bootstrap_safety_stock([1.0, 0.0], 0.9, invalid, lead_time=0.0, samples=2)
