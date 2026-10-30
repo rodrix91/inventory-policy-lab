@@ -71,9 +71,24 @@ def test_zero_and_intermittent_demand_preserve_hand_computed_outputs() -> None:
 
 
 def test_valid_bootstrap_keeps_seeded_reproducibility() -> None:
-    options = dict(lead_time=2.0, review_period=1.0, samples=24)
-    a = bootstrap_safety_stock([1.0, 0.0, 8.0, 2.0], 0.95, 2.75, rng=random.Random(8), **options)
-    b = bootstrap_safety_stock([1.0, 0.0, 8.0, 2.0], 0.95, 2.75, rng=random.Random(8), **options)
+    a = bootstrap_safety_stock(
+        [1.0, 0.0, 8.0, 2.0],
+        0.95,
+        2.75,
+        lead_time=2.0,
+        review_period=1.0,
+        samples=24,
+        rng=random.Random(8),
+    )
+    b = bootstrap_safety_stock(
+        [1.0, 0.0, 8.0, 2.0],
+        0.95,
+        2.75,
+        lead_time=2.0,
+        review_period=1.0,
+        samples=24,
+        rng=random.Random(8),
+    )
     assert a == b
     assert all(math.isfinite(value) and value >= 0 for value in a)
 
