@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Reject negative, NaN and infinite demand observations and expected demand in the public `bootstrap_safety_stock()` API before any random sampling, including zero-length protection intervals. Report the invalid observation index, preserve existing sample/service/lead-time error priority, valid zero-demand results and seeded reproducibility, and cover the standalone API with parametrized regressions.
+
 - Reject `NaN` and infinite scalar or per-period `reorder_point`, `order_up_to` and `order_quantity` values in all three public inventory replay APIs (`simulate`, `simulate_periodic`, `simulate_rss`) before stock is mutated or scored. Report the original zero-based period for invalid dynamic values, preserve existing checks for nonpositive quantities and all finite policies, and add cross-policy scalar/dynamic regression tests.
 
 - Reject negative and non-finite observations in direct `backtest()` input, including held-out actual demand, before invoking forecast methods. Also reject invalid custom method predictions (negative, NaN or infinite), reporting the original zero-based period; previously both could contaminate MAE, RMSE, MASE or the forecast table. Preserve valid zero and large finite values and add focused regressions.
