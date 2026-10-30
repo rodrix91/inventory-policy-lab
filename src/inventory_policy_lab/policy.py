@@ -217,10 +217,11 @@ def residual_bootstrap_quantile(
     periods ``P`` (half up) and draws one error from ``errors[P]``; ``P = 0``
     draws 0. The quantile (nearest rank) is the safety stock that covered the
     forecast error in that share of draws, before any floor (ADR 0008).
-    Raises ``ValueError`` when an interval length that can be drawn has no errors
-    or the quantile level is outside ``(0, 1]``, or any lead/review time
-    is negative or non-finite. All possible ``lead_times`` are checked
-    before drawing a random sample.
+    Raises ``ValueError`` when an interval length that can be drawn has no errors,
+    when any reachable residual is NaN or infinite, when the quantile level is
+    outside ``(0, 1]``, or when a lead/review time is negative or non-finite.
+    All reachable residuals and possible ``lead_times`` are checked before
+    drawing a random sample; residuals for unreachable intervals are ignored.
     """
     if samples < 1:
         raise ValueError("samples must be at least 1")
@@ -231,6 +232,12 @@ def residual_bootstrap_quantile(
         periods = protection_periods(lead, review_period)
         if periods and not errors.get(periods):
             raise ValueError(f"no forecast errors over {periods} period(s)")
+        if periods:
+            for index, residual in enumerate(errors[periods]):
+                if not math.isfinite(residual):
+                    raise ValueError(
+                        f"errors[{periods}][{index}] must be finite, got {residual}"
+                    )
     rng = rng or random.Random(0)
     draws: list[float] = []
     for _ in range(samples):
