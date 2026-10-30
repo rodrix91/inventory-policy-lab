@@ -359,7 +359,7 @@ for sku in report.skus:
 markdown = render_markdown(report)  # or render_json(report) / report.to_dict()
 ```
 
-**Standalone backtest validation:** The public `backtest()` function requires a positive integer `holdout`, rejecting booleans, decimals, strings and `None` before processing demand or calling the forecast model. It also rejects negative, `NaN` or infinite actual demand anywhere in the training or holdout periods before calling the forecast method; it also rejects negative or non-finite forecasts returned by custom methods. The `ValueError` identifies the zero-based original period, preventing contaminated MAE, RMSE and MASE metrics while preserving valid zero and large finite forecasts.
+**Standalone backtest validation:** The public `backtest()` function requires a positive integer `holdout`, rejecting booleans, decimals, strings and `None` before processing demand or calling the forecast model. It also rejects negative, `NaN` or infinite actual demand anywhere in the training or holdout periods before calling the forecast method; it also rejects negative or non-finite forecasts, booleans, and malformed return values from custom methods with a consistent indexed `ValueError`. The `ValueError` identifies the zero-based original period, preventing contaminated MAE, RMSE and MASE metrics while preserving valid zero and large finite forecasts.
 
 **Standalone SES demand validation:** The public `ses()` forecast rejects negative, `NaN` or infinite observations with a zero-based index in `ValueError`, consistent with Croston/SBA, and reports an actionable error for an empty history. Valid zero, positive and large finite demand retain the usual exponential smoothing calculation.
 
