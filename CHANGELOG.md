@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Guard custom `backtest()` model outputs that are boolean or not usable finite numeric forecasts, including strings, `None`, complex numbers, objects and oversized integers. Return the established indexed `ValueError` instead of interpreting `True` as demand or leaking a `TypeError`/`OverflowError`. Preserve valid forecasts, the existing negative/non-finite errors, CLI behavior, versions and output schemas; add direct API regression tests.
+
 - Reject boolean and non-integer `holdout` values in the public `backtest()` API before processing demand or invoking a forecast method. Previously `True` was silently interpreted as one held-out period and non-integer values could cause unexpected arithmetic or slicing errors. Preserve existing nonpositive/infeasible integer errors, rolling forecast scores, version, and CLI behavior; add direct regression tests.
 
 - Reject non-integer `window` values, including booleans, floats, strings and `None`, in the public `moving_average()` forecasting API before processing demand. Previously `True` silently meant one period and a float could reach slicing and raise `TypeError`. Preserve existing nonpositive integer errors, valid moving averages, report schemas and CLI behavior; add direct API regression tests.

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -94,3 +94,20 @@ def test_backtest_positive_integer_holdout_preserves_rolling_results() -> None:
     )
     assert result.forecasts == (6.0, 10.0)
     assert (result.mae, result.rmse, result.bias, result.mase) == (4.0, 4.0, -4.0, 1.0)
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [True, False, "2", None, 1 + 2j, object(), 10**400],
+)
+@pytest.mark.parametrize("index", [3, 4])
+def test_backtest_rejects_malformed_custom_model_return_with_original_period(
+    invalid: Any, index: int
+) -> None:
+    def model(history: Sequence[float]) -> float:
+        return cast(float, invalid) if len(history) == index else 2.0
+
+    with pytest.raises(
+        ValueError, match=rf"custom forecast\[{index}\] must be finite and non-negative"
+    ):
+        backtest([3.0, 4.0, 5.0, 6.0, 7.0], "custom", model, holdout=2)
