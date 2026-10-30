@@ -19,7 +19,7 @@ def test_reachable_nonfinite_residual_is_indexed_and_rejected_before_random_draw
 ) -> None:
     values = [-3.0, 0.0, 6.0]
     values[index] = invalid
-    errors = {1: (-2.0, 1.0), 2: (-4.0, 2.0)}
+    errors: dict[int, tuple[float, ...]] = {1: (-2.0, 1.0), 2: (-4.0, 2.0)}
     errors[period] = tuple(values)
     rng = random.Random(7)
     state = rng.getstate()
