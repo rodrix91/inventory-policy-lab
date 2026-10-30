@@ -47,9 +47,12 @@ def naive(history: Sequence[float]) -> float:
 def moving_average(history: Sequence[float], window: int = 3) -> float:
     """Mean of the last ``window`` periods (fewer when the history is shorter).
 
-    Require a positive window even for standalone callers. Python's ``[-0:]``
-    slice would otherwise silently average every period instead of zero.
+    Require a positive integer window even for standalone callers.
+    Python's ``[-0:]`` slice would otherwise silently average every period,
+    and booleans are integers in Python but are not meaningful window sizes.
     """
+    if isinstance(window, bool) or not isinstance(window, int):
+        raise ValueError(f"moving-average window must be a positive integer, got {window!r}")
     if window < 1:
         raise ValueError(f"moving-average window must be at least 1, got {window}")
     _validate_demand(history, "moving-average")
