@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Reject non-integer `window` values, including booleans, floats, strings and `None`, in the public `moving_average()` forecasting API before processing demand. Previously `True` silently meant one period and a float could reach slicing and raise `TypeError`. Preserve existing nonpositive integer errors, valid moving averages, report schemas and CLI behavior; add direct API regression tests.
+
 - Reject NaN and infinite forecast errors in all reachable protection intervals of the public `residual_bootstrap_quantile()` API before random draws, with indexed error messages. Preserve missing-interval error precedence, valid signed finite residuals, seeded behavior and ignored intervals; add API regression tests across negative and positive intervals.
 
 - Reject negative, NaN and infinite demand observations and expected demand in the public `bootstrap_safety_stock()` API before any random sampling, including zero-length protection intervals. Report the invalid observation index, preserve existing sample/service/lead-time error priority, valid zero-demand results and seeded reproducibility, and cover the standalone API with parametrized regressions.
