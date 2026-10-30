@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Reject NaN and infinite forecast errors in all reachable protection intervals of the public `residual_bootstrap_quantile()` API before random draws, with indexed error messages. Preserve missing-interval error precedence, valid signed finite residuals, seeded behavior and ignored intervals; add API regression tests across negative and positive intervals.
+
 - Reject negative, NaN and infinite demand observations and expected demand in the public `bootstrap_safety_stock()` API before any random sampling, including zero-length protection intervals. Report the invalid observation index, preserve existing sample/service/lead-time error priority, valid zero-demand results and seeded reproducibility, and cover the standalone API with parametrized regressions.
 
 - Reject `NaN` and infinite scalar or per-period `reorder_point`, `order_up_to` and `order_quantity` values in all three public inventory replay APIs (`simulate`, `simulate_periodic`, `simulate_rss`) before stock is mutated or scored. Report the original zero-based period for invalid dynamic values, preserve existing checks for nonpositive quantities and all finite policies, and add cross-policy scalar/dynamic regression tests.
