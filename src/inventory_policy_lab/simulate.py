@@ -88,6 +88,9 @@ def _levels(level: float | Sequence[float], periods: int, name: str) -> tuple[fl
 
 
 def _check_warmup(demand: Sequence[float], warmup: int) -> None:
+    """Require a whole number of unscored periods, never a boolean or float."""
+    if isinstance(warmup, bool) or not isinstance(warmup, int):
+        raise ValueError("warmup must be an integer number of periods")
     if not 0 <= warmup <= len(demand):
         raise ValueError("warmup must be between 0 and the number of periods")
 
