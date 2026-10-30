@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Reject boolean, string, `None` and other nonnumeric smoothing coefficients in standalone `ses()`, `croston()` and `sba()` calls before reading demand. Previously `True` silently acted as `alpha=1` and invalid `sba()` inputs could raise `TypeError` before Croston validated them. Preserve finite coefficients in `(0, 1]`, existing error messages for out-of-range numeric inputs, forecast results, CLI behavior and release version. Add regression coverage for all three public APIs.
+
 - Guard custom `backtest()` model outputs that are boolean or not usable finite numeric forecasts, including strings, `None`, complex numbers, objects and oversized integers. Return the established indexed `ValueError` instead of interpreting `True` as demand or leaking a `TypeError`/`OverflowError`. Preserve valid forecasts, the existing negative/non-finite errors, CLI behavior, versions and output schemas; add direct API regression tests.
 
 - Reject boolean and non-integer `holdout` values in the public `backtest()` API before processing demand or invoking a forecast method. Previously `True` was silently interpreted as one held-out period and non-integer values could cause unexpected arithmetic or slicing errors. Preserve existing nonpositive/infeasible integer errors, rolling forecast scores, version, and CLI behavior; add direct regression tests.

@@ -59,14 +59,19 @@ def moving_average(history: Sequence[float], window: int = 3) -> float:
     return _stable_fmean(history[-window:])
 
 
+def _validate_alpha(alpha: float, method: str) -> None:
+    """Require a real numeric smoothing weight, never a boolean or string."""
+    if isinstance(alpha, bool) or not isinstance(alpha, (int, float)) or not 0 < alpha <= 1:
+        raise ValueError(f"{method} alpha must be in (0, 1], got {alpha}")
+
+
 def ses(history: Sequence[float], alpha: float = 0.2) -> float:
     """Simple exponential smoothing for finite, non-negative demand.
 
     Direct library callers get an actionable error on invalid demand rather
     than a NaN/infinite forecast or an accidental negative stock estimate.
     """
-    if not 0 < alpha <= 1:
-        raise ValueError(f"ses alpha must be in (0, 1], got {alpha}")
+    _validate_alpha(alpha, "ses")
     if not history:
         raise ValueError("ses needs at least one observed demand period")
     for index, value in enumerate(history):
@@ -108,14 +113,14 @@ def _croston_parts(history: Sequence[float], alpha: float) -> tuple[float, float
 
 def croston(history: Sequence[float], alpha: float = 0.1) -> float:
     """Croston (1972): smoothed size divided by smoothed interval; 0 without demand."""
-    if not 0 < alpha <= 1:
-        raise ValueError(f"croston alpha must be in (0, 1], got {alpha}")
+    _validate_alpha(alpha, "croston")
     parts = _croston_parts(history, alpha)
     return 0.0 if parts is None else parts[0] / parts[1]
 
 
 def sba(history: Sequence[float], alpha: float = 0.1) -> float:
     """Syntetos-Boylan approximation: Croston times ``1 - alpha / 2`` (bias correction)."""
+    _validate_alpha(alpha, "croston")
     return (1 - alpha / 2) * croston(history, alpha)
 
 
