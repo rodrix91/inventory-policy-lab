@@ -49,13 +49,16 @@ def test_nonfinite_residual_in_unreachable_interval_is_ignored(invalid: float) -
 
 
 def test_zero_period_needs_no_residuals_and_does_not_read_unused_values() -> None:
-    assert residual_bootstrap_quantile(
-        {0: (math.nan,), 1: (math.inf,)},
-        0.95,
-        lead_time=0.0,
-        samples=5,
-        rng=random.Random(3),
-    ) == 0.0
+    assert (
+        residual_bootstrap_quantile(
+            {0: (math.nan,), 1: (math.inf,)},
+            0.95,
+            lead_time=0.0,
+            samples=5,
+            rng=random.Random(3),
+        )
+        == 0.0
+    )
 
 
 def test_negative_finite_residuals_and_seeded_draws_are_unchanged() -> None:
@@ -67,9 +70,7 @@ def test_negative_finite_residuals_and_seeded_draws_are_unchanged() -> None:
         values, 0.95, lead_time=1.0, samples=30, rng=random.Random(4)
     )
     assert first == second == 2.0
-    assert residual_bootstrap_quantile(
-        {1: (-3.0,)}, 1.0, lead_time=1.0, samples=5
-    ) == -3.0
+    assert residual_bootstrap_quantile({1: (-3.0,)}, 1.0, lead_time=1.0, samples=5) == -3.0
 
 
 def test_missing_reachable_interval_keeps_original_error_priority() -> None:
