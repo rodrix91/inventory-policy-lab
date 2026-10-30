@@ -12,8 +12,10 @@ with the default settings, the same run as the README quickstart.
 from __future__ import annotations
 
 import argparse
+import math
 import sys
 from pathlib import Path
+from xml.sax.saxutils import escape
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
@@ -30,7 +32,13 @@ LEFT, RIGHT, TOP, BOTTOM = 56, 40, 60, 64
 def build_svg() -> str:
     report = analyze_file(ROOT / SOURCE)
     items = sorted(report.skus, key=lambda r: (-r.annual_value, r.sku))
+    if not items:
+        raise ValueError("cannot draw ABC Pareto chart without SKUs")
+    if any(not math.isfinite(r.annual_value) or r.annual_value < 0 for r in items):
+        raise ValueError("ABC Pareto chart requires finite, non-negative annual values")
     total = sum(r.annual_value for r in items)
+    if not math.isfinite(total) or total <= 0:
+        raise ValueError("ABC Pareto chart requires a positive, finite total annual value")
     plot_w = WIDTH - LEFT - RIGHT
     plot_h = HEIGHT - TOP - BOTTOM
     step = plot_w / len(items)
@@ -65,7 +73,7 @@ def build_svg() -> str:
         label_x = x0 + step / 2
         parts.append(
             f'<text x="{label_x:.1f}" y="{HEIGHT - BOTTOM + 14}" text-anchor="end" '
-            f'transform="rotate(-45 {label_x:.1f} {HEIGHT - BOTTOM + 14})">{result.sku}</text>'
+            f'transform="rotate(-45 {label_x:.1f} {HEIGHT - BOTTOM + 14})">{escape(result.sku)}</text>'
         )
         cumulative += share
         points.append(f"{label_x:.1f},{y(cumulative):.1f}")
