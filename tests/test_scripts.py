@@ -89,14 +89,14 @@ def test_pareto_svg_escapes_external_sku_text(monkeypatch: pytest.MonkeyPatch) -
 @pytest.mark.parametrize(
     ("sku", "expected"),
     [
-        ("A\x00B", "A\uFFFDB"),
-        ("A\x08B", "A\uFFFDB"),
-        ("A\x0bB", "A\uFFFDB"),
-        ("A\x1fB", "A\uFFFDB"),
-        ("A\ud800B", "A\uFFFDB"),
-        ("A\udfffB", "A\uFFFDB"),
-        ("A\ufffeB", "A\uFFFDB"),
-        ("A\uffffB", "A\uFFFDB"),
+        ("A\x00B", "A\ufffdB"),
+        ("A\x08B", "A\ufffdB"),
+        ("A\x0bB", "A\ufffdB"),
+        ("A\x1fB", "A\ufffdB"),
+        ("A\ud800B", "A\ufffdB"),
+        ("A\udfffB", "A\ufffdB"),
+        ("A\ufffeB", "A\ufffdB"),
+        ("A\uffffB", "A\ufffdB"),
         ("A\tB", "A\tB"),
         ("A\nB", "A\nB"),
         ("A\rB", "A\nB"),
@@ -123,7 +123,7 @@ def test_pareto_svg_build_survives_control_characters_and_surrogates(
     xml = make_pareto_svg.build_svg()
     root = ElementTree.fromstring(xml)
     texts = [element.text for element in root.iter("{http://www.w3.org/2000/svg}text")]
-    assert "Item <&\uFFFD\uFFFD\U0001f600" in texts
+    assert "Item <&\ufffd\ufffd\U0001f600" in texts
     assert "<&" not in xml
 
 
