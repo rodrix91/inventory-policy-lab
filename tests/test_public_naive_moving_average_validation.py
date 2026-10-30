@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from typing import Any
 from collections.abc import Callable, Sequence
 
 import pytest
@@ -38,3 +39,24 @@ def test_moving_average_validates_earlier_periods_outside_its_window() -> None:
 def test_valid_zero_and_large_finite_demand_remain_supported() -> None:
     assert naive([0.0, 1e308]) == 1e308
     assert moving_average([0.0, 1e308, 1e308], window=2) == pytest.approx(1e308)
+
+
+@pytest.mark.parametrize("invalid", [True, False, 1.5, "2", None, math.nan, math.inf])
+def test_moving_average_rejects_non_integer_windows_before_reading_demand(
+    invalid: Any,
+) -> None:
+    with pytest.raises(ValueError, match="moving-average window must be a positive integer"):
+        moving_average([-1.0, 3.0], window=invalid)
+
+
+@pytest.mark.parametrize("invalid", [0, -1])
+def test_moving_average_keeps_nonpositive_integer_window_error(invalid: int) -> None:
+    with pytest.raises(ValueError, match="moving-average window must be at least 1"):
+        moving_average([1.0, 2.0], window=invalid)
+
+
+def test_moving_average_positive_integer_windows_preserve_results() -> None:
+    demand = [2.0, 4.0, 9.0]
+    assert moving_average(demand, window=1) == 9.0
+    assert moving_average(demand, window=2) == 6.5
+    assert moving_average(demand, window=8) == 5.0
