@@ -72,12 +72,18 @@ class SimulationResult:
 
 
 def _levels(level: float | Sequence[float], periods: int, name: str) -> tuple[float, list[float]]:
-    """The starting level and one level per period, from one number or a sequence."""
+    """Convert scalar/dynamic policy levels; reject non-finite values before replay."""
     if isinstance(level, int | float):
-        return float(level), [float(level)] * periods
+        value = float(level)
+        if not math.isfinite(value):
+            raise ValueError(f"{name} must be finite, got {value}")
+        return value, [value] * periods
     if len(level) != periods:
         raise ValueError(f"{name} needs one level per period: {len(level)} for {periods}")
     levels = [float(value) for value in level]
+    for index, value in enumerate(levels):
+        if not math.isfinite(value):
+            raise ValueError(f"{name}[{index}] must be finite, got {value}")
     return (levels[0] if levels else 0.0), levels
 
 
