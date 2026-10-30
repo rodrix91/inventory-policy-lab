@@ -86,6 +86,11 @@ def test_backtest_preserves_invalid_integer_holdout_error(invalid: int) -> None:
 
 
 def test_backtest_positive_integer_holdout_preserves_rolling_results() -> None:
-    result = backtest([10.0, 12.0, 8.0, 10.0, 14.0, 6.0], "naive", naive, holdout=2)
-    assert result.forecasts == (10.0, 14.0)
-    assert (result.mae, result.rmse, result.bias) == (4.0, 4.0, 2.0)
+    result = backtest(
+        [10.0, 12.0, 8.0, 10.0, 14.0, 6.0, 10.0, 14.0],
+        "naive",
+        naive,
+        holdout=2,
+    )
+    assert result.forecasts == (6.0, 10.0)
+    assert (result.mae, result.rmse, result.bias, result.mase) == (4.0, 4.0, -4.0, 1.0)
