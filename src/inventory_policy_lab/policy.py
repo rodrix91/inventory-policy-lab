@@ -239,9 +239,7 @@ def residual_bootstrap_quantile(
         if periods:
             for index, residual in enumerate(errors[periods]):
                 if not math.isfinite(residual):
-                    raise ValueError(
-                        f"errors[{periods}][{index}] must be finite, got {residual}"
-                    )
+                    raise ValueError(f"errors[{periods}][{index}] must be finite, got {residual}")
     rng = rng or random.Random(0)
     draws: list[float] = []
     for _ in range(samples):
