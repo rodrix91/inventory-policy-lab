@@ -71,9 +71,10 @@ def build_svg() -> str:
             f'height="{plot_h * share:.1f}" fill="{COLORS[result.abc]}"/>'
         )
         label_x = x0 + step / 2
+        label = escape(result.sku)
         parts.append(
             f'<text x="{label_x:.1f}" y="{HEIGHT - BOTTOM + 14}" text-anchor="end" '
-            f'transform="rotate(-45 {label_x:.1f} {HEIGHT - BOTTOM + 14})">{escape(result.sku)}</text>'
+            f'transform="rotate(-45 {label_x:.1f} {HEIGHT - BOTTOM + 14})">{label}</text>'
         )
         cumulative += share
         points.append(f"{label_x:.1f},{y(cumulative):.1f}")
