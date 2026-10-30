@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
+from typing import Any
 
 import pytest
 
@@ -58,3 +59,33 @@ def test_backtest_existing_naive_metrics_unchanged() -> None:
     result = backtest([10.0, 12.0, 8.0, 10.0, 14.0, 6.0, 10.0, 14.0], "naive", naive, 2)
     assert result.forecasts == (6.0, 10.0)
     assert (result.mae, result.rmse, result.bias, result.mase) == (4.0, 4.0, -4.0, 1.0)
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [True, False, 1.0, 1.5, "2", None, math.nan, math.inf, -math.inf],
+)
+def test_backtest_rejects_noninteger_holdout_before_data_or_model(
+    invalid: Any,
+) -> None:
+    called = []
+
+    def model(_history: Sequence[float]) -> float:
+        called.append(True)
+        return 2.0
+
+    with pytest.raises(ValueError, match="backtest holdout must be a positive integer"):
+        backtest([-1.0, math.nan, 3.0, 4.0], "model", model, holdout=invalid)
+    assert called == []
+
+
+@pytest.mark.parametrize("invalid", [0, -1, 3])
+def test_backtest_preserves_invalid_integer_holdout_error(invalid: int) -> None:
+    with pytest.raises(ValueError, match="at least 2 training periods"):
+        backtest([1.0, 2.0, 3.0, 4.0], "naive", naive, holdout=invalid)
+
+
+def test_backtest_positive_integer_holdout_preserves_rolling_results() -> None:
+    result = backtest([10.0, 12.0, 8.0, 10.0, 14.0, 6.0], "naive", naive, holdout=2)
+    assert result.forecasts == (10.0, 14.0)
+    assert (result.mae, result.rmse, result.bias) == (4.0, 4.0, 2.0)
