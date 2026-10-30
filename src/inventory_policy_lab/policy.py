@@ -134,9 +134,9 @@ def bootstrap_safety_stock(
     ``D * (L + R)``, floored at zero: the reorder point is never set below the
     forecast over the interval. Pass a seeded ``rng`` for reproducible results.
     A bootstrap nearest-rank quantile requires ``0 < service_level <= 1``;
-    invalid levels and invalid lead/review times (negative or non-finite,
-    including individual ``lead_times`` entries) raise ``ValueError``
-    before any random draw.
+    invalid levels, lead/review times, individual lead-time observations,
+    demand observations or forecast demand (negative or non-finite) raise
+    ``ValueError`` before any random draw, including for zero-length intervals.
     """
     if samples < 1:
         raise ValueError("samples must be at least 1")
@@ -144,6 +144,13 @@ def bootstrap_safety_stock(
     _check_bootstrap_intervals(lead_time, review_period, lead_times)
     if not demand:
         raise ValueError("demand history is empty")
+    for index, quantity in enumerate(demand):
+        if not math.isfinite(quantity) or quantity < 0:
+            raise ValueError(f"demand[{index}] must be finite and non-negative, got {quantity}")
+    if not math.isfinite(demand_per_period) or demand_per_period < 0:
+        raise ValueError(
+            f"demand_per_period must be finite and non-negative, got {demand_per_period}"
+        )
     rng = rng or random.Random(0)
     sums: list[float] = []
     for _ in range(samples):
