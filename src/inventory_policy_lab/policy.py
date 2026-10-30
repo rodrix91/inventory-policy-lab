@@ -232,6 +232,10 @@ def residual_bootstrap_quantile(
         periods = protection_periods(lead, review_period)
         if periods and not errors.get(periods):
             raise ValueError(f"no forecast errors over {periods} period(s)")
+    # Preserve the pre-existing missing-interval error priority before checking
+    # individual residuals; a faulty sample must never advance the caller's RNG.
+    for lead in candidates:
+        periods = protection_periods(lead, review_period)
         if periods:
             for index, residual in enumerate(errors[periods]):
                 if not math.isfinite(residual):
