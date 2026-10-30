@@ -39,7 +39,7 @@ def test_dynamic_policy_level_rejects_nonfinite_at_original_period(
     name = "order_up_to" if replay is simulate_periodic else "reorder_point"
     levels = [3.0, 4.0, 5.0]
     levels[position] = invalid
-    with pytest.raises(ValueError, match=rf"{name}\\[{position}\\] must be finite"):
+    with pytest.raises(ValueError, match=rf"{name}\[{position}\] must be finite"):
         replay([1.0, 0.0, 2.0], lead_time=0.0, warmup=2, **{**settings, name: levels})
 
 
@@ -62,7 +62,7 @@ def test_dynamic_order_quantity_rejects_nonfinite_at_original_period(
     kwargs: dict[str, Any] = {"review_period": 2} if replay is simulate_rss else {}
     quantities = [2.0, 2.0, 2.0]
     quantities[position] = invalid
-    with pytest.raises(ValueError, match=rf"order_quantity\\[{position}\\] must be finite"):
+    with pytest.raises(ValueError, match=rf"order_quantity\[{position}\] must be finite"):
         replay(
             [1.0, 2.0, 0.0],
             reorder_point=3.0,
