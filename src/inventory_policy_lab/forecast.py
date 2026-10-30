@@ -145,6 +145,8 @@ def backtest(series: Sequence[float], name: str, method: Method, holdout: int) -
     least two training periods. Demand and forecasts must be finite and
     non-negative; errors identify the original zero-based series period.
     """
+    if isinstance(holdout, bool) or not isinstance(holdout, int):
+        raise ValueError("backtest holdout must be a positive integer")
     start = len(series) - holdout
     if holdout < 1 or start < 2:
         raise ValueError("backtest needs holdout >= 1 and at least 2 training periods")
