@@ -156,7 +156,16 @@ def backtest(series: Sequence[float], name: str, method: Method, holdout: int) -
     forecasts = []
     for t in range(start, len(series)):
         forecast = method(series[:t])
-        if not math.isfinite(forecast) or forecast < 0:
+        # bool is a Python integer, but True/False are not demand forecasts.
+        # Bad custom model return types should fail with the same indexed input
+        # error as non-finite predictions, not leak TypeError/OverflowError.
+        if isinstance(forecast, bool):
+            raise ValueError(f"{name} forecast[{t}] must be finite and non-negative")
+        try:
+            valid = math.isfinite(forecast) and forecast >= 0
+        except (TypeError, ValueError, OverflowError):
+            valid = False
+        if not valid:
             raise ValueError(f"{name} forecast[{t}] must be finite and non-negative")
         forecasts.append(forecast)
     errors = [f - a for f, a in zip(forecasts, series[start:], strict=True)]
