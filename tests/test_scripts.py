@@ -68,7 +68,6 @@ def test_pareto_svg_is_up_to_date() -> None:
     assert make_pareto_svg.main(["--check"]) == 0
 
 
-
 def test_pareto_svg_escapes_external_sku_text(monkeypatch: pytest.MonkeyPatch) -> None:
     sku = '<script>alert("invalid")</script> & SKU'
     report = SimpleNamespace(
