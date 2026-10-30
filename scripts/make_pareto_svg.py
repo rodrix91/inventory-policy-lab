@@ -39,7 +39,7 @@ def _xml_label(value: str) -> str:
             or 0xE000 <= ord(char) <= 0xFFFD
             or 0x10000 <= ord(char) <= 0x10FFFF
         )
-        else "\uFFFD"
+        else "\ufffd"
         for char in value
     )
     return escape(cleaned)
