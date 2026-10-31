@@ -70,7 +70,7 @@ def test_release_notes_fail_closed_on_malformed_release_heading(heading: str) ->
 
 
 def test_release_notes_reject_duplicate_version_headings() -> None:
-    duplicate = SAMPLE + "\\n## [0.2.0] - 2026-01-03\\n\\n- Another section.\\n"
+    duplicate = SAMPLE + "\n## [0.2.0] - 2026-01-03\n\n- Another section.\n"
     assert release_notes.section(duplicate, "0.2.0") is None
     assert release_notes.notes(duplicate, "0.2.0") is None
     assert release_notes.section(duplicate, "0.1.0") == "- One."
@@ -78,9 +78,9 @@ def test_release_notes_reject_duplicate_version_headings() -> None:
 
 def test_release_notes_accept_valid_leap_day_and_not_prefix_version() -> None:
     changelog = (
-        "# Changelog\\n\\n"
-        "## [0.2.0] - 2024-02-29\\n\\n- Released.\\n\\n"
-        "## [0.2.0.1] - 2024-03-01\\n\\n- Different release.\\n"
+        "# Changelog\n\n"
+        "## [0.2.0] - 2024-02-29\n\n- Released.\n\n"
+        "## [0.2.0.1] - 2024-03-01\n\n- Different release.\n"
     )
     assert release_notes.section(changelog, "0.2.0") == "- Released."
     assert release_notes.section(changelog, "0.2.0.1") is None
