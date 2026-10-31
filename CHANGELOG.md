@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Validate direct Python `CostRates` inputs before replay costing: reject booleans masquerading as monetary amounts, strings, `None`, complex values and excessively large integers with the established actionable `ValueError` message instead of accepting `True` or leaking `TypeError`/`OverflowError`. Preserve valid zero, integer and fractional rates, scored costs, CLI settings and report schemas; add cross-field regression tests.
+
+
 - Reject JSON reports with duplicate object property names (including Unicode-escaped aliases), `NaN`/`Infinity` literals or numeric exponents overflowing to infinity in the reusable GitHub Action. Validate all nesting levels before exposing report outputs, with synthetic injection regressions and real CLI compatibility tests. Inventory calculations, Markdown reports and release versions are unchanged.
 
 - Fail closed when generating release notes from a duplicated version heading, a missing or malformed release date, or an impossible calendar date. Require one unambiguous `## [VERSION] - YYYY-MM-DD` section before producing notes, with offline regression tests. Existing valid release histories and package versions remain unchanged.

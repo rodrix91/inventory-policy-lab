@@ -40,8 +40,20 @@ class CostRates:
     def __post_init__(self) -> None:
         for name in ("order", "holding", "stockout"):
             value = getattr(self, name)
-            if not (math.isfinite(value) and value >= 0):
-                raise ValueError(f"{name} cost must be a finite number of at least 0, got {value}")
+            # A bool is an int in Python, but True is not a meaningful
+            # monetary rate. Catch bad direct API inputs instead of leaking
+            # TypeError or OverflowError from math.isfinite/comparison.
+            if isinstance(value, bool):
+                valid = False
+            else:
+                try:
+                    valid = math.isfinite(value) and value >= 0
+                except (TypeError, ValueError, OverflowError):
+                    valid = False
+            if not valid:
+                raise ValueError(
+                    f"{name} cost must be a finite number of at least 0, got {value!r}"
+                )
 
 
 @dataclass(frozen=True)
