@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from typing import Any
 
 import pytest
 
@@ -21,6 +22,31 @@ def test_eoq_rejects_nonfinite_or_negative_inputs(parameter: str, invalid: float
     }[parameter]
     with pytest.raises(ValueError, match=f"{label} must be finite and non-negative"):
         eoq(values["annual_demand"], values["ordering_cost"], values["holding_cost"])
+
+
+@pytest.mark.parametrize("invalid", [True, False, "30.0", None, 1 + 2j, object(), 10**400])
+@pytest.mark.parametrize("parameter", ["annual_demand", "ordering_cost", "holding_cost"])
+def test_malformed_public_eoq_inputs_have_actionable_errors(
+    parameter: str, invalid: Any
+) -> None:
+    values: dict[str, Any] = {
+        "annual_demand": 1200.0,
+        "ordering_cost": 30.0,
+        "holding_cost": 0.5,
+    }
+    values[parameter] = invalid
+    labels = {
+        "annual_demand": "annual demand",
+        "ordering_cost": "ordering cost",
+        "holding_cost": "holding cost",
+    }
+    with pytest.raises(ValueError, match=f"{labels[parameter]} must be finite and non-negative"):
+        eoq(values["annual_demand"], values["ordering_cost"], values["holding_cost"])
+
+
+def test_zero_demand_cannot_hide_boolean_ordering_cost() -> None:
+    with pytest.raises(ValueError, match="ordering cost must be finite and non-negative"):
+        eoq(0, True, 1.0)
 
 
 @pytest.mark.parametrize(
