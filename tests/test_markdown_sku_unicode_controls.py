@@ -27,7 +27,8 @@ def test_all_terminal_controls_and_directional_marks_use_visible_markers() -> No
 def test_unsafe_unicode_sku_stays_visible_across_tables_and_lossless_in_json(
     tmp_path: Path,
 ) -> None:
-    sku = "West\u202e[verified]\u2066\x00\x1b\u0085\u200b\ufeff\u2028\u2029"
+    # Keep a printable suffix: the CSV reader intentionally strips edge whitespace.
+    sku = "West\u202e[verified]\u2066\x00\x1b\u0085\u200b\ufeff\u2028\u2029END"
     path = tmp_path / "demand.csv"
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
