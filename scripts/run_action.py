@@ -10,6 +10,7 @@ import shlex
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 FORMATS = {"markdown", "json"}
 
@@ -134,6 +135,29 @@ def _write_summary(path: Path, report_format: str) -> None:
                 handle.write("\n")
 
 
+def _reject_json_constant(value: str) -> None:
+    """Reject non-standard NaN/Infinity literals at any nesting depth."""
+    raise ValueError(f"non-standard JSON number: {value}")
+
+
+def _finite_json_float(value: str) -> float:
+    """Reject valid JSON numeric text if its exponent overflows Python floats."""
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError("nonfinite JSON number")
+    return number
+
+
+def _unique_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """Do not let JSON property duplication silently override the first value."""
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON object key")
+        result[key] = value
+    return result
+
+
 def _valid_report_file(path: Path, report_format: str) -> bool:
     """A fresh file is not an analysis success without a real report."""
     try:
@@ -152,7 +176,12 @@ def _valid_report_file(path: Path, report_format: str) -> bool:
                     )
                 )
             )
-        report = json.loads(text)
+        report = json.loads(
+            text,
+            parse_constant=_reject_json_constant,
+            parse_float=_finite_json_float,
+            object_pairs_hook=_unique_json_object,
+        )
     except (OSError, UnicodeError, ValueError):
         return False
     if not isinstance(report, dict):
