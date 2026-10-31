@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Reject JSON reports with duplicate object property names (including Unicode-escaped aliases), `NaN`/`Infinity` literals or numeric exponents overflowing to infinity in the reusable GitHub Action. Validate all nesting levels before exposing report outputs, with synthetic injection regressions and real CLI compatibility tests. Inventory calculations, Markdown reports and release versions are unchanged.
+
 - Fail closed when generating release notes from a duplicated version heading, a missing or malformed release date, or an impossible calendar date. Require one unambiguous `## [VERSION] - YYYY-MM-DD` section before producing notes, with offline regression tests. Existing valid release histories and package versions remain unchanged.
 
 - Escape terminal control characters, bidirectional formatting marks, Unicode line separators and hidden format characters in SKU identifiers when rendering Markdown inventory reports. Show stable `[U+XXXX]` labels instead of invisible or reordering text, while preserving original SKU values in machine-readable JSON and retaining existing CR/LF entity formatting. Add regression tests across tables and all affected codepoints.
