@@ -41,9 +41,7 @@ BAD_NUMBERS: tuple[Any, ...] = (True, False, "1", None, 1 + 2j, object(), 10**40
 
 @pytest.mark.parametrize("runner", [_demand, _residual])
 @pytest.mark.parametrize("samples", [True, False, 0, -1, 1.5, 2.0, "2", None, object()])
-def test_sample_count_must_be_an_actual_positive_integer(
-    runner: Runner, samples: Any
-) -> None:
+def test_sample_count_must_be_an_actual_positive_integer(runner: Runner, samples: Any) -> None:
     rng = random.Random(33)
     state = rng.getstate()
     with pytest.raises(ValueError, match="samples must be at least 1"):
