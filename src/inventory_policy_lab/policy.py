@@ -11,6 +11,17 @@ from statistics import NormalDist
 POLICY_KINDS = ("sQ", "RS", "RsS")
 BOOTSTRAP_SOURCES = ("demand", "residuals")
 
+
+def _valid_nonnegative_number(value: float) -> bool:
+    """Require an actual finite quantity, not a bool or malformed API input."""
+    if isinstance(value, bool):
+        return False
+    try:
+        return math.isfinite(value) and value >= 0
+    except (TypeError, ValueError, OverflowError):
+        return False
+
+
 # Forecast of the total demand of the next ``periods`` periods from ``history``;
 # ``None`` when the method cannot forecast from that history (the origin is skipped).
 IntervalForecaster = Callable[[Sequence[float], int], float | None]
@@ -66,7 +77,13 @@ def safety_stock(
     the standalone API requires a service level in [0.5, 1), and finite,
     non-negative demand, variability and protection-period inputs.
     """
-    if not 0.5 <= service_level < 1:
+    # Direct Python callers may pass booleans or malformed values even though
+    # the CLI already validates this setting.
+    try:
+        valid_level = not isinstance(service_level, bool) and 0.5 <= service_level < 1
+    except (TypeError, ValueError, OverflowError):
+        valid_level = False
+    if not valid_level:
         raise ValueError(f"service_level must be at least 0.5 and below 1, got {service_level}")
     for name, value in (
         ("demand_per_period", demand_per_period),
@@ -75,7 +92,7 @@ def safety_stock(
         ("sigma_lead_time", sigma_lead_time),
         ("review_period", review_period),
     ):
-        if not math.isfinite(value) or value < 0:
+        if not _valid_nonnegative_number(value):
             raise ValueError(f"{name} must be finite and non-negative, got {value}")
     z = NormalDist().inv_cdf(service_level)
     # A 50% service level requires no extra stock. Avoid 0 * infinity
@@ -266,7 +283,7 @@ def eoq(annual_demand: float, ordering_cost: float, holding_cost: float) -> floa
         ("ordering cost", ordering_cost),
         ("holding cost", holding_cost),
     ):
-        if not math.isfinite(value) or value < 0:
+        if not _valid_nonnegative_number(value):
             raise ValueError(f"{name} must be finite and non-negative, got {value}")
     if annual_demand <= 0 or holding_cost <= 0:
         return None
