@@ -570,10 +570,24 @@ def _pct(value: float | None, digits: int = 1) -> str:
 
 
 def _md_text(value: str) -> str:
-    """Display a SKU literally in Markdown, leaving analysis and JSON unchanged."""
+    """Display untrusted SKU text visibly in Markdown without altering JSON data."""
     entities = value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     escapes = {ord(ch): chr(92) + ch for ch in chr(92) + chr(96) + "*_[]()|!~"}
+    # Preserve the established CR/LF entity format used in existing reports.
     escapes.update({ord("\r"): "&#13;", ord("\n"): "&#10;"})
+    # Other terminal controls and invisible Unicode format characters can
+    # disguise SKU identities or manipulate job-summary rendering. Make them
+    # explicit ASCII labels; do not normalize or change source/JSON values.
+    controls = (*range(32), *range(127, 160))
+    bidi = (0x061C, 0x200E, 0x200F, *range(0x202A, 0x202F), *range(0x2066, 0x2070))
+    invisible = (0x00AD, 0x200B, 0x2060, 0xFEFF, 0x2028, 0x2029)
+    escapes.update(
+        {
+            point: f"[U+{point:04X}]"
+            for point in (*controls, *bidi, *invisible)
+            if point not in (10, 13)
+        }
+    )
     return entities.translate(escapes)
 
 

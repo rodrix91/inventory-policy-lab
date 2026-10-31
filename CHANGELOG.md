@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Escape terminal control characters, bidirectional formatting marks, Unicode line separators and hidden format characters in SKU identifiers when rendering Markdown inventory reports. Show stable `[U+XXXX]` labels instead of invisible or reordering text, while preserving original SKU values in machine-readable JSON and retaining existing CR/LF entity formatting. Add regression tests across tables and all affected codepoints.
+
 - Validate `warmup` as an actual integer period count in public `simulate()`, `simulate_periodic()` and `simulate_rss()` replays. Reject booleans and fractional/non-integer counts before processing demand, rather than silently interpreting `True` as one excluded period or raising a slicing error after replay. Preserve valid zero/full-history warmups, negative/out-of-range integer errors and replay scoring; add 45 cross-policy regression cases.
 
 - Reject boolean, string, `None` and other nonnumeric smoothing coefficients in standalone `ses()`, `croston()` and `sba()` calls before reading demand. Previously `True` silently acted as `alpha=1` and invalid `sba()` inputs could raise `TypeError` before Croston validated them. Preserve finite coefficients in `(0, 1]`, existing error messages for out-of-range numeric inputs, forecast results, CLI behavior and release version. Add regression coverage for all three public APIs.
