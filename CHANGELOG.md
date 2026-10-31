@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Reject booleans and malformed direct Python API inputs in normal `safety_stock()` and economic order quantity `eoq()` calculations, including nonnumeric values and integers too large for a finite float. Return the established actionable parameter-specific `ValueError` rather than treating `True` as a quantity or leaking `TypeError`/`OverflowError`. Preserve valid calculations, CLI validation and report schemas; add cross-field regression tests.
+
 - Validate direct Python `CostRates` inputs before replay costing: reject booleans masquerading as monetary amounts, strings, `None`, complex values and excessively large integers with the established actionable `ValueError` message instead of accepting `True` or leaking `TypeError`/`OverflowError`. Preserve valid zero, integer and fractional rates, scored costs, CLI settings and report schemas; add cross-field regression tests.
 
 
