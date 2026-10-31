@@ -51,6 +51,42 @@ def test_release_notes_cli(capsys: pytest.CaptureFixture[str]) -> None:
     assert release_notes.main([]) == 2
 
 
+@pytest.mark.parametrize(
+    "heading",
+    [
+        "## [0.2.0]",
+        "## [0.2.0] - 2026-02-29",
+        "## [0.2.0] - 2026-02-30",
+        "## [0.2.0] - 2026-04-31",
+        "## [0.2.0] - 2026-13-02",
+        "## [0.2.0] - 2026-01-02 extra text",
+        "## [0.2.0]  - 2026-01-02",
+    ],
+)
+def test_release_notes_fail_closed_on_malformed_release_heading(heading: str) -> None:
+    malformed = SAMPLE.replace("## [0.2.0] - 2026-01-02", heading)
+    assert release_notes.section(malformed, "0.2.0") is None
+    assert release_notes.notes(malformed, "0.2.0") is None
+
+
+def test_release_notes_reject_duplicate_version_headings() -> None:
+    duplicate = SAMPLE + "\n## [0.2.0] - 2026-01-03\n\n- Another section.\n"
+    assert release_notes.section(duplicate, "0.2.0") is None
+    assert release_notes.notes(duplicate, "0.2.0") is None
+    assert release_notes.section(duplicate, "0.1.0") == "- One."
+
+
+def test_release_notes_accept_valid_leap_day_and_not_prefix_version() -> None:
+    changelog = (
+        "# Changelog\n\n"
+        "## [0.2.0] - 2024-02-29\n\n- Released.\n\n"
+        "## [0.2.0.1] - 2024-03-01\n\n- Different release.\n"
+    )
+    assert release_notes.section(changelog, "0.2.0") == "- Released."
+    assert release_notes.section(changelog, "0.2.0.1") is None
+    assert release_notes.section(changelog, "Unreleased") is None
+
+
 def test_synthetic_example_is_reproducible_and_labelled() -> None:
     text = generate_example.generate()
     assert text == (ROOT / "examples" / "demand_synthetic.csv").read_text(encoding="utf-8")
