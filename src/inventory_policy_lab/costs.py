@@ -51,7 +51,9 @@ class CostRates:
                 except (TypeError, ValueError, OverflowError):
                     valid = False
             if not valid:
-                raise ValueError(f"{name} cost must be a finite number of at least 0, got {value!r}")
+                raise ValueError(
+                    f"{name} cost must be a finite number of at least 0, got {value!r}"
+                )
 
 
 @dataclass(frozen=True)
