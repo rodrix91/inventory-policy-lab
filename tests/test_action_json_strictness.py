@@ -59,9 +59,7 @@ def test_finite_json_numbers_in_optional_metadata_remain_accepted(
     assert run_action._valid_report_file(_write(tmp_path, corrupted), "json")
 
 
-def test_legitimate_cli_json_output_is_still_valid(
-    tmp_path: Path,
-) -> None:
+def test_legitimate_cli_json_output_is_still_valid(tmp_path: Path) -> None:
     from conftest import EXAMPLES, run_module
 
     result = run_module(str(EXAMPLES / "demand_synthetic.csv"), "--format", "json")
