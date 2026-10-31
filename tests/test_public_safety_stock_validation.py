@@ -58,9 +58,7 @@ def test_invalid_normal_policy_inputs_are_rejected(field: str, invalid: float) -
         "review_period",
     ],
 )
-def test_malformed_normal_policy_amounts_raise_clear_errors(
-    field: str, invalid: Any
-) -> None:
+def test_malformed_normal_policy_amounts_raise_clear_errors(field: str, invalid: Any) -> None:
     values: dict[str, Any] = {
         "demand_per_period": 100.0,
         "sigma_demand": 20.0,
