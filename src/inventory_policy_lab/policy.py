@@ -171,7 +171,7 @@ def bootstrap_safety_stock(
     any random draw, including for zero-length intervals.
     """
     if isinstance(samples, bool) or not isinstance(samples, int) or samples < 1:
-        raise ValueError("samples must be a positive integer")
+        raise ValueError("samples must be at least 1 (a positive integer)")
     _check_bootstrap_service_level(service_level)
     _check_bootstrap_intervals(lead_time, review_period, lead_times)
     if not demand:
@@ -256,7 +256,7 @@ def residual_bootstrap_quantile(
     drawing a random sample; residuals for unreachable intervals are ignored.
     """
     if isinstance(samples, bool) or not isinstance(samples, int) or samples < 1:
-        raise ValueError("samples must be a positive integer")
+        raise ValueError("samples must be at least 1 (a positive integer)")
     _check_bootstrap_service_level(service_level)
     _check_bootstrap_intervals(lead_time, review_period, lead_times)
     candidates = tuple(lead_times) if lead_times else (lead_time,)
