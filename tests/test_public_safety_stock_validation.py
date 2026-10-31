@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from typing import Any
 
 import pytest
 
@@ -44,6 +45,53 @@ def test_invalid_normal_policy_inputs_are_rejected(field: str, invalid: float) -
             params["sigma_lead_time"],
             params["review_period"],
         )
+
+
+@pytest.mark.parametrize("invalid", [True, False, "20.0", None, 1 + 2j, object(), 10**400])
+@pytest.mark.parametrize(
+    "field",
+    [
+        "demand_per_period",
+        "sigma_demand",
+        "lead_time",
+        "sigma_lead_time",
+        "review_period",
+    ],
+)
+def test_malformed_normal_policy_amounts_raise_clear_errors(
+    field: str, invalid: Any
+) -> None:
+    values: dict[str, Any] = {
+        "demand_per_period": 100.0,
+        "sigma_demand": 20.0,
+        "lead_time": 2.0,
+        "sigma_lead_time": 0.5,
+        "review_period": 1.0,
+    }
+    values[field] = invalid
+    with pytest.raises(ValueError, match=f"{field} must be finite and non-negative"):
+        safety_stock(
+            0.95,
+            values["demand_per_period"],
+            values["sigma_demand"],
+            values["lead_time"],
+            values["sigma_lead_time"],
+            values["review_period"],
+        )
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [True, False, "0.95", None, 1 + 2j, object(), 10**400],
+)
+def test_malformed_normal_service_levels_have_the_same_public_error(invalid: Any) -> None:
+    with pytest.raises(ValueError, match="service_level must be at least 0.5 and below 1"):
+        safety_stock(invalid, 100, 20, 2)
+
+
+def test_zero_safety_stock_does_not_skip_malformed_parameter_validation() -> None:
+    with pytest.raises(ValueError, match="sigma_demand must be finite and non-negative"):
+        safety_stock(0.5, 100, True, 1)
 
 
 def test_build_policy_rejects_invalid_normal_parameters_too() -> None:
