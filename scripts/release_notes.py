@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import re
 import sys
+from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -21,9 +22,26 @@ FULL_CHANGELOG = "https://github.com/rodrix91/inventory-policy-lab/blob/main/CHA
 
 def section(text: str, version: str) -> str | None:
     """The body of the ``version`` section of ``text``, stripped, or ``None``."""
-    heading = re.compile(rf"^## \[{re.escape(version)}\][^\n]*\n", re.MULTILINE)
-    match = heading.search(text)
-    if match is None:
+    # The workflow must fail closed rather than choose the first matching
+    # section if a changelog accidentally contains duplicate release headings.
+    if re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", version) is None:
+        return None
+    candidate = re.compile(rf"^## \[{re.escape(version)}\][^\n]*$", re.MULTILINE)
+    matches = list(candidate.finditer(text))
+    if len(matches) != 1:
+        return None
+    match = matches[0]
+    # Require the documented exact release heading, including a real ISO day.
+    # A malformed date or extra suffix must not silently become release notes.
+    canonical = re.fullmatch(
+        rf"## \[{re.escape(version)}\] - ([0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}})",
+        match.group(),
+    )
+    if canonical is None:
+        return None
+    try:
+        date.fromisoformat(canonical.group(1))
+    except ValueError:
         return None
     following = re.compile(r"^## \[", re.MULTILINE).search(text, match.end())
     end = following.start() if following else len(text)
