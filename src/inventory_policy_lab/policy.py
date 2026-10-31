@@ -12,6 +12,16 @@ POLICY_KINDS = ("sQ", "RS", "RsS")
 BOOTSTRAP_SOURCES = ("demand", "residuals")
 
 
+def _valid_finite_number(value: float) -> bool:
+    """Reject booleans and malformed Python inputs before numeric operations."""
+    if isinstance(value, bool):
+        return False
+    try:
+        return math.isfinite(value)
+    except (TypeError, ValueError, OverflowError):
+        return False
+
+
 def _valid_nonnegative_number(value: float) -> bool:
     """Require an actual finite quantity, not a bool or malformed API input."""
     if isinstance(value, bool):
@@ -111,7 +121,11 @@ def safety_stock(
 
 def _check_bootstrap_service_level(service_level: float) -> None:
     """Reject invalid nearest-rank quantiles before drawing random samples."""
-    if not 0 < service_level <= 1:
+    try:
+        valid = not isinstance(service_level, bool) and 0 < service_level <= 1
+    except (TypeError, ValueError, OverflowError):
+        valid = False
+    if not valid:
         raise ValueError(f"bootstrap service_level must be in (0, 1], got {service_level}")
 
 
@@ -120,10 +134,10 @@ def _check_bootstrap_intervals(
 ) -> None:
     """Validate every possible bootstrap duration before random sampling."""
     for name, value in (("lead_time", lead_time), ("review_period", review_period)):
-        if not math.isfinite(value) or value < 0:
+        if not _valid_nonnegative_number(value):
             raise ValueError(f"{name} must be finite and non-negative, got {value}")
     for position, lead in enumerate(lead_times):
-        if not math.isfinite(lead) or lead < 0:
+        if not _valid_nonnegative_number(lead):
             raise ValueError(f"lead_times[{position}] must be finite and non-negative, got {lead}")
 
 
@@ -152,19 +166,20 @@ def bootstrap_safety_stock(
     forecast over the interval. Pass a seeded ``rng`` for reproducible results.
     A bootstrap nearest-rank quantile requires ``0 < service_level <= 1``;
     invalid levels, lead/review times, individual lead-time observations,
-    demand observations or forecast demand (negative or non-finite) raise
-    ``ValueError`` before any random draw, including for zero-length intervals.
+    demand observations or forecast demand (negative, non-finite, boolean or
+    nonnumeric), and non-integer sample counts raise ``ValueError`` before
+    any random draw, including for zero-length intervals.
     """
-    if samples < 1:
-        raise ValueError("samples must be at least 1")
+    if isinstance(samples, bool) or not isinstance(samples, int) or samples < 1:
+        raise ValueError("samples must be at least 1 (a positive integer)")
     _check_bootstrap_service_level(service_level)
     _check_bootstrap_intervals(lead_time, review_period, lead_times)
     if not demand:
         raise ValueError("demand history is empty")
     for index, quantity in enumerate(demand):
-        if not math.isfinite(quantity) or quantity < 0:
+        if not _valid_nonnegative_number(quantity):
             raise ValueError(f"demand[{index}] must be finite and non-negative, got {quantity}")
-    if not math.isfinite(demand_per_period) or demand_per_period < 0:
+    if not _valid_nonnegative_number(demand_per_period):
         raise ValueError(
             f"demand_per_period must be finite and non-negative, got {demand_per_period}"
         )
@@ -240,8 +255,8 @@ def residual_bootstrap_quantile(
     All reachable residuals and possible ``lead_times`` are checked before
     drawing a random sample; residuals for unreachable intervals are ignored.
     """
-    if samples < 1:
-        raise ValueError("samples must be at least 1")
+    if isinstance(samples, bool) or not isinstance(samples, int) or samples < 1:
+        raise ValueError("samples must be at least 1 (a positive integer)")
     _check_bootstrap_service_level(service_level)
     _check_bootstrap_intervals(lead_time, review_period, lead_times)
     candidates = tuple(lead_times) if lead_times else (lead_time,)
@@ -255,7 +270,7 @@ def residual_bootstrap_quantile(
         periods = protection_periods(lead, review_period)
         if periods:
             for index, residual in enumerate(errors[periods]):
-                if not math.isfinite(residual):
+                if not _valid_finite_number(residual):
                     raise ValueError(f"errors[{periods}][{index}] must be finite, got {residual}")
     rng = rng or random.Random(0)
     draws: list[float] = []
