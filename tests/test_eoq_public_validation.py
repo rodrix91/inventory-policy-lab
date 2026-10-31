@@ -26,9 +26,7 @@ def test_eoq_rejects_nonfinite_or_negative_inputs(parameter: str, invalid: float
 
 @pytest.mark.parametrize("invalid", [True, False, "30.0", None, 1 + 2j, object(), 10**400])
 @pytest.mark.parametrize("parameter", ["annual_demand", "ordering_cost", "holding_cost"])
-def test_malformed_public_eoq_inputs_have_actionable_errors(
-    parameter: str, invalid: Any
-) -> None:
+def test_malformed_public_eoq_inputs_have_actionable_errors(parameter: str, invalid: Any) -> None:
     values: dict[str, Any] = {
         "annual_demand": 1200.0,
         "ordering_cost": 30.0,
