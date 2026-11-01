@@ -349,6 +349,12 @@ def build_policy(
     """
     if kind not in POLICY_KINDS:
         raise ValueError(f"kind must be 'sQ', 'RS' or 'RsS', got {kind!r}")
+    # Public Python callers can pass values that bypass the CLI's EOQ and
+    # bootstrap calculations. Do not publish a policy with negative or
+    # non-finite stock/ordering quantities.
+    for name, value in (("eoq_units", eoq_units), ("bootstrap_units", bootstrap_units)):
+        if value is not None and not _valid_nonnegative_number(value):
+            raise ValueError(f"{name} must be finite and non-negative, got {value!r}")
     z, ss = safety_stock(
         service_level, demand_per_period, sigma_demand, lead_time, sigma_lead_time, review_period
     )
