@@ -10,6 +10,13 @@ Python 3.11+, standard library only at runtime. Library and command line.
 
 **Public classifier input validation:** The standalone ABC, XYZ, coefficient-of-variation and demand-pattern helpers reject boolean, nonnumeric, non-finite or negative numeric inputs instead of interpreting `True` as a quantity or leaking an unhelpful `TypeError` from a caller's malformed value. Thresholds are checked even when the catalog or demand sequence is empty. Valid numeric observations, including zero-demand histories, retain their original classifications.
 
+**Public interval forecast error validation:** Direct calls to
+`interval_forecast_errors()` now reject malformed, negative or non-finite
+historical demand before invoking the forecasting callback, and reject
+non-finite forecast outputs or residual arithmetic (including overflow) with
+an indexed diagnostic. Valid signed forecast errors, unavailable forecasts
+(`None`) and relative-error filtering retain their existing behavior.
+
 **Standalone residual-bootstrap validation:** The public `residual_bootstrap_quantile()`
 API rejects NaN and infinite forecast errors in every protection interval that can
 actually be sampled, identifying the interval and zero-based observation. It

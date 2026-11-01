@@ -222,6 +222,9 @@ def interval_forecast_errors(
     that forecast (positive: demand above the forecast). With ``relative`` the
     error is divided by the forecast, and origins with a forecast of zero or
     less are skipped. Origins where the forecaster returns ``None`` are skipped.
+    Reject malformed or negative historical demand, non-finite forecasts, and
+    non-finite residual calculations before returning any result. Valid negative
+    forecast residuals are still supported.
     ``periods = 0`` gives no errors: there is no interval to protect.
     """
     if type(start) is not int:
@@ -235,12 +238,28 @@ def interval_forecast_errors(
     errors: list[float] = []
     if periods == 0:
         return ()
+    # Standalone Python callers bypass CSV input validation. Check all input
+    # observations before invoking the forecasting callback, so malformed
+    # demand cannot silently produce non-finite or misleading residuals.
+    for index, quantity in enumerate(series):
+        if not _valid_nonnegative_number(quantity):
+            raise ValueError(f"demand[{index}] must be finite and non-negative")
     for t in range(start, len(series) - periods + 1):
         forecast = forecaster(series[:t], periods)
-        if forecast is None or (relative and forecast <= 0):
+        if forecast is None:
             continue
-        error = math.fsum(series[t : t + periods]) - forecast
-        errors.append(error / forecast if relative else error)
+        if not _valid_finite_number(forecast):
+            raise ValueError(f"forecast at origin {t} must be finite")
+        if relative and forecast <= 0:
+            continue
+        try:
+            error = math.fsum(series[t : t + periods]) - forecast
+        except OverflowError:
+            raise ValueError(f"forecast error at origin {t} is not finite") from None
+        residual = error / forecast if relative else error
+        if not math.isfinite(residual):
+            raise ValueError(f"forecast error at origin {t} is not finite")
+        errors.append(residual)
     return tuple(errors)
 
 
