@@ -59,6 +59,7 @@ def test_profile_values_at_the_cutoffs() -> None:
     assert demand_profile([1, 1, 0], adi_cutoff=1.5).category == "intermittent"
     assert demand_profile([0, 0]).adi is None
 
+
 # The invalid-value fixtures intentionally violate the float-typed public API.
 # Parameter annotations describe the API contract, not the malformed runtime data.
 INVALID_CLASSIFICATION_NUMBERS = [
