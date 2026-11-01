@@ -9,7 +9,6 @@ import pytest
 
 from inventory_policy_lab import dynamic_levels
 
-
 FORECASTS = [10.0, 20.0, 30.0, 40.0]
 
 INVALID_SCALARS: tuple[Any, ...] = (
