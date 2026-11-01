@@ -35,7 +35,7 @@ def test_abc_rejects_malformed_thresholds_as_value_error(invalid: Any, which: st
     settings = {"a": 0.5, "b": 0.95}
     settings[which] = invalid
     with pytest.raises(ValueError, match="ABC thresholds must satisfy"):
-        abc_classes({"primary": 3.0, "secondary": 1.0}, **settings)
+        abc_classes({"primary": 3.0, "secondary": 1.0}, a=settings["a"], b=settings["b"])
 
 
 @pytest.mark.parametrize("invalid", [*INVALID_NUMBERS, -0.1])
@@ -50,7 +50,7 @@ def test_xyz_rejects_malformed_thresholds_as_value_error(invalid: Any, which: st
     settings = {"x": 0.5, "y": 1.0}
     settings[which] = invalid
     with pytest.raises(ValueError, match="XYZ thresholds must satisfy"):
-        xyz_class(0.5, **settings)
+        xyz_class(0.5, x=settings["x"], y=settings["y"])
 
 
 @pytest.mark.parametrize("invalid", [*INVALID_NUMBERS, -0.1])
@@ -65,7 +65,7 @@ def test_profile_rejects_malformed_cutoffs_even_without_demand(invalid: Any, whi
     settings = {"adi_cutoff": 1.32, "cv2_cutoff": 0.49}
     settings[which] = invalid
     with pytest.raises(ValueError, match="demand profile cutoffs must have finite"):
-        demand_profile([], **settings)
+        demand_profile([], adi_cutoff=settings["adi_cutoff"], cv2_cutoff=settings["cv2_cutoff"])
 
 
 @pytest.mark.parametrize("invalid", [*INVALID_NUMBERS, -0.1])
