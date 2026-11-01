@@ -218,10 +218,16 @@ def interval_forecast_errors(
     less are skipped. Origins where the forecaster returns ``None`` are skipped.
     ``periods = 0`` gives no errors: there is no interval to protect.
     """
+    if type(start) is not int:
+        raise ValueError("start must be an integer observation index")
     if start < 1:
         raise ValueError(f"start must be at least 1, got {start}")
+    if type(periods) is not int:
+        raise ValueError("periods must be a non-negative integer")
+    if periods < 0:
+        raise ValueError(f"periods must be non-negative, got {periods}")
     errors: list[float] = []
-    if periods < 1:
+    if periods == 0:
         return ()
     for t in range(start, len(series) - periods + 1):
         forecast = forecaster(series[:t], periods)
