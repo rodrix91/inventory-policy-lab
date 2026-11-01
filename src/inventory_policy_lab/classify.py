@@ -12,6 +12,16 @@ ADI_CUTOFF = 1.32
 CV2_CUTOFF = 0.49
 
 
+def _valid_nonnegative_number(value: float) -> bool:
+    """A finite, non-negative numeric input, excluding bool and malformed objects."""
+    if isinstance(value, bool):
+        return False
+    try:
+        return math.isfinite(value) and value >= 0
+    except (TypeError, ValueError, OverflowError):
+        return False
+
+
 def abc_classes(values: Mapping[str, float], a: float = 0.80, b: float = 0.95) -> dict[str, str]:
     """Pareto ABC classes from a value per item (annual consumption value).
 
@@ -25,9 +35,9 @@ def abc_classes(values: Mapping[str, float], a: float = 0.80, b: float = 0.95) -
     cutoffs and item values are validated here, even when this public function
     is called without the higher-level Config validation.
     """
-    if not (math.isfinite(a) and math.isfinite(b) and 0 < a < b <= 1):
+    if not (_valid_nonnegative_number(a) and _valid_nonnegative_number(b) and 0 < a < b <= 1):
         raise ValueError("ABC thresholds must satisfy 0 < a < b <= 1")
-    if any(not math.isfinite(value) or value < 0 for value in values.values()):
+    if any(not _valid_nonnegative_number(value) for value in values.values()):
         raise ValueError("ABC item values must be finite and non-negative")
     total = sum(values.values())
     if not math.isfinite(total):
@@ -60,7 +70,7 @@ def coefficient_of_variation(demand: Sequence[float]) -> float | None:
     if not demand:
         return None
     for index, value in enumerate(demand):
-        if not math.isfinite(value) or value < 0:
+        if not _valid_nonnegative_number(value):
             raise ValueError(f"demand[{index}] must be finite and non-negative")
     try:
         mean = statistics.fmean(demand)
@@ -82,11 +92,11 @@ def xyz_class(cv: float | None, x: float = 0.5, y: float = 1.0) -> str:
     ``None`` (no demand) remains class ``Z``. The standalone library API
     validates settings as rigorously as the higher-level configuration does.
     """
-    if not (math.isfinite(x) and math.isfinite(y) and 0 < x < y):
+    if not (_valid_nonnegative_number(x) and _valid_nonnegative_number(y) and 0 < x < y):
         raise ValueError("XYZ thresholds must satisfy finite 0 < x < y")
     if cv is None:
         return "Z"
-    if not (math.isfinite(cv) and cv >= 0):
+    if not _valid_nonnegative_number(cv):
         raise ValueError("XYZ coefficient of variation must be finite and non-negative")
     return "X" if cv <= x else "Y" if cv <= y else "Z"
 
@@ -113,14 +123,13 @@ def demand_profile(
     silently treating negative quantities as zero-demand periods.
     """
     if not (
-        math.isfinite(adi_cutoff)
+        _valid_nonnegative_number(adi_cutoff)
         and adi_cutoff > 0
-        and math.isfinite(cv2_cutoff)
-        and cv2_cutoff >= 0
+        and _valid_nonnegative_number(cv2_cutoff)
     ):
         raise ValueError("demand profile cutoffs must have finite ADI > 0 and CV2 >= 0")
     for index, quantity in enumerate(demand):
-        if not math.isfinite(quantity) or quantity < 0:
+        if not _valid_nonnegative_number(quantity):
             raise ValueError(f"demand[{index}] must be finite and non-negative")
     sizes = [q for q in demand if q > 0]
     if not sizes:
