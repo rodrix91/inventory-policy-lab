@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- Reject malformed direct Python demand observations across `naive()`, `moving_average()`, `ses()`, `croston()`, `sba()` and `backtest()`: booleans no longer count as quantities, and strings, `None`, complex values, objects and oversized integers produce indexed `ValueError` messages instead of leaking conversion errors. Validate all backtest actuals before calling custom models; preserve valid zero, integer and finite floating-point demand, existing CLI behavior and report schemas. Add cross-method regression tests.
+
 - Reject booleans, non-integer sample counts and malformed direct Python inputs in both bootstrap safety-stock and residual quantile calculations. Validate service levels, lead/review durations, observed demand, forecasts and reachable residuals before drawing random numbers, raising actionable `ValueError` messages instead of accepting `True` as a number or leaking `TypeError`/`OverflowError`. Preserve existing valid seeded results, error precedence, CLI behavior and report formats; add input-by-input RNG-state regression tests.
 
 - Reject booleans and malformed direct Python API inputs in normal `safety_stock()` and economic order quantity `eoq()` calculations, including nonnumeric values and integers too large for a finite float. Return the established actionable parameter-specific `ValueError` rather than treating `True` as a quantity or leaking `TypeError`/`OverflowError`. Preserve valid calculations, CLI validation and report schemas; add cross-field regression tests.
