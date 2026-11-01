@@ -14,7 +14,6 @@ from inventory_policy_lab import (
     protection_periods,
 )
 
-
 BAD_TIMES: tuple[Any, ...] = (
     -0.1,
     -1,
