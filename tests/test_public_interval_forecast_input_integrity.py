@@ -35,7 +35,7 @@ def test_invalid_demand_is_rejected_at_original_index_before_forecast(
 
 @pytest.mark.parametrize(
     "invalid",
-    [True, False, "3",  1 + 0j, object(), math.nan, math.inf, -math.inf, 10**400],
+    [True, False, "3", 1 + 0j, object(), math.nan, math.inf, -math.inf, 10**400],
 )
 def test_invalid_forecasts_are_rejected_with_rolling_origin(invalid: Any) -> None:
     def malformed(_history: Sequence[float], _periods: int) -> float:
@@ -76,7 +76,8 @@ def test_normal_forecast_errors_and_skipped_origins_remain_unchanged() -> None:
     history = [10.0, 12.0, 14.0, 16.0, 18.0]
     assert interval_forecast_errors(history, _last_period, 2, 2) == (6.0, 6.0)
     assert interval_forecast_errors(history, _last_period, 2, 2, relative=True) == (
-        0.25, 6 / 28,
+        0.25,
+        6 / 28,
     )
 
     def no_model(_history: Sequence[float], _periods: int) -> float | None:
