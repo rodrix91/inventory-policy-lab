@@ -396,6 +396,7 @@ def dynamic_levels(
     ``safety_stock`` is one number for every period, or one per period (from
     :func:`period_safety_stocks`, ADR 0008).
     """
+    _require_nonnegative_periods(periods)
     stocks = _per_period(safety_stock, periods)
     return tuple(
         demand * (lead_time + review_period) + stock
@@ -403,6 +404,14 @@ def dynamic_levels(
             interval_demands(forecasts, periods, lead_time, review_period), stocks, strict=True
         )
     )
+
+
+def _require_nonnegative_periods(periods: int) -> None:
+    """Keep public forecast horizons as true counts, not booleans or fractions."""
+    if type(periods) is not int:
+        raise ValueError("periods must be a non-negative integer")
+    if periods < 0:
+        raise ValueError(f"periods must be non-negative, got {periods}")
 
 
 def _per_period(value: float | Sequence[float], periods: int) -> tuple[float, ...]:
@@ -417,6 +426,7 @@ def interval_demands(
     forecasts: Sequence[float], periods: int, lead_time: float, review_period: float
 ) -> tuple[float, ...]:
     """``D(t)`` of :func:`dynamic_levels`: the mean forecast of the ``P`` periods after ``t``."""
+    _require_nonnegative_periods(periods)
     steps = max(protection_periods(lead_time, review_period), 1)
     if len(forecasts) < periods + steps:
         raise ValueError(
