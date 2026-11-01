@@ -10,7 +10,6 @@ import pytest
 
 from inventory_policy_lab import dynamic_levels, interval_demands, period_safety_stocks
 
-
 FORECASTS = [10.0, 20.0, 30.0, 40.0]
 
 
