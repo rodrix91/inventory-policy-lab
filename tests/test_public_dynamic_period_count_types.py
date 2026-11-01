@@ -19,9 +19,7 @@ def demand(periods: Any) -> tuple[float, ...]:
 
 
 def levels(periods: Any) -> tuple[float, ...]:
-    return dynamic_levels(
-        FORECASTS, periods, lead_time=1.0, review_period=0.0, safety_stock=5.0
-    )
+    return dynamic_levels(FORECASTS, periods, lead_time=1.0, review_period=0.0, safety_stock=5.0)
 
 
 def stocks(periods: Any) -> tuple[float, ...]:
