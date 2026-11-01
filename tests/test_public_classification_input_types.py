@@ -7,12 +7,7 @@ from typing import Any
 
 import pytest
 
-from inventory_policy_lab import (
-    abc_classes,
-    coefficient_of_variation,
-    demand_profile,
-    xyz_class,
-)
+from inventory_policy_lab import abc_classes, coefficient_of_variation, demand_profile, xyz_class
 
 
 INVALID_NUMBERS: list[Any] = [
