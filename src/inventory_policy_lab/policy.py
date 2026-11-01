@@ -197,8 +197,14 @@ def bootstrap_safety_stock(
 
 
 def protection_periods(lead_time: float, review_period: float) -> int:
-    """The protection interval ``L + R`` in whole periods, rounded half up (may be 0)."""
-    return int(lead_time + review_period + 0.5)
+    """Finite, non-negative protection interval ``L + R``, rounded half up."""
+    for name, value in (("lead_time", lead_time), ("review_period", review_period)):
+        if not _valid_nonnegative_number(value):
+            raise ValueError(f"{name} must be finite and non-negative")
+    horizon = lead_time + review_period
+    if not math.isfinite(horizon):
+        raise ValueError("protection period total must be finite")
+    return int(horizon + 0.5)
 
 
 def interval_forecast_errors(
