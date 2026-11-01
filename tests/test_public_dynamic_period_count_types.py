@@ -64,7 +64,8 @@ def test_public_dynamic_apis_reject_negative_counts(
 
 
 def test_dynamic_levels_reject_bad_counts_before_processing_safety_stock() -> None:
-    for count in (False, 1.5, -1):
+    invalid: tuple[Any, ...] = (False, 1.5, -1)
+    for count in invalid:
         with pytest.raises(ValueError, match="periods must be"):
             dynamic_levels(
                 FORECASTS, count, lead_time=1.0, review_period=0.0, safety_stock=(1.0, 2.0)
