@@ -53,7 +53,8 @@ def test_xyz_rejects_malformed_thresholds_as_value_error(invalid: Any, which: st
         xyz_class(0.5, x=settings["x"], y=settings["y"])
 
 
-@pytest.mark.parametrize("invalid", [*INVALID_NUMBERS, -0.1])
+# None is a documented, valid XYZ sentinel: an undefined CV maps to class Z.
+@pytest.mark.parametrize("invalid", [*(v for v in INVALID_NUMBERS if v is not None), -0.1])
 def test_xyz_rejects_malformed_cv_as_value_error(invalid: Any) -> None:
     with pytest.raises(ValueError, match="XYZ coefficient of variation must be finite"):
         xyz_class(invalid)
