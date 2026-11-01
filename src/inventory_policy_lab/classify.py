@@ -11,6 +11,7 @@ from dataclasses import dataclass
 ADI_CUTOFF = 1.32
 CV2_CUTOFF = 0.49
 
+
 def _valid_nonnegative_number(value: float) -> bool:
     """A finite, non-negative numeric input, excluding bool and malformed objects."""
     if isinstance(value, bool):
@@ -19,7 +20,6 @@ def _valid_nonnegative_number(value: float) -> bool:
         return math.isfinite(value) and value >= 0
     except (TypeError, ValueError, OverflowError):
         return False
-
 
 
 def abc_classes(values: Mapping[str, float], a: float = 0.80, b: float = 0.95) -> dict[str, str]:
