@@ -58,3 +58,86 @@ def test_profile_values_at_the_cutoffs() -> None:
     # ADI exactly at the cut-off counts as intermittent (ADI >= 1.32)
     assert demand_profile([1, 1, 0], adi_cutoff=1.5).category == "intermittent"
     assert demand_profile([0, 0]).adi is None
+
+# The invalid-value fixtures intentionally violate the float-typed public API.
+# Parameter annotations describe the API contract, not the malformed runtime data.
+INVALID_CLASSIFICATION_NUMBERS = [
+    True,
+    False,
+    "0.5",
+    None,
+    1 + 0j,
+    object(),
+    10**400,
+    float("inf"),
+    float("-inf"),
+    float("nan"),
+]
+
+
+@pytest.mark.parametrize("invalid", INVALID_CLASSIFICATION_NUMBERS)
+@pytest.mark.parametrize("which", ["a", "b"])
+def test_classifier_abc_rejects_malformed_thresholds(invalid: float, which: str) -> None:
+    settings = {"a": 0.5, "b": 0.95}
+    settings[which] = invalid
+    with pytest.raises(ValueError, match="ABC thresholds must satisfy"):
+        abc_classes({"primary": 3.0, "secondary": 1.0}, a=settings["a"], b=settings["b"])
+
+
+@pytest.mark.parametrize("invalid", [*INVALID_CLASSIFICATION_NUMBERS, -0.1])
+def test_classifier_abc_rejects_malformed_values(invalid: float) -> None:
+    with pytest.raises(ValueError, match="ABC item values must be finite and non-negative"):
+        abc_classes({"valid": 3.0, "corrupt": invalid})
+
+
+@pytest.mark.parametrize("invalid", INVALID_CLASSIFICATION_NUMBERS)
+@pytest.mark.parametrize("which", ["x", "y"])
+def test_classifier_xyz_rejects_malformed_thresholds(invalid: float, which: str) -> None:
+    settings = {"x": 0.5, "y": 1.0}
+    settings[which] = invalid
+    with pytest.raises(ValueError, match="XYZ thresholds must satisfy"):
+        xyz_class(0.5, x=settings["x"], y=settings["y"])
+
+
+# None is a documented valid sentinel for an undefined CV (class Z).
+@pytest.mark.parametrize(
+    "invalid",
+    [*(v for v in INVALID_CLASSIFICATION_NUMBERS if v is not None), -0.1],
+)
+def test_classifier_xyz_rejects_malformed_cv(invalid: float) -> None:
+    with pytest.raises(ValueError, match="XYZ coefficient of variation must be finite"):
+        xyz_class(invalid)
+
+
+@pytest.mark.parametrize("invalid", INVALID_CLASSIFICATION_NUMBERS)
+@pytest.mark.parametrize("which", ["adi_cutoff", "cv2_cutoff"])
+def test_classifier_profile_rejects_malformed_cutoffs(invalid: float, which: str) -> None:
+    settings = {"adi_cutoff": 1.32, "cv2_cutoff": 0.49}
+    settings[which] = invalid
+    with pytest.raises(ValueError, match="demand profile cutoffs must have finite"):
+        demand_profile(
+            [],
+            adi_cutoff=settings["adi_cutoff"],
+            cv2_cutoff=settings["cv2_cutoff"],
+        )
+
+
+@pytest.mark.parametrize("invalid", [*INVALID_CLASSIFICATION_NUMBERS, -0.1])
+def test_classifier_cv_and_profile_report_corrupt_observation_index(invalid: float) -> None:
+    for method in (coefficient_of_variation, demand_profile):
+        with pytest.raises(ValueError, match=r"demand\[1\] must be finite and non-negative"):
+            method([2.0, invalid, 4.0])
+
+
+def test_classifier_valid_numeric_values_and_zero_histories_are_unchanged() -> None:
+    assert abc_classes({"large": 3.0, "small": 1.0}, a=0.8, b=1.0) == {
+        "large": "A",
+        "small": "A",
+    }
+    assert abc_classes({"zero": 0.0}) == {"zero": "C"}
+    assert abc_classes({}) == {}
+    assert xyz_class(0.5, x=0.5, y=1.0) == "X"
+    assert xyz_class(None) == "Z"
+    assert coefficient_of_variation([0.0, 0.0]) is None
+    assert demand_profile([0.0, 0.0]).category == "no demand"
+    assert demand_profile([2.0, 0.0], adi_cutoff=2.0, cv2_cutoff=0.0).adi == 2.0
