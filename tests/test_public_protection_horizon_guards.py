@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from typing import Any
 
 import pytest
@@ -67,11 +68,12 @@ def test_overflowing_sum_is_rejected_even_when_both_inputs_are_finite() -> None:
 
 def test_dynamic_apis_propagate_invalid_horizon_diagnostic() -> None:
     forecasts = [10.0, 20.0, 30.0, 40.0]
-    for method in (
+    methods: tuple[Callable[[], tuple[float, ...]], ...] = (
         lambda: interval_demands(forecasts, 2, -1.0, 0.0),
         lambda: dynamic_levels(forecasts, 2, 1.0, math.nan, 5.0),
         lambda: period_safety_stocks(forecasts, 2, 1e308, 1e308, 0.2),
-    ):
+    )
+    for method in methods:
         with pytest.raises(ValueError, match="must be finite"):
             method()
 
