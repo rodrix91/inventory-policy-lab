@@ -50,16 +50,19 @@ def test_valid_optional_quantities_preserve_policy_values_and_methods() -> None:
     assert plain.eoq is None
     assert plain.safety_stock_method == "normal"
 
-    regular = build_policy(
-        0.95, 10.0, 2.0, lead_time=2.0, review_period=1.0, eoq_units=50.0
-    )
+    regular = build_policy(0.95, 10.0, 2.0, lead_time=2.0, review_period=1.0, eoq_units=50.0)
     assert regular.eoq == 50.0
     assert regular.safety_stock == plain.safety_stock
     assert regular.reorder_point == plain.reorder_point
 
     zero = build_policy(
-        0.95, 10.0, 2.0, lead_time=2.0, review_period=1.0,
-        eoq_units=0.0, bootstrap_units=0.0,
+        0.95,
+        10.0,
+        2.0,
+        lead_time=2.0,
+        review_period=1.0,
+        eoq_units=0.0,
+        bootstrap_units=0.0,
     )
     assert zero.eoq == 0.0
     assert zero.safety_stock_method == "bootstrap"
@@ -67,8 +70,13 @@ def test_valid_optional_quantities_preserve_policy_values_and_methods() -> None:
     assert zero.reorder_point == 30.0
 
     bootstrap = build_policy(
-        0.95, 10.0, 2.0, lead_time=2.0, review_period=1.0,
-        eoq_units=25.0, bootstrap_units=4.5,
+        0.95,
+        10.0,
+        2.0,
+        lead_time=2.0,
+        review_period=1.0,
+        eoq_units=25.0,
+        bootstrap_units=4.5,
     )
     assert bootstrap.eoq == 25.0
     assert bootstrap.safety_stock_method == "bootstrap"
