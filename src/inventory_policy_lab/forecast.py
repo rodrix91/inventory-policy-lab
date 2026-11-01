@@ -29,12 +29,22 @@ def _stable_fmean(values: Sequence[float]) -> float:
         return statistics.fmean(value / scale for value in values) * scale
 
 
+def _valid_demand_value(value: float) -> bool:
+    """Accept non-negative finite demand, not booleans or malformed Python inputs."""
+    if isinstance(value, bool):
+        return False
+    try:
+        return math.isfinite(value) and value >= 0
+    except (TypeError, ValueError, OverflowError):
+        return False
+
+
 def _validate_demand(history: Sequence[float], method: str) -> None:
     """Reject invalid demand anywhere in a history, even outside a forecast window."""
     if not history:
         raise ValueError(f"{method} needs at least one observed demand period")
     for index, value in enumerate(history):
-        if not math.isfinite(value) or value < 0:
+        if not _valid_demand_value(value):
             raise ValueError(f"demand[{index}] must be finite and non-negative")
 
 
@@ -72,11 +82,7 @@ def ses(history: Sequence[float], alpha: float = 0.2) -> float:
     than a NaN/infinite forecast or an accidental negative stock estimate.
     """
     _validate_alpha(alpha, "ses")
-    if not history:
-        raise ValueError("ses needs at least one observed demand period")
-    for index, value in enumerate(history):
-        if not math.isfinite(value) or value < 0:
-            raise ValueError(f"demand[{index}] must be finite and non-negative")
+    _validate_demand(history, "ses")
     level = history[0]
     for value in history[1:]:
         level += alpha * (value - level)
@@ -95,7 +101,7 @@ def _croston_parts(history: Sequence[float], alpha: float) -> tuple[float, float
     for index, value in enumerate(history):
         # Direct library callers must not silently interpret negative demand
         # as a zero period or propagate NaN/infinity into a forecast.
-        if not math.isfinite(value) or value < 0:
+        if not _valid_demand_value(value):
             raise ValueError(f"demand[{index}] must be finite and non-negative")
         if value == 0:
             continue
