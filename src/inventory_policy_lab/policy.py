@@ -415,11 +415,15 @@ def _require_nonnegative_periods(periods: int) -> None:
 
 
 def _per_period(value: float | Sequence[float], periods: int) -> tuple[float, ...]:
-    if isinstance(value, int | float):
+    if _valid_nonnegative_number(value):
         return (float(value),) * periods
+    if not isinstance(value, Sequence) or isinstance(value, str | bytes | bytearray):
+        raise ValueError("safety_stock must be finite and non-negative")
     if len(value) != periods:
         raise ValueError(f"safety_stock needs one value per period: {len(value)} for {periods}")
-    return tuple(float(v) for v in value)
+    if not all(_valid_nonnegative_number(item) for item in value):
+        raise ValueError("safety_stock entries must be finite and non-negative")
+    return tuple(float(item) for item in value)
 
 
 def interval_demands(
