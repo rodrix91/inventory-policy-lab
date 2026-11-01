@@ -222,6 +222,9 @@ def interval_forecast_errors(
     that forecast (positive: demand above the forecast). With ``relative`` the
     error is divided by the forecast, and origins with a forecast of zero or
     less are skipped. Origins where the forecaster returns ``None`` are skipped.
+    Reject malformed or negative historical demand, non-finite forecasts, and
+    non-finite residual calculations before returning any result. Valid negative
+    forecast residuals are still supported.
     ``periods = 0`` gives no errors: there is no interval to protect.
     """
     if type(start) is not int:
