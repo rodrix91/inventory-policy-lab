@@ -65,7 +65,7 @@ def test_profile_rejects_malformed_cutoffs_even_without_demand(invalid: Any, whi
 
 
 @pytest.mark.parametrize("invalid", [*INVALID_NUMBERS, -0.1])
-@pytest.mark.parametrize("method", [coefficient_of_variation, demand_profile])
+@pytest.mark.parametrize("method", [inventory.coefficient_of_variation, inventory.demand_profile])
 def test_classifiers_report_corrupted_demand_index(method: Any, invalid: Any) -> None:
     with pytest.raises(ValueError, match=r"demand\[1\] must be finite and non-negative"):
         method([2.0, invalid, 4.0])
