@@ -116,6 +116,19 @@ def _validate_samples(samples: int) -> None:
         raise ValueError("sample count must be a positive integer")
 
 
+def _validate_demand_path_numbers(values: Sequence[float], name: str) -> None:
+    """Reject non-finite and malformed path inputs before consuming RNG state."""
+    for index, value in enumerate(values):
+        if isinstance(value, bool):
+            raise ValueError(f"{name}[{index}] must be finite and numeric")
+        try:
+            valid = math.isfinite(value)
+        except (TypeError, ValueError, OverflowError):
+            valid = False
+        if not valid:
+            raise ValueError(f"{name}[{index}] must be finite and numeric")
+
+
 def demand_paths(
     forecasts: Sequence[float], errors: Sequence[float], samples: int, rng: random.Random
 ) -> tuple[tuple[float, ...], ...]:
@@ -123,6 +136,12 @@ def demand_paths(
     if not errors:
         raise ValueError("demand paths need at least one error to resample")
     _validate_samples(samples)
+    _validate_demand_path_numbers(forecasts, "forecasts")
+    _validate_demand_path_numbers(errors, "errors")
+    # Even two individually finite numbers may overflow when added. No
+    # possible draw should silently put infinity in an optimization path.
+    if forecasts and not math.isfinite(max(forecasts) + max(errors)):
+        raise ValueError("forecast and error combination produces non-finite demand")
     return tuple(tuple(max(f + rng.choice(errors), 0.0) for f in forecasts) for _ in range(samples))
 
 
