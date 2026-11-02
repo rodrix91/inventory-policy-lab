@@ -481,7 +481,11 @@ def period_safety_stocks(
     is the mean forecast of the periods after ``t``, as in :func:`dynamic_levels`.
     A peak month gets more safety stock than a trough, and the seasonal swing
     itself, which the levels already follow, is not counted again (ADR 0008).
+    A negative finite error is floored to zero; non-finite or malformed error
+    quantiles are rejected even when the caller requests zero periods.
     """
+    if not _valid_finite_number(relative_error):
+        raise ValueError("relative_error must be a finite number")
     ratio = max(relative_error, 0.0)
     protection = lead_time + review_period
     return tuple(
