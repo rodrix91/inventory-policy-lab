@@ -158,7 +158,9 @@ class SmoothingFit:
     sse: float  # sum of squared one-step errors inside the history
 
     def forecast(self, horizon: int = 1) -> float:
-        """Forecast ``horizon`` periods after the end of the history, floored at zero."""
+        """Forecast ``horizon`` integer periods ahead, floored at zero."""
+        if isinstance(horizon, bool) or not isinstance(horizon, int):
+            raise ValueError("horizon must be an integer number of periods")
         if horizon < 1:
             raise ValueError(f"horizon must be at least 1, got {horizon}")
         damping = sum(self.phi**i for i in range(1, horizon + 1))
@@ -170,6 +172,8 @@ class SmoothingFit:
 
     def mean_forecast(self, horizon: int) -> float:
         """Mean of the forecasts for 1 to ``horizon`` periods ahead (at least one)."""
+        if isinstance(horizon, bool) or not isinstance(horizon, int):
+            raise ValueError("horizon must be an integer number of periods")
         steps = max(horizon, 1)
         return math.fsum(self.forecast(h) for h in range(1, steps + 1)) / steps
 

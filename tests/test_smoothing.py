@@ -87,6 +87,29 @@ def test_damped_holt_by_hand() -> None:
     assert fit.parameters() == {"alpha": 0.5, "beta": 0.5, "phi": 0.8}
 
 
+@pytest.mark.parametrize(
+    "invalid",
+    [True, False, 1.0, 1.5, "2", None, math.nan, math.inf, [], {}, object()],
+)
+def test_smoothing_fit_rejects_noninteger_forecast_horizons(invalid: object) -> None:
+    fit = holt_damped_fit([10.0, 12.0, 15.0, 16.0], alpha=0.5, beta=0.5, phi=0.8)
+    for method in (fit.forecast, fit.mean_forecast):
+        with pytest.raises(ValueError, match="horizon must be an integer"):
+            method(invalid)  # type: ignore[arg-type]
+
+
+def test_smoothing_fit_valid_horizons_keep_existing_results() -> None:
+    fit = holt_damped_fit([10.0, 12.0, 15.0, 16.0], alpha=0.5, beta=0.5, phi=0.8)
+    assert fit.forecast(1) == pytest.approx(17.206)
+    assert fit.forecast(2) == pytest.approx(18.2268)
+    assert fit.mean_forecast(2) == pytest.approx(17.7164)
+    # Existing mean_forecast clamps nonpositive integer horizons to one period.
+    assert fit.mean_forecast(0) == fit.forecast(1)
+    assert fit.mean_forecast(-2) == fit.forecast(1)
+    with pytest.raises(ValueError, match="horizon must be at least 1"):
+        fit.forecast(-1)
+
+
 def test_additive_holt_winters_by_hand() -> None:
     """y = 10 20 14 24 16, m = 2, a = b = g = 0.5, phi = 0.9.
 
