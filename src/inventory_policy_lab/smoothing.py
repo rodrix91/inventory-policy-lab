@@ -188,6 +188,16 @@ class SmoothingFit:
         in-sample replay of a static policy applies the final level to the
         whole history (ADR 0007).
         """
+        # Public callers must supply actual period counts. Booleans behave
+        # like 0/1 and a negative count silently produces an empty forecast.
+        if isinstance(fitted_periods, bool) or not isinstance(fitted_periods, int):
+            raise ValueError("fitted_periods must be a positive integer")
+        if fitted_periods < 1:
+            raise ValueError("fitted_periods must be at least 1")
+        if isinstance(periods, bool) or not isinstance(periods, int):
+            raise ValueError("periods must be a non-negative integer")
+        if periods < 0:
+            raise ValueError("periods must be non-negative")
         season = len(self.seasonals) or 1
         values = []
         for i in range(periods):
