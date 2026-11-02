@@ -38,7 +38,9 @@ def test_naive_scale() -> None:
 
 @pytest.mark.parametrize("history", [[], [5.0]])
 def test_naive_scale_rejects_insufficient_history(history: list[float]) -> None:
-    with pytest.raises(ValueError, match="naive_scale requires at least two observed demand periods"):
+    with pytest.raises(
+        ValueError, match="naive_scale requires at least two observed demand periods"
+    ):
         naive_scale(history)
 
 
