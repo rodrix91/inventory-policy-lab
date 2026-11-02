@@ -110,12 +110,19 @@ def quantity_grid(heuristic: float, mean_demand: float) -> tuple[float, ...]:
     return _with_first(heuristic, covers)
 
 
+def _validate_samples(samples: int) -> None:
+    """Reject non-integer or empty sampling requests before consuming the RNG."""
+    if isinstance(samples, bool) or not isinstance(samples, int) or samples < 1:
+        raise ValueError("sample count must be a positive integer")
+
+
 def demand_paths(
     forecasts: Sequence[float], errors: Sequence[float], samples: int, rng: random.Random
 ) -> tuple[tuple[float, ...], ...]:
     """``samples`` paths: each period's forecast plus an error drawn from ``errors``, at least 0."""
     if not errors:
         raise ValueError("demand paths need at least one error to resample")
+    _validate_samples(samples)
     return tuple(tuple(max(f + rng.choice(errors), 0.0) for f in forecasts) for _ in range(samples))
 
 
@@ -157,6 +164,7 @@ def bootstrap_histories(
     """
     if len(one_step) < 2:
         raise ValueError("bootstrapped histories need at least two one-step forecasts")
+    _validate_samples(samples)
     errors = [series[t] - forecast for t, forecast in one_step]
     block = block_length(len(errors))
     histories = []
