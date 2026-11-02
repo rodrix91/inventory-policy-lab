@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from inventory_policy_lab import dynamic_levels
+from inventory_policy_lab import dynamic_levels, period_safety_stocks
 
 FORECASTS = [10.0, 20.0, 30.0, 40.0]
 
@@ -73,3 +73,23 @@ def test_valid_scalar_and_sequence_stock_preserve_existing_levels() -> None:
 def test_zero_periods_still_reject_invalid_stock() -> None:
     with pytest.raises(ValueError, match="safety_stock must be finite and non-negative"):
         dynamic_levels(FORECASTS, 0, 1.0, 0.0, math.nan)
+
+
+@pytest.mark.parametrize("invalid", INVALID_SCALARS[2:] + (1 + 0j,))
+def test_period_safety_stocks_rejects_nonfinite_or_nonnumeric_error_quantiles(invalid: Any) -> None:
+    # A malformed quantile used to create NaN/inf stock levels, or crash with
+    # TypeError. Booleans were also interpreted as 0 or 1.
+    with pytest.raises(ValueError, match="relative_error must be a finite number"):
+        period_safety_stocks(FORECASTS, 2, 1.0, 0.0, invalid)
+
+
+def test_period_safety_stocks_validates_error_even_when_no_periods_are_requested() -> None:
+    with pytest.raises(ValueError, match="relative_error must be a finite number"):
+        period_safety_stocks(FORECASTS, 0, 1.0, 0.0, math.nan)
+    assert period_safety_stocks(FORECASTS, 0, 1.0, 0.0, 0.2) == ()
+
+
+def test_period_safety_stocks_keeps_valid_positive_and_negative_quantiles() -> None:
+    assert period_safety_stocks(FORECASTS, 2, 1.0, 0.0, 0.2) == pytest.approx((4.0, 6.0))
+    assert period_safety_stocks(FORECASTS, 2, 1.0, 0.0, -0.5) == (0.0, 0.0)
+    assert period_safety_stocks(FORECASTS, 2, 1.0, 0.0, 0) == (0.0, 0.0)
