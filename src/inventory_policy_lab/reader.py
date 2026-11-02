@@ -179,13 +179,15 @@ def read_demand(
     text codec; UTF-8 with optional BOM is the default.
     The delimiter keyword selects a field separator; comma remains the default.
     """
-    if delimiter not in DELIMITERS:
+    # Public Python callers can pass non-string options despite annotations.
+    # Reject them as configuration errors before touching the source file.
+    if not isinstance(delimiter, str) or delimiter not in DELIMITERS:
         raise ConfigError(
             f"unknown CSV delimiter {delimiter!r}; choose comma, semicolon, tab or pipe"
         )
     try:
         codec = codecs.lookup(encoding)
-    except LookupError:
+    except (LookupError, TypeError):
         raise ConfigError(f"unknown input encoding {encoding!r}") from None
     if not getattr(codec, "_is_text_encoding", True):
         raise ConfigError(f"input encoding {encoding!r} is not a text codec")
