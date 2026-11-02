@@ -96,6 +96,10 @@ def _croston_parts(history: Sequence[float], alpha: float) -> tuple[float, float
     number of periods up to and including it. They are updated only in periods
     with demand, the interval with the periods since the previous demand.
     """
+    # An empty history is not evidence of zero demand. Treat it as missing
+    # observations, consistently with naive, moving-average and SES.
+    if not history:
+        raise ValueError("croston needs at least one observed demand period")
     size = interval = 0.0
     last = -1
     for index, value in enumerate(history):
