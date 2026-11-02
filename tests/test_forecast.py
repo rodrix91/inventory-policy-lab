@@ -36,6 +36,20 @@ def test_naive_scale() -> None:
     assert naive_scale([10, 12, 8, 10, 14, 6]) == 4  # (2 + 4 + 2 + 4 + 8) / 5
 
 
+@pytest.mark.parametrize("history", [[], [5.0]])
+def test_naive_scale_rejects_insufficient_history(history: list[float]) -> None:
+    with pytest.raises(
+        ValueError, match="naive_scale requires at least two observed demand periods"
+    ):
+        naive_scale(history)
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), -1.0, True, "3"])
+def test_naive_scale_rejects_invalid_training_values(bad: float) -> None:
+    with pytest.raises(ValueError, match=r"demand\[1\] must be finite and non-negative"):
+        naive_scale([1.0, bad, 3.0])
+
+
 def test_backtest_by_hand() -> None:
     series = [10, 12, 8, 10, 14, 6, 10, 14]
     result = backtest(series, "naive", naive, holdout=2)
@@ -61,6 +75,11 @@ def test_backtest_needs_training_data(series: list[float], holdout: int) -> None
 
 def _result(name: str, mae: float, mase: float | None) -> BacktestResult:
     return BacktestResult(method=name, forecasts=(), mae=mae, rmse=mae, bias=0.0, mase=mase)
+
+
+def test_pick_best_reports_empty_backtest_results() -> None:
+    with pytest.raises(ValueError, match="pick_best requires at least one backtest result"):
+        pick_best([])
 
 
 def test_pick_best_by_mase_then_mae_and_first_on_ties() -> None:

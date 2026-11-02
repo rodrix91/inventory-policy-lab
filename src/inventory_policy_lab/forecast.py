@@ -143,7 +143,14 @@ class BacktestResult:
 
 
 def naive_scale(train: Sequence[float]) -> float:
-    """Mean absolute one-step naive error in the training data (MASE denominator)."""
+    """Mean absolute one-step naive error in the training data (MASE denominator).
+
+    Standalone callers must provide two or more valid demand observations.
+    A missing or corrupted baseline cannot reliably scale forecast errors.
+    """
+    if len(train) < 2:
+        raise ValueError("naive_scale requires at least two observed demand periods")
+    _validate_demand(train, "naive_scale")
     return _stable_fmean([abs(train[i] - train[i - 1]) for i in range(1, len(train))])
 
 
@@ -203,6 +210,8 @@ def backtest(series: Sequence[float], name: str, method: Method, holdout: int) -
 
 def pick_best(results: Sequence[BacktestResult]) -> BacktestResult:
     """Lowest MASE; by MAE when MASE is undefined; ties go to the earlier method."""
+    if not results:
+        raise ValueError("pick_best requires at least one backtest result")
     if all(r.mase is not None for r in results):
         return min(results, key=lambda r: r.mase if r.mase is not None else math.inf)
     return min(results, key=lambda r: r.mae)
