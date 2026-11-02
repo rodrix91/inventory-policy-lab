@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
+
 import pytest
 
 from inventory_policy_lab import backtest, croston, moving_average, naive, sba, ses
@@ -16,14 +18,16 @@ def test_naive_and_moving_average() -> None:
 
 
 @pytest.mark.parametrize("method", [naive, moving_average, ses, croston, sba])
-def test_forecast_methods_reject_empty_histories(method) -> None:
+def test_forecast_methods_reject_empty_histories(method: Callable[[Sequence[float]], float]) -> None:
     # Empty history means no observations, not a measured zero-demand period.
     with pytest.raises(ValueError, match="needs at least one observed demand period"):
         method([])
 
 
 @pytest.mark.parametrize("method", [croston, sba])
-def test_intermittent_methods_preserve_observed_zero_demand(method) -> None:
+def test_intermittent_methods_preserve_observed_zero_demand(
+    method: Callable[[Sequence[float]], float],
+) -> None:
     assert method([0.0]) == 0.0
     assert method([0.0, 0.0, 0.0]) == 0.0
 
