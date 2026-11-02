@@ -15,6 +15,19 @@ def test_naive_and_moving_average() -> None:
     assert moving_average([4], window=3) == 4  # shorter history: mean of what exists
 
 
+@pytest.mark.parametrize("method", [naive, moving_average, ses, croston, sba])
+def test_forecast_methods_reject_empty_histories(method) -> None:
+    # Empty history means no observations, not a measured zero-demand period.
+    with pytest.raises(ValueError, match="needs at least one observed demand period"):
+        method([])
+
+
+@pytest.mark.parametrize("method", [croston, sba])
+def test_intermittent_methods_preserve_observed_zero_demand(method) -> None:
+    assert method([0.0]) == 0.0
+    assert method([0.0, 0.0, 0.0]) == 0.0
+
+
 def test_ses_by_hand() -> None:
     # level 10 -> 10 + 0.5 * (20 - 10) = 15 -> 15 + 0.5 * (0 - 15) = 7.5
     assert ses([10, 20, 0], alpha=0.5) == pytest.approx(7.5)
