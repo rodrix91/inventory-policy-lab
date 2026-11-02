@@ -139,7 +139,14 @@ def block_bootstrap(
     each starting at a random position (moving-block bootstrap), the last one cut."""
     if not errors:
         raise ValueError("a block bootstrap needs at least one error")
-    block = min(max(block, 1), len(errors))
+    # A zero/negative requested length otherwise returns no data, and bool
+    # arguments silently behave as integers. Reject invalid configuration
+    # before consuming any of the caller's random state.
+    if isinstance(length, bool) or not isinstance(length, int) or length < 1:
+        raise ValueError("bootstrap length must be a positive integer")
+    if isinstance(block, bool) or not isinstance(block, int) or block < 1:
+        raise ValueError("bootstrap block must be a positive integer")
+    block = min(block, len(errors))
     drawn: list[float] = []
     while len(drawn) < length:
         start = rng.randrange(len(errors) - block + 1)
