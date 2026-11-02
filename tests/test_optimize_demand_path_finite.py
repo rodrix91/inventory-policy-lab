@@ -50,3 +50,10 @@ def test_empty_errors_and_invalid_samples_keep_existing_diagnostics() -> None:
         demand_paths([1.0], [], 1, random.Random(2))
     with pytest.raises(ValueError, match="sample count must be a positive integer"):
         demand_paths([1.0], [0.0], 0, random.Random(2))
+
+
+def test_empty_forecast_horizon_produces_empty_paths_without_sampling() -> None:
+    rng = random.Random(41)
+    before = rng.getstate()
+    assert demand_paths([], [2.0], 3, rng) == ((), (), ())
+    assert rng.getstate() == before
