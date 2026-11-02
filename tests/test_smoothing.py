@@ -110,6 +110,51 @@ def test_smoothing_fit_valid_horizons_keep_existing_results() -> None:
         fit.forecast(-1)
 
 
+@pytest.mark.parametrize(
+    "invalid",
+    [True, False, 1.0, 1.5, "2", None, math.nan, math.inf, [], {}, object()],
+)
+def test_smoothing_calendar_rejects_noninteger_period_counts(invalid: object) -> None:
+    fit = holt_damped_fit([10.0, 12.0, 15.0, 16.0], alpha=0.5, beta=0.5, phi=0.8)
+    with pytest.raises(ValueError, match="fitted_periods must be a positive integer"):
+        fit.calendar_forecasts(invalid, 4)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="periods must be a non-negative integer"):
+        fit.calendar_forecasts(4, invalid)  # type: ignore[arg-type]
+
+
+def test_smoothing_calendar_rejects_impossible_period_counts() -> None:
+    fit = holt_damped_fit([10.0, 12.0, 15.0, 16.0], alpha=0.5, beta=0.5, phi=0.8)
+    for invalid in (-1, 0):
+        with pytest.raises(ValueError, match="fitted_periods must be at least 1"):
+            fit.calendar_forecasts(invalid, 4)
+    with pytest.raises(ValueError, match="periods must be non-negative"):
+        fit.calendar_forecasts(4, -1)
+
+
+def test_smoothing_calendar_preserves_valid_fixed_origin_forecasts() -> None:
+    fit = holt_damped_fit([10.0, 12.0, 15.0, 16.0], alpha=0.5, beta=0.5, phi=0.8)
+    assert fit.calendar_forecasts(4, 0) == ()
+    assert fit.calendar_forecasts(4, 6) == (
+        fit.forecast(1),
+        fit.forecast(1),
+        fit.forecast(1),
+        fit.forecast(1),
+        fit.forecast(1),
+        fit.forecast(2),
+    )
+    seasonal = holt_winters_fit(
+        [10.0, 20.0, 12.0, 24.0], 2, alpha=0.5, beta=0.5, gamma=0.5, phi=0.9
+    )
+    assert seasonal.calendar_forecasts(4, 6) == (
+        seasonal.forecast(1),
+        seasonal.forecast(2),
+        seasonal.forecast(1),
+        seasonal.forecast(2),
+        seasonal.forecast(1),
+        seasonal.forecast(2),
+    )
+
+
 def test_additive_holt_winters_by_hand() -> None:
     """y = 10 20 14 24 16, m = 2, a = b = g = 0.5, phi = 0.9.
 
