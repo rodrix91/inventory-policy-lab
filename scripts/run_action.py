@@ -254,14 +254,9 @@ def _valid_report_file(path: Path, report_format: str) -> bool:
         if item_rate is None:
             if demand > 0.00005:
                 return False
-        elif (
-            not _finite_nonnegative(item_rate)
-            or item_rate > 1
-        ):
+        elif not _finite_nonnegative(item_rate) or item_rate > 1:
             return False
-        elif demand > 0.00005 and (
-            abs(item_rate - served / demand) > 0.000051 + 0.0001 / demand
-        ):
+        elif demand > 0.00005 and (abs(item_rate - served / demand) > 0.000051 + 0.0001 / demand):
             return False
         demands.append(demand)
         served_counts.append(served)
@@ -275,9 +270,7 @@ def _valid_report_file(path: Path, report_format: str) -> bool:
         return False
 
     rate = summary.get("overall_fill_rate")
-    if rate is not None and (
-        not _finite_nonnegative(rate) or rate > 1
-    ):
+    if rate is not None and (not _finite_nonnegative(rate) or rate > 1):
         return False
     # Each published quantity differs from its unrounded value by at most
     # half of 0.0001. Near-zero reported totals cannot determine whether the
