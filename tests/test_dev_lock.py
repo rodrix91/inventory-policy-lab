@@ -54,8 +54,8 @@ def test_rejects_unpinned_or_empty_requirements(tmp_path: Path) -> None:
 def test_rejects_version_only_lock_even_when_all_versions_match(tmp_path: Path) -> None:
     requirements = tmp_path / "requirements-dev.txt"
     lock = tmp_path / "requirements-dev.lock"
-    requirements.write_text("pytest==9.1.1\\n", encoding="utf-8")
-    lock.write_text("pytest==9.1.1\\n", encoding="utf-8")
+    requirements.write_text("pytest==9.1.1\n", encoding="utf-8")
+    lock.write_text("pytest==9.1.1\n", encoding="utf-8")
     with pytest.raises(ValueError, match="pytest lacks a SHA-256 hash"):
         check_versions(requirements, lock)
 
@@ -63,10 +63,13 @@ def test_rejects_version_only_lock_even_when_all_versions_match(tmp_path: Path) 
 @pytest.mark.parametrize(
     "lines, error",
     [
-        ("pytest==9.1.1 \\\\n    --hash=sha256:abc\\n", "invalid SHA-256 hash option"),
-        ("--hash=sha256:" + "a" * 64 + "\\npytest==9.1.1\\n", "hash without a package"),
-        ("pytest==9.1.1 \\\\n    --index-url=https://invalid.example\\n", "invalid SHA-256 hash option"),
-        ("pytest==9.1.1 \\\\n    --hash=sha256:" + "a" * 64 + "\\nruff==0.17.2\\n", "ruff lacks a SHA-256 hash"),
+        ("pytest==9.1.1\n    --hash=sha256:abc\n", "invalid SHA-256 hash option"),
+        ("--hash=sha256:" + "a" * 64 + "\npytest==9.1.1\n", "hash without a package"),
+        ("pytest==9.1.1\n    --index-url=https://invalid.example\n", "invalid SHA-256 hash option"),
+        (
+            "pytest==9.1.1\n    --hash=sha256:" + "a" * 64 + "\nruff==0.17.2\n",
+            "ruff lacks a SHA-256 hash",
+        ),
     ],
 )
 def test_rejects_malformed_or_unhashed_lock_entries(
@@ -81,14 +84,15 @@ def test_rejects_malformed_or_unhashed_lock_entries(
 def test_hashed_lock_accepts_markers_and_transitive_dependencies(tmp_path: Path) -> None:
     requirements = tmp_path / "requirements-dev.txt"
     lock = tmp_path / "requirements-dev.lock"
-    requirements.write_text("pytest==9.1.1\\n", encoding="utf-8")
+    requirements.write_text("pytest==9.1.1\n", encoding="utf-8")
     digest = "a" * 64
+    slash = chr(92)
     lock.write_text(
-        "# uv-generated hashed universal lock\\n"
-        f"colorama==0.4.6 ; os_name == 'nt' \\\\n    --hash=sha256:{digest}\\n"
-        "    # via pytest\\n"
-        f"pytest==9.1.1 \\\\n    --hash=sha256:{digest}\\n"
-        "    # via -r requirements-dev.txt\\n",
+        "# uv-generated hashed universal lock\n"
+        f"colorama==0.4.6 ; os_name == 'nt' {slash}\n    --hash=sha256:{digest}\n"
+        "    # via pytest\n"
+        f"pytest==9.1.1 {slash}\n    --hash=sha256:{digest}\n"
+        "    # via -r requirements-dev.txt\n",
         encoding="utf-8",
     )
     assert check_versions(requirements, lock) == []
