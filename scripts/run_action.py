@@ -197,7 +197,10 @@ def _valid_report_file(path: Path, report_format: str) -> bool:
             parse_float=_finite_json_float,
             object_pairs_hook=_unique_json_object,
         )
-    except (OSError, UnicodeError, ValueError):
+    except (OSError, UnicodeError, ValueError, RecursionError):
+        # Python's JSON nesting limit varies across interpreters. Deep or
+        # malformed report content must fail verification without crashing
+        # the Action or publishing an unverified inventory result.
         return False
     if not isinstance(report, dict):
         return False
