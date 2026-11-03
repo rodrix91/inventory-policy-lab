@@ -30,7 +30,6 @@ def read_versions(path: Path) -> dict[str, str]:
     return versions
 
 
-
 _HASH = re.compile(r"--hash=sha256:[0-9a-fA-F]{64}")
 
 
