@@ -158,6 +158,16 @@ def _unique_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
+def _finite_nonnegative(value: Any) -> bool:
+    """Fail closed on nonnumbers and JSON integers too large for a float."""
+    if type(value) not in (int, float) or value < 0:
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
+
+
 def _valid_report_file(path: Path, report_format: str) -> bool:
     """A fresh file is not an analysis success without a real report."""
     try:
@@ -236,12 +246,8 @@ def _valid_report_file(path: Path, report_format: str) -> bool:
         served = simulation.get("served_from_stock")
         item_rate = simulation.get("fill_rate")
         if (
-            type(demand) not in (int, float)
-            or type(served) not in (int, float)
-            or not math.isfinite(demand)
-            or not math.isfinite(served)
-            or demand < 0
-            or served < 0
+            not _finite_nonnegative(demand)
+            or not _finite_nonnegative(served)
             or served > demand + 0.000100001
         ):
             return False
@@ -249,9 +255,8 @@ def _valid_report_file(path: Path, report_format: str) -> bool:
             if demand > 0.00005:
                 return False
         elif (
-            type(item_rate) not in (int, float)
-            or not math.isfinite(item_rate)
-            or not 0 <= item_rate <= 1
+            not _finite_nonnegative(item_rate)
+            or item_rate > 1
         ):
             return False
         elif demand > 0.00005 and (
@@ -271,7 +276,7 @@ def _valid_report_file(path: Path, report_format: str) -> bool:
 
     rate = summary.get("overall_fill_rate")
     if rate is not None and (
-        type(rate) not in (int, float) or not math.isfinite(rate) or not 0 <= rate <= 1
+        not _finite_nonnegative(rate) or rate > 1
     ):
         return False
     # Each published quantity differs from its unrounded value by at most
