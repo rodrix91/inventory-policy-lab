@@ -83,7 +83,6 @@ def test_rejects_malformed_or_unhashed_lock_entries(tmp_path: Path, lines: str, 
         read_hashed_versions(lock)
 
 
-
 def test_hash_options_require_physical_line_continuations(tmp_path: Path) -> None:
     lock = tmp_path / "requirements-dev.lock"
     slash = chr(92)
