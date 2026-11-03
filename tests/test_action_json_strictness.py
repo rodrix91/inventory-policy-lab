@@ -44,9 +44,16 @@ def test_rejects_nonfinite_json_numbers_even_inside_ignored_metadata(
     tmp_path: Path, number: str, container: str
 ) -> None:
     clean = valid_action_report_json()
-    original = f'"{container}": {{}}'
+    if container == "simulation":
+        # The Action fixture now carries required measured simulation counts.
+        # Inject an unchecked field without discarding those valid counters.
+        original = '"simulation": {"total_demand": 10.0'
+        replacement = f'"simulation": {{"untrusted": {number}, "total_demand": 10.0'
+    else:
+        original = f'"{container}": {{}}'
+        replacement = f'"{container}": {{"untrusted": {number}}}'
     assert original in clean
-    corrupted = clean.replace(original, f'"{container}": {{"untrusted": {number}}}', 1)
+    corrupted = clean.replace(original, replacement, 1)
     assert not run_action._valid_report_file(_write(tmp_path, corrupted), "json")
 
 
