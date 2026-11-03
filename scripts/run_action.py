@@ -158,6 +158,16 @@ def _unique_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
+def _finite_nonnegative(value: Any) -> bool:
+    """Fail closed on nonnumbers and JSON integers too large for a float."""
+    if type(value) not in (int, float) or value < 0:
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
+
+
 def _valid_report_file(path: Path, report_format: str) -> bool:
     """A fresh file is not an analysis success without a real report."""
     try:
@@ -211,20 +221,7 @@ def _valid_report_file(path: Path, report_format: str) -> bool:
         or not isinstance(summary.get("abc_xyz"), dict)
     ):
         return False
-    rate = summary.get("overall_fill_rate")
-    if rate is None:
-        # A valid all-zero-demand report has no defined overall fill rate.
-        if not all(
-            isinstance(item, dict)
-            and isinstance(item.get("simulation"), dict)
-            and type(item["simulation"].get("total_demand")) in (int, float)
-            and item["simulation"]["total_demand"] == 0
-            for item in skus
-        ):
-            return False
-    elif type(rate) not in (int, float) or not math.isfinite(rate) or not 0 <= rate <= 1:
-        return False
-    return all(
+    if not all(
         isinstance(item, dict)
         and isinstance(item.get("sku"), str)
         and bool(item["sku"])
@@ -234,7 +231,59 @@ def _valid_report_file(path: Path, report_format: str) -> bool:
         and isinstance(item.get("policy"), dict)
         and isinstance(item.get("simulation"), dict)
         for item in skus
-    ) and len({item["sku"] for item in skus}) == len(skus)
+    ) or len({item["sku"] for item in skus}) != len(skus):
+        return False
+
+    # JSON success requires measured demand and served quantities, not just
+    # structurally plausible dictionaries and a claimed summary fill rate.
+    # The CLI rounds these quantities and rates to four decimal places, so
+    # account for rounding when checking ratios and aggregation.
+    demands: list[float] = []
+    served_counts: list[float] = []
+    for item in skus:
+        simulation = item["simulation"]
+        demand = simulation.get("total_demand")
+        served = simulation.get("served_from_stock")
+        item_rate = simulation.get("fill_rate")
+        if (
+            not _finite_nonnegative(demand)
+            or not _finite_nonnegative(served)
+            or served > demand + 0.000100001
+        ):
+            return False
+        if item_rate is None:
+            if demand > 0.00005:
+                return False
+        elif not _finite_nonnegative(item_rate) or item_rate > 1:
+            return False
+        elif demand > 0.00005 and (abs(item_rate - served / demand) > 0.000051 + 0.0001 / demand):
+            return False
+        demands.append(demand)
+        served_counts.append(served)
+
+    try:
+        total_demand = math.fsum(demands)
+        total_served = math.fsum(served_counts)
+    except OverflowError:
+        return False
+    if not math.isfinite(total_demand) or not math.isfinite(total_served):
+        return False
+
+    rate = summary.get("overall_fill_rate")
+    if rate is not None and (not _finite_nonnegative(rate) or rate > 1):
+        return False
+    # Each published quantity differs from its unrounded value by at most
+    # half of 0.0001. Near-zero reported totals cannot determine whether the
+    # underlying demand was truly zero, so avoid a false positive there.
+    uncertainty = len(skus) * 0.00005 + 1e-10
+    if total_demand > uncertainty:
+        if rate is None:
+            return False
+        expected = total_served / total_demand
+        tolerance = 0.000051 + 2 * uncertainty / (total_demand - uncertainty)
+        if abs(rate - expected) > tolerance:
+            return False
+    return True
 
 
 def main() -> int:

@@ -91,12 +91,90 @@ def test_all_zero_demand_reports_retain_their_legitimate_null_fill_rate(
 ) -> None:
     payload = json.loads(valid_action_report_json())
     payload["summary"]["overall_fill_rate"] = None
-    payload["skus"][0]["simulation"]["total_demand"] = 0.0
+    payload["skus"][0]["simulation"].update(total_demand=0.0, served_from_stock=0.0, fill_rate=None)
     json_report.write_text(json.dumps(payload), encoding="utf-8")
     assert run_action._valid_report_file(json_report, "json")
     payload["skus"][0]["simulation"]["total_demand"] = 5.0
     json_report.write_text(json.dumps(payload), encoding="utf-8")
     assert not run_action._valid_report_file(json_report, "json")
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("total_demand", None),
+        ("total_demand", -1),
+        ("total_demand", True),
+        ("total_demand", "10"),
+        ("total_demand", 10**400),
+        ("served_from_stock", None),
+        ("served_from_stock", -1),
+        ("served_from_stock", True),
+        ("served_from_stock", 11.0),
+        ("served_from_stock", 10**400),
+        ("fill_rate", None),
+        ("fill_rate", -0.1),
+        ("fill_rate", 1.1),
+        ("fill_rate", "1"),
+        ("fill_rate", 10**400),
+        ("fill_rate", 0.25),
+    ],
+)
+def test_action_rejects_invalid_simulation_counts_and_ratios(
+    json_report: Path, field: str, value: Any
+) -> None:
+    report = json.loads(valid_action_report_json())
+    report["skus"][0]["simulation"][field] = value
+    json_report.write_text(json.dumps(report), encoding="utf-8")
+    assert not run_action._valid_report_file(json_report, "json"), (field, value)
+
+
+def test_action_rejects_false_global_fill_rate_and_accepts_rounded_data(
+    json_report: Path,
+) -> None:
+    report = json.loads(valid_action_report_json())
+    for false_rate in (0.0, 0.25, 0.9, 10**400):
+        report["summary"]["overall_fill_rate"] = false_rate
+        json_report.write_text(json.dumps(report), encoding="utf-8")
+        assert not run_action._valid_report_file(json_report, "json")
+
+    report["summary"]["overall_fill_rate"] = 0.6667
+    report["skus"][0]["simulation"].update(
+        total_demand=3.0, served_from_stock=2.0, fill_rate=0.6667
+    )
+    json_report.write_text(json.dumps(report), encoding="utf-8")
+    assert run_action._valid_report_file(json_report, "json")
+
+
+def test_action_checks_aggregate_weighted_fill_rate_across_skus(
+    json_report: Path,
+) -> None:
+    report = json.loads(valid_action_report_json())
+    first = report["skus"][0]
+    first["simulation"].update(total_demand=9.0, served_from_stock=9.0, fill_rate=1.0)
+    second = json.loads(json.dumps(first))
+    second["sku"] = "B"
+    second["simulation"].update(total_demand=1.0, served_from_stock=0.0, fill_rate=0.0)
+    report["skus"].append(second)
+    report["summary"]["skus"] = 2
+    report["summary"]["overall_fill_rate"] = 0.9
+    json_report.write_text(json.dumps(report), encoding="utf-8")
+    assert run_action._valid_report_file(json_report, "json")
+
+    # 0.5 is the unweighted average; the CLI reports the demand-weighted rate.
+    report["summary"]["overall_fill_rate"] = 0.5
+    json_report.write_text(json.dumps(report), encoding="utf-8")
+    assert not run_action._valid_report_file(json_report, "json")
+
+
+def test_action_retains_valid_very_small_rounded_simulations(json_report: Path) -> None:
+    report = json.loads(valid_action_report_json())
+    report["skus"][0]["simulation"].update(total_demand=0.0, served_from_stock=0.0, fill_rate=1.0)
+    # A positive demand below 0.00005 rounds to zero in the published JSON;
+    # the original nonzero overall rate cannot be reconstructed from it.
+    report["summary"]["overall_fill_rate"] = 1.0
+    json_report.write_text(json.dumps(report), encoding="utf-8")
+    assert run_action._valid_report_file(json_report, "json")
 
 
 def test_rejects_duplicate_skus_and_malformed_json(tmp_path: Path, json_report: Path) -> None:
