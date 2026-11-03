@@ -377,7 +377,7 @@ jobs:
           test "$REPORT_SUCCEEDED" = true
           test -n "$REPORT_PATH"
           test -f "$REPORT_PATH"
-          test "$MISSING_CODE" = 3
+          test "$MISSING_CODE" = 2
           test "$MISSING_SUCCEEDED" = false
           test -z "$MISSING_PATH"
           test "$MISSING_OUTCOME" = failure

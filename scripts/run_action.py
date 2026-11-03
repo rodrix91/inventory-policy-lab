@@ -112,6 +112,11 @@ def _resolve_input_path(raw: str) -> Path:
         resolved.relative_to(root)
     except ValueError as exc:
         raise ValueError("Action input path must stay within GITHUB_WORKSPACE.") from exc
+    # The CLI opens the selected path. A FIFO inside the workspace could block
+    # indefinitely waiting for a writer, while directories and devices cannot
+    # be valid CSV inputs. Check the resolved target before any subprocess.
+    if not resolved.is_file():
+        raise ValueError("Action input path must name an existing regular CSV file.")
     return resolved
 
 

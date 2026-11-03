@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 from unittest.mock import patch
@@ -74,6 +75,54 @@ def test_rejects_symlink_escape(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setenv("GITHUB_WORKSPACE", str(workspace))
     with pytest.raises(ValueError, match="stay within"):
         run_action._resolve_input_path("linked.csv")
+
+
+def test_missing_directories_and_special_inputs_fail_before_cli(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / "folder.csv").mkdir()
+    monkeypatch.setenv("GITHUB_WORKSPACE", str(workspace))
+    for name in ("not-present.csv", "folder.csv"):
+        with pytest.raises(ValueError, match="existing regular CSV file"):
+            run_action._resolve_input_path(name)
+
+    if hasattr(os, "mkfifo"):
+        pipe = workspace / "blocked.csv"
+        try:
+            os.mkfifo(pipe)
+        except (OSError, NotImplementedError):
+            return  # This platform/filesystem does not support named pipes.
+        with pytest.raises(ValueError, match="existing regular CSV file"):
+            run_action._resolve_input_path("blocked.csv")
+
+
+def test_fifo_is_refused_without_subprocess_or_report_side_effects(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    if not hasattr(os, "mkfifo"):
+        pytest.skip("Named pipes are unsupported on this platform")
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    try:
+        os.mkfifo(workspace / "blocked.csv")
+    except (OSError, NotImplementedError) as error:
+        pytest.skip(f"Named pipes unavailable: {error}")
+    outputs = tmp_path / "outputs.txt"
+    report_dir = workspace / "reports"
+    monkeypatch.setenv("GITHUB_WORKSPACE", str(workspace))
+    monkeypatch.setenv("INVENTORY_INPUT_PATH", "blocked.csv")
+    monkeypatch.setenv("INVENTORY_INPUT_ARGS", "--holdout 2")
+    monkeypatch.setenv("INVENTORY_INPUT_FORMAT", "json")
+    monkeypatch.setenv("INVENTORY_INPUT_REPORT_PATH", "reports/report.json")
+    monkeypatch.setenv("INVENTORY_INPUT_SUMMARY", "false")
+    monkeypatch.setenv("GITHUB_OUTPUT", str(outputs))
+    with patch.object(run_action.subprocess, "run") as mocked:
+        assert run_action.main() == 2
+        mocked.assert_not_called()
+    assert not report_dir.exists()
+    assert outputs.read_text(encoding="utf-8") == ("exit-code=2\nsucceeded=false\nreport-path=\n")
 
 
 def test_runner_rejects_unsafe_path_before_any_side_effect(
