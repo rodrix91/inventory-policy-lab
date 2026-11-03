@@ -176,6 +176,7 @@ def test_action_retains_valid_very_small_rounded_simulations(json_report: Path) 
     json_report.write_text(json.dumps(report), encoding="utf-8")
     assert run_action._valid_report_file(json_report, "json")
 
+
 def test_rejects_duplicate_skus_and_malformed_json(tmp_path: Path, json_report: Path) -> None:
     payload = json.loads(valid_action_report_json())
     payload["skus"].append(dict(payload["skus"][0]))
