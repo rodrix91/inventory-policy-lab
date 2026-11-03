@@ -21,6 +21,7 @@ run_action = load_script("run_action")
         ("replaced", True, 0, 0),
         ("created", False, 0, 0),
         ("invalid", False, 0, 3),
+        ("nested", False, 0, 3),
         ("failure", True, 2, 2),
     ],
 )
@@ -67,6 +68,8 @@ def test_action_checks_that_a_successful_cli_created_a_new_report(
             report.write_text(valid_action_report_json(), encoding="utf-8")
         elif mode == "invalid":
             report.write_text('{"not_a_report": true}\n', encoding="utf-8")
+        elif mode == "nested":
+            report.write_text("[" * 1500 + "0" + "]" * 1500, encoding="utf-8")
         return subprocess.CompletedProcess(command, subprocess_code, "", "")
 
     with patch.object(run_action.subprocess, "run", side_effect=fake_run) as runner:
