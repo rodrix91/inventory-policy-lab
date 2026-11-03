@@ -66,6 +66,19 @@ def test_finite_json_numbers_in_optional_metadata_remain_accepted(
     assert run_action._valid_report_file(_write(tmp_path, corrupted), "json")
 
 
+def test_decoder_recursion_limit_fails_closed_for_json_reports(tmp_path: Path) -> None:
+    from unittest.mock import patch
+
+    clean = _write(tmp_path, valid_action_report_json())
+    with patch.object(run_action.json, "loads", side_effect=RecursionError("too deep")):
+        assert not run_action._valid_report_file(clean, "json")
+
+    # The actual decoder may reject or accept this depth on different
+    # Python versions. Neither outcome represents an inventory report.
+    nested = "[" * 1500 + "0" + "]" * 1500
+    assert not run_action._valid_report_file(_write(tmp_path, nested), "json")
+
+
 def test_legitimate_cli_json_output_is_still_valid(tmp_path: Path) -> None:
     from conftest import EXAMPLES, run_module
 
