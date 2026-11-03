@@ -11,13 +11,15 @@ def test_matches_pins_and_ignores_transitive_hashes_and_markers(tmp_path: Path) 
     requirements = tmp_path / "requirements-dev.txt"
     lock = tmp_path / "requirements-dev.lock"
     requirements.write_text("# Direct pins\npytest==9.1.1\nruff==0.17.1\n", encoding="utf-8")
+    slash = chr(92)
+    digest_a, digest_b, digest_c = "a" * 64, "b" * 64, "c" * 64
     lock.write_text(
-        "pytest==9.1.1 \\\n"
-        "    --hash=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
-        "ruff==0.17.1 \\\n"
-        "    --hash=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"
-        "colorama==0.4.6 ; os_name == 'nt' \\\n"
-        "    --hash=sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\n",
+        f"pytest==9.1.1 {slash}\n"
+        f"    --hash=sha256:{digest_a}\n"
+        f"ruff==0.17.1 {slash}\n"
+        f"    --hash=sha256:{digest_b}\n"
+        f"colorama==0.4.6 ; os_name == 'nt' {slash}\n"
+        f"    --hash=sha256:{digest_c}\n",
         encoding="utf-8",
     )
     assert check_versions(requirements, lock) == []
@@ -27,7 +29,11 @@ def test_rejects_stale_and_missing_direct_pins(tmp_path: Path) -> None:
     requirements = tmp_path / "requirements-dev.txt"
     lock = tmp_path / "requirements-dev.lock"
     requirements.write_text("ruff==0.17.2\nmypy==2.4.0\n", encoding="utf-8")
-    lock.write_text("ruff==0.17.1 \\\n    --hash=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n", encoding="utf-8")
+    digest = "a" * 64
+    slash = chr(92)
+    lock.write_text(
+        f"ruff==0.17.1 {slash}\n    --hash=sha256:{digest}\n", encoding="utf-8"
+    )
     assert check_versions(requirements, lock) == [
         "ruff: requirements-dev.txt specifies 0.17.2, lock has 0.17.1",
         "mypy: requirements-dev.txt specifies 2.4.0, lock has missing",
