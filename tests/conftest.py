@@ -57,7 +57,11 @@ def valid_action_report_json() -> str:
                         "periods": 1,
                         "forecast": {},
                         "policy": {},
-                        "simulation": {},
+                        "simulation": {
+                            "total_demand": 10.0,
+                            "served_from_stock": 10.0,
+                            "fill_rate": 1.0,
+                        },
                     }
                 ],
             }
