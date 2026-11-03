@@ -91,15 +91,12 @@ def test_all_zero_demand_reports_retain_their_legitimate_null_fill_rate(
 ) -> None:
     payload = json.loads(valid_action_report_json())
     payload["summary"]["overall_fill_rate"] = None
-    payload["skus"][0]["simulation"].update(
-        total_demand=0.0, served_from_stock=0.0, fill_rate=None
-    )
+    payload["skus"][0]["simulation"].update(total_demand=0.0, served_from_stock=0.0, fill_rate=None)
     json_report.write_text(json.dumps(payload), encoding="utf-8")
     assert run_action._valid_report_file(json_report, "json")
     payload["skus"][0]["simulation"]["total_demand"] = 5.0
     json_report.write_text(json.dumps(payload), encoding="utf-8")
     assert not run_action._valid_report_file(json_report, "json")
-
 
 
 @pytest.mark.parametrize(
@@ -172,9 +169,7 @@ def test_action_checks_aggregate_weighted_fill_rate_across_skus(
 
 def test_action_retains_valid_very_small_rounded_simulations(json_report: Path) -> None:
     report = json.loads(valid_action_report_json())
-    report["skus"][0]["simulation"].update(
-        total_demand=0.0, served_from_stock=0.0, fill_rate=1.0
-    )
+    report["skus"][0]["simulation"].update(total_demand=0.0, served_from_stock=0.0, fill_rate=1.0)
     # A positive demand below 0.00005 rounds to zero in the published JSON;
     # the original nonzero overall rate cannot be reconstructed from it.
     report["summary"]["overall_fill_rate"] = 1.0
