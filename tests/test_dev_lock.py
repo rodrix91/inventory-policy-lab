@@ -31,9 +31,7 @@ def test_rejects_stale_and_missing_direct_pins(tmp_path: Path) -> None:
     requirements.write_text("ruff==0.17.2\nmypy==2.4.0\n", encoding="utf-8")
     digest = "a" * 64
     slash = chr(92)
-    lock.write_text(
-        f"ruff==0.17.1 {slash}\n    --hash=sha256:{digest}\n", encoding="utf-8"
-    )
+    lock.write_text(f"ruff==0.17.1 {slash}\n    --hash=sha256:{digest}\n", encoding="utf-8")
     assert check_versions(requirements, lock) == [
         "ruff: requirements-dev.txt specifies 0.17.2, lock has 0.17.1",
         "mypy: requirements-dev.txt specifies 2.4.0, lock has missing",
@@ -78,9 +76,7 @@ def test_rejects_version_only_lock_even_when_all_versions_match(tmp_path: Path) 
         ),
     ],
 )
-def test_rejects_malformed_or_unhashed_lock_entries(
-    tmp_path: Path, lines: str, error: str
-) -> None:
+def test_rejects_malformed_or_unhashed_lock_entries(tmp_path: Path, lines: str, error: str) -> None:
     lock = tmp_path / "requirements-dev.lock"
     lock.write_text(lines, encoding="utf-8")
     with pytest.raises(ValueError, match=error):
