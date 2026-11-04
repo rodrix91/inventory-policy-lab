@@ -38,9 +38,7 @@ def test_rejects_invalid_forecast_origins_before_sampling(
 
 @pytest.mark.parametrize("index", [0, 3])
 @pytest.mark.parametrize("invalid", [math.nan, math.inf, -math.inf, -1.0, True, "1"])
-def test_invalid_source_demand_fails_before_random_sampling(
-    index: int, invalid: Any
-) -> None:
+def test_invalid_source_demand_fails_before_random_sampling(index: int, invalid: Any) -> None:
     values: list[Any] = list(SERIES)
     values[index] = invalid
     rng = random.Random(41)
@@ -52,9 +50,7 @@ def test_invalid_source_demand_fails_before_random_sampling(
 
 @pytest.mark.parametrize("index", [0, 1])
 @pytest.mark.parametrize("invalid", [math.nan, math.inf, -math.inf, -1.0, True, "1"])
-def test_invalid_one_step_forecast_fails_before_random_sampling(
-    index: int, invalid: Any
-) -> None:
+def test_invalid_one_step_forecast_fails_before_random_sampling(index: int, invalid: Any) -> None:
     values: list[tuple[int, Any]] = list(FORECASTS)
     values[index] = (FORECASTS[index][0], invalid)
     rng = random.Random(41)
