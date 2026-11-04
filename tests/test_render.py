@@ -83,4 +83,3 @@ def test_json_refuses_nonfinite_report_metrics(
     )
     with pytest.raises(DataError, match="non-finite values"):
         render_json(report)
-
