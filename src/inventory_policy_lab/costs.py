@@ -26,6 +26,7 @@ import math
 from collections.abc import Iterable
 from dataclasses import dataclass
 
+from .errors import DataError
 from .simulate import SimulationResult
 
 
@@ -72,28 +73,48 @@ class CostBreakdown:
         return self.ordering + self.holding + self.stockout
 
 
+def _finite_breakdown(cost: CostBreakdown) -> CostBreakdown:
+    """Reject overflow before non-finite money reaches reports or aggregations."""
+    try:
+        valid = all(
+            math.isfinite(getattr(cost, name))
+            for name in ("unit_periods", "units_short", "ordering", "holding", "stockout")
+        ) and math.isfinite(cost.total)
+    except (OverflowError, TypeError, ValueError):
+        valid = False
+    if not valid:
+        raise DataError("cost calculation exceeds the finite numeric range")
+    return cost
+
+
 def replay_cost(result: SimulationResult, rates: CostRates) -> CostBreakdown:
     """The cost of one replay at ``rates`` (see the module docstring)."""
     unit_periods = result.average_on_hand * result.periods
     short = max(result.total_demand - result.served_from_stock, 0.0)
-    return CostBreakdown(
-        orders=result.orders_placed,
-        unit_periods=unit_periods,
-        units_short=short,
-        ordering=rates.order * result.orders_placed,
-        holding=rates.holding * unit_periods,
-        stockout=rates.stockout * short,
+    return _finite_breakdown(
+        CostBreakdown(
+            orders=result.orders_placed,
+            unit_periods=unit_periods,
+            units_short=short,
+            ordering=rates.order * result.orders_placed,
+            holding=rates.holding * unit_periods,
+            stockout=rates.stockout * short,
+        )
     )
 
 
 def total_cost(costs: Iterable[CostBreakdown]) -> CostBreakdown:
     """The sum of several breakdowns, part by part (for example over SKUs)."""
-    items = list(costs)
-    return CostBreakdown(
-        orders=sum(c.orders for c in items),
-        unit_periods=math.fsum(c.unit_periods for c in items),
-        units_short=math.fsum(c.units_short for c in items),
-        ordering=math.fsum(c.ordering for c in items),
-        holding=math.fsum(c.holding for c in items),
-        stockout=math.fsum(c.stockout for c in items),
-    )
+    items = [_finite_breakdown(cost) for cost in costs]
+    try:
+        result = CostBreakdown(
+            orders=sum(c.orders for c in items),
+            unit_periods=math.fsum(c.unit_periods for c in items),
+            units_short=math.fsum(c.units_short for c in items),
+            ordering=math.fsum(c.ordering for c in items),
+            holding=math.fsum(c.holding for c in items),
+            stockout=math.fsum(c.stockout for c in items),
+        )
+    except (OverflowError, ValueError) as exc:
+        raise DataError("aggregated costs exceed the finite numeric range") from exc
+    return _finite_breakdown(result)
