@@ -64,7 +64,7 @@ def test_subnormal_demand_retains_real_variation(
 
 def test_cv_is_scale_invariant_across_tiny_normal_and_huge_observations() -> None:
     reference = coefficient_of_variation([1.0, 8.0, 0.0])
-    assert reference == pytest.approx(math.sqrt(98.0) / 9.0)
+    assert reference == pytest.approx(math.sqrt(114.0) / 9.0)
     for factor in (5e-324, 1e-300, 1.0, 1e300, 1e307):
         demand = [factor, 8 * factor, 0.0]
         assert demand[0] != demand[1]
