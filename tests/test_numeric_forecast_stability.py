@@ -63,10 +63,12 @@ def test_safety_stock_stays_finite_when_intermediate_variance_underflows() -> No
     assert stock == pytest.approx(z * 1e-200, rel=1e-12, abs=0)
     assert stock > 0
 
+
 def test_backtest_mase_can_represent_a_large_but_finite_ratio() -> None:
     result = backtest([0.0, 1e-150, 0.0, 1e150], "naive", naive, holdout=1)
     assert result.mae == pytest.approx(1e150)
     assert result.mase == pytest.approx(1e300)
+    assert result.mase is not None
     assert math.isfinite(result.mase)
 
 
