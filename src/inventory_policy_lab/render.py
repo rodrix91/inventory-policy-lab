@@ -6,6 +6,7 @@ import json
 from typing import TYPE_CHECKING, Any
 
 from . import __version__
+from .errors import DataError
 
 if TYPE_CHECKING:  # pragma: no cover - imports for type hints only
     from .analysis import Config, Report, SkuResult
@@ -558,7 +559,14 @@ def report_to_dict(report: Report) -> dict[str, Any]:
 
 
 def render_json(report: Report) -> str:
-    return json.dumps(report_to_dict(report), indent=2, ensure_ascii=False) + "\n"
+    # The standard JSON format forbids NaN/Infinity. Python's permissive
+    # default would otherwise publish a report that downstream parsers reject.
+    try:
+        return json.dumps(
+            report_to_dict(report), indent=2, ensure_ascii=False, allow_nan=False
+        ) + "\n"
+    except ValueError as exc:
+        raise DataError("report contains non-finite values and cannot be encoded as JSON") from exc
 
 
 def _num(value: float | None, digits: int = 1) -> str:
