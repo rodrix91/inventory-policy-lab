@@ -175,7 +175,17 @@ class SmoothingFit:
         if isinstance(horizon, bool) or not isinstance(horizon, int):
             raise ValueError("horizon must be an integer number of periods")
         steps = max(horizon, 1)
-        return math.fsum(self.forecast(h) for h in range(1, steps + 1)) / steps
+        try:
+            return math.fsum(self.forecast(h) for h in range(1, steps + 1)) / steps
+        except OverflowError:
+            # A representable mean can still overflow the intermediate sum.
+            # Forecasts are non-negative, so online updates avoid that sum
+            # without changing the accurate fsum path for ordinary inputs.
+            average = 0.0
+            for count in range(1, steps + 1):
+                value = self.forecast(count)
+                average += (value - average) / count
+            return average
 
     def calendar_forecasts(self, fitted_periods: int, periods: int) -> tuple[float, ...]:
         """Forecast of each period ``0 .. periods - 1`` of a calendar the fit started at.

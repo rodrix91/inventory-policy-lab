@@ -9,6 +9,7 @@ import pytest
 
 from inventory_policy_lab import backtest, moving_average, naive
 from inventory_policy_lab.forecast import naive_scale
+from inventory_policy_lab.smoothing import SmoothingFit
 
 
 def test_moving_average_stays_finite_when_fmean_sum_would_overflow() -> None:
@@ -37,3 +38,39 @@ def test_backtest_scoring_avoids_overflowing_mean_error_and_bias() -> None:
     assert result.rmse == pytest.approx(1e308)
     assert result.bias == pytest.approx(1e308 / 3)
     assert result.mase is None
+
+
+def test_smoothing_mean_does_not_overflow_when_the_mean_is_finite() -> None:
+    fit = SmoothingFit(
+        model="holt_damped",
+        alpha=0.2,
+        beta=0.1,
+        phi=0.8,
+        gamma=None,
+        level=1e308,
+        trend=0.0,
+        seasonals=(),
+        sse=0.0,
+    )
+    assert fit.forecast(1) == 1e308
+    assert fit.mean_forecast(1) == 1e308
+    assert fit.mean_forecast(2) == pytest.approx(1e308)
+    assert fit.mean_forecast(3) == pytest.approx(1e308)
+
+
+def test_smoothing_mean_of_large_alternating_seasonal_demand_is_finite() -> None:
+    fit = SmoothingFit(
+        model="hw_additive",
+        alpha=0.2,
+        beta=0.1,
+        phi=0.8,
+        gamma=0.1,
+        level=1e308,
+        trend=0.0,
+        seasonals=(0.0, -1e308),
+        sse=0.0,
+    )
+    assert [fit.forecast(h) for h in range(1, 5)] == [1e308, 0.0, 1e308, 0.0]
+    assert fit.mean_forecast(4) == pytest.approx(5e307)
+    # Preserve the documented nonpositive-horizon clamp and normal results.
+    assert fit.mean_forecast(0) == fit.forecast(1)
