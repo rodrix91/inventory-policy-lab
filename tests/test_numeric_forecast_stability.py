@@ -77,4 +77,3 @@ def test_backtest_mase_overflow_is_a_reportable_data_error() -> None:
     # yet the MASE ratio 1e308 / 1e-300 exceeds binary64's range.
     with pytest.raises(DataError, match="MASE exceeds the finite numeric range"):
         backtest([0.0, 1e-300, 0.0, 1e308], "naive", naive, holdout=1)
-
