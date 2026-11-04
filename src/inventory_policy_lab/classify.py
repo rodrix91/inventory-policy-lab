@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import statistics
+import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
@@ -72,18 +73,25 @@ def coefficient_of_variation(demand: Sequence[float]) -> float | None:
     for index, value in enumerate(demand):
         if not _valid_nonnegative_number(value):
             raise ValueError(f"demand[{index}] must be finite and non-negative")
-    try:
-        mean = statistics.fmean(demand)
-    except OverflowError:
-        # fmean first sums the inputs, which can overflow even when their
-        # mean and coefficient of variation are finite. Demand is non-negative,
-        # so scaling by the largest observation preserves the CV exactly.
-        maximum = max(demand)
-        normalized = [value / maximum for value in demand]
-        return statistics.pstdev(normalized) / statistics.fmean(normalized)
-    if mean == 0:
+    maximum = max(demand)
+    if maximum == 0:
         return None
-    return statistics.pstdev(demand) / mean
+    # Preserve the historical arithmetic (and exact cutoff comparisons)
+    # for ordinary values. Always rescaling can shift e.g. CV([5, 15])
+    # slightly above 0.5 and incorrectly turn XYZ class X into Y.
+    # Subnormal values, however, lose real variation when fmean/pstdev
+    # round tiny positive quantities to zero. Rescale those and any
+    # histories whose unscaled moments overflow.
+    if maximum >= sys.float_info.min:
+        try:
+            return statistics.pstdev(demand) / statistics.fmean(demand)
+        except OverflowError:
+            pass
+
+    # CV is unchanged by multiplying all observations by a positive constant.
+    # Normalize into [0, 1] for stable moments without under/overflow.
+    normalized = [value / maximum for value in demand]
+    return statistics.pstdev(normalized) / statistics.fmean(normalized)
 
 
 def xyz_class(cv: float | None, x: float = 0.5, y: float = 1.0) -> str:
