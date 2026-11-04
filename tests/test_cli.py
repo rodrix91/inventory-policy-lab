@@ -210,3 +210,27 @@ def test_duplicate_class_service_level_is_usage_error_without_overwrite(
     assert captured.out == ""
     assert "duplicate --class-service-levels class" in captured.err
     assert previous.read_text(encoding="utf-8") == '{"status":"approved"}\n'
+
+@pytest.mark.parametrize("write_file", [False, True])
+def test_nonfinite_json_is_a_data_error_without_publishing_partial_output(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    write_file: bool,
+) -> None:
+    # Simulate an upstream numeric metric that cannot be represented in
+    # standard JSON. The CLI must not expose a traceback or overwrite a
+    # previously approved report.
+    previous = tmp_path / "policy.json"
+    previous.write_text('{"status":"approved"}\n', encoding="utf-8")
+    monkeypatch.setattr(
+        "inventory_policy_lab.render.report_to_dict",
+        lambda _: {"metric": float("nan")},
+    )
+    options = ["--output", str(previous)] if write_file else []
+    assert main([WORKED, "--holdout", "2", "--format", "json", *options]) == 4
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "report contains non-finite values" in captured.err
+    assert "Traceback" not in captured.err
+    assert previous.read_text(encoding="utf-8") == '{"status":"approved"}\n'
