@@ -202,7 +202,9 @@ def bootstrap_histories(
         # origins, never duplicated, future or boolean indices. Validate
         # all metadata before the first random draw.
         if type(t) is not int or not 1 <= t < len(series) or t <= previous:
-            raise ValueError(f"one_step[{index}] period must be a strictly increasing in-range index")
+            raise ValueError(
+                f"one_step[{index}] period must be a strictly increasing in-range index"
+            )
         _validate_demand_path_numbers((forecast,), f"one_step[{index}] forecast")
         if forecast < 0:
             raise ValueError(f"one_step[{index}] forecast must be non-negative")
