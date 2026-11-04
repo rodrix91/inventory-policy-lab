@@ -562,9 +562,9 @@ def render_json(report: Report) -> str:
     # The standard JSON format forbids NaN/Infinity. Python's permissive
     # default would otherwise publish a report that downstream parsers reject.
     try:
-        return json.dumps(
-            report_to_dict(report), indent=2, ensure_ascii=False, allow_nan=False
-        ) + "\n"
+        return (
+            json.dumps(report_to_dict(report), indent=2, ensure_ascii=False, allow_nan=False) + "\n"
+        )
     except ValueError as exc:
         raise DataError("report contains non-finite values and cannot be encoded as JSON") from exc
 
