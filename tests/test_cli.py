@@ -211,6 +211,7 @@ def test_duplicate_class_service_level_is_usage_error_without_overwrite(
     assert "duplicate --class-service-levels class" in captured.err
     assert previous.read_text(encoding="utf-8") == '{"status":"approved"}\n'
 
+
 @pytest.mark.parametrize("write_file", [False, True])
 def test_nonfinite_json_is_a_data_error_without_publishing_partial_output(
     tmp_path: Path,
