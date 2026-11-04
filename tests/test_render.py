@@ -5,9 +5,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from conftest import EXAMPLES
 
 from inventory_policy_lab import Config, __version__, analyze_file, render_json, render_markdown
+from inventory_policy_lab.errors import DataError
 
 
 def test_json_is_complete_and_rounded() -> None:
@@ -66,3 +69,18 @@ def test_markdown_with_a_sku_without_demand(tmp_path: Path) -> None:
     text = render_markdown(analyze_file(zero))
     assert "| no demand | 1 |" in text
     assert "Replayed fill rate, all SKUs: n/a" in text
+
+@pytest.mark.parametrize("nonfinite", [float("nan"), float("inf"), float("-inf")])
+def test_json_refuses_nonfinite_report_metrics(
+    monkeypatch: pytest.MonkeyPatch, nonfinite: float
+) -> None:
+    # Protect consumers even when an upstream calculation or external Report
+    # has accidentally produced a value Python would serialize as NaN/Infinity.
+    report = analyze_file(EXAMPLES / "worked_example.csv", Config(holdout=2))
+    monkeypatch.setattr(
+        "inventory_policy_lab.render.report_to_dict",
+        lambda _: {"tool": "inventory-policy-lab", "metric": nonfinite},
+    )
+    with pytest.raises(DataError, match="non-finite values"):
+        render_json(report)
+
