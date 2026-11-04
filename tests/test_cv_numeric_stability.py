@@ -45,6 +45,7 @@ def test_existing_small_scale_and_zero_demand_behavior() -> None:
     assert coefficient_of_variation([0.0, 0.0]) is None
     assert demand_profile([0.0, 0.0]).category == "no demand"
 
+
 @pytest.mark.parametrize(
     ("series", "expected"),
     [
@@ -82,6 +83,7 @@ def test_subnormal_history_is_classified_by_observed_variation() -> None:
     assert erratic.cv2 == pytest.approx((7 / 9) ** 2)
     assert lumpy.cv2 == pytest.approx(erratic.cv2)
     assert demand_profile([0.0, 0.0]).category == "no demand"
+
 
 def test_normal_scale_cv_keeps_exact_xyz_category_boundary() -> None:
     # Scaling a routine series unnecessarily can round an exact 0.5 upward
