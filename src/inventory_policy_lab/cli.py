@@ -424,10 +424,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         report = analyze_file(
             args.path, config_from_args(args), encoding=args.encoding, delimiter=args.delimiter
         )
+        # Rendering can also detect invalid numeric report values. Treat
+        # these as data errors before publishing stdout or replacing a file.
+        text = render_json(report) if args.format == "json" else render_markdown(report)
     except InventoryPolicyError as exc:
         print(f"inventory-policy-lab: error: {exc}", file=sys.stderr)
         return exc.exit_code
-    text = render_json(report) if args.format == "json" else render_markdown(report)
     if args.output is None:
         sys.stdout.write(text)
         return EXIT_OK
