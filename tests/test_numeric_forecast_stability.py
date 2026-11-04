@@ -7,6 +7,7 @@ import math
 import pytest
 
 from inventory_policy_lab import backtest, naive, safety_stock
+from inventory_policy_lab.errors import DataError
 
 
 def test_backtest_rmse_remains_finite_when_squaring_the_error_would_overflow() -> None:
@@ -61,3 +62,18 @@ def test_safety_stock_stays_finite_when_intermediate_variance_underflows() -> No
     z, stock = safety_stock(0.95, demand_per_period=0, sigma_demand=1e-200, lead_time=1)
     assert stock == pytest.approx(z * 1e-200, rel=1e-12, abs=0)
     assert stock > 0
+
+
+def test_backtest_mase_can_represent_a_large_but_finite_ratio() -> None:
+    result = backtest([0.0, 1e-150, 0.0, 1e150], "naive", naive, holdout=1)
+    assert result.mae == pytest.approx(1e150)
+    assert result.mase == pytest.approx(1e300)
+    assert result.mase is not None
+    assert math.isfinite(result.mase)
+
+
+def test_backtest_mase_overflow_is_a_reportable_data_error() -> None:
+    # Both training observations and the holdout are valid finite demand,
+    # yet the MASE ratio 1e308 / 1e-300 exceeds binary64's range.
+    with pytest.raises(DataError, match="MASE exceeds the finite numeric range"):
+        backtest([0.0, 1e-300, 0.0, 1e308], "naive", naive, holdout=1)
