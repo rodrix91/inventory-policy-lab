@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from inventory_policy_lab import coefficient_of_variation, demand_profile
+from inventory_policy_lab import coefficient_of_variation, demand_profile, xyz_class
 
 
 def test_identical_large_demand_has_zero_variability() -> None:
@@ -82,3 +82,9 @@ def test_subnormal_history_is_classified_by_observed_variation() -> None:
     assert erratic.cv2 == pytest.approx((7 / 9) ** 2)
     assert lumpy.cv2 == pytest.approx(erratic.cv2)
     assert demand_profile([0.0, 0.0]).category == "no demand"
+
+def test_normal_scale_cv_keeps_exact_xyz_category_boundary() -> None:
+    # Scaling a routine series unnecessarily can round an exact 0.5 upward
+    # and silently change the boundary classification from X to Y.
+    assert coefficient_of_variation([5.0, 15.0]) == 0.5
+    assert xyz_class(coefficient_of_variation([5.0, 15.0])) == "X"
