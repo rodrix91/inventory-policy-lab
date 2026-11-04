@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import statistics
+import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
@@ -72,15 +73,25 @@ def coefficient_of_variation(demand: Sequence[float]) -> float | None:
     for index, value in enumerate(demand):
         if not _valid_nonnegative_number(value):
             raise ValueError(f"demand[{index}] must be finite and non-negative")
-    # CV is scale-invariant for non-negative demand. Normalize *before*
-    # computing both moments, not only when fmean() overflows: subnormal
-    # positive values can also make fmean() round to zero or pstdev()
-    # underflow to zero, incorrectly reporting no demand or no variation.
-    # The largest observation becomes exactly 1.0, while all values remain
-    # in [0, 1]; this also avoids overflow for very large finite histories.
     maximum = max(demand)
     if maximum == 0:
         return None
+    # Preserve the historical arithmetic (and exact cutoff comparisons)
+    # for ordinary values. Always rescaling can shift e.g. CV([5, 15])
+    # slightly above 0.5 and incorrectly turn XYZ class X into Y.
+    # Subnormal values, however, lose real variation when fmean/pstdev
+    # round tiny positive quantities to zero. Rescale those and any
+    # histories whose unscaled moments overflow.
+    if maximum >= sys.float_info.min:
+        try:
+            mean = statistics.fmean(demand)
+            if mean > 0:
+                return statistics.pstdev(demand) / mean
+        except OverflowError:
+            pass
+
+    # CV is unchanged by multiplying all observations by a positive constant.
+    # Normalize into [0, 1] for stable moments without under/overflow.
     normalized = [value / maximum for value in demand]
     return statistics.pstdev(normalized) / statistics.fmean(normalized)
 
