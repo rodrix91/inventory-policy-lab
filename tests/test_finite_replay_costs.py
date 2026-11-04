@@ -59,8 +59,12 @@ def test_total_cost_rejects_overflow_of_finite_individual_breakdowns() -> None:
 
 def test_total_cost_rejects_nonfinite_sum_of_components() -> None:
     bad = CostBreakdown(
-        orders=1, unit_periods=0, units_short=0,
-        ordering=1e308, holding=1e308, stockout=0,
+        orders=1,
+        unit_periods=0,
+        units_short=0,
+        ordering=1e308,
+        holding=1e308,
+        stockout=0,
     )
     assert math.isinf(bad.total)
     with pytest.raises(DataError, match="cost calculation exceeds"):
@@ -70,8 +74,12 @@ def test_total_cost_rejects_nonfinite_sum_of_components() -> None:
 @pytest.mark.parametrize("invalid", [math.inf, math.nan, 10**400, "not numeric"])
 def test_total_cost_rejects_malformed_public_breakdowns(invalid: object) -> None:
     bad = CostBreakdown(
-        orders=1, unit_periods=0, units_short=0,
-        ordering=invalid, holding=0, stockout=0,  # type: ignore[arg-type]
+        orders=1,
+        unit_periods=0,
+        units_short=0,
+        ordering=invalid,  # type: ignore[arg-type]
+        holding=0,
+        stockout=0,
     )
     with pytest.raises(DataError, match="cost calculation exceeds"):
         total_cost([bad])
@@ -81,12 +89,18 @@ def test_normal_replay_and_aggregation_remain_unchanged() -> None:
     source = simulate([4, 4, 6, 4], 4, 8, lead_time=1)
     breakdown = replay_cost(source, CostRates(order=10, holding=0.5, stockout=3))
     assert (breakdown.orders, breakdown.ordering, breakdown.holding, breakdown.stockout) == (
-        2, 20, 7, 6,
+        2,
+        20,
+        7,
+        6,
     )
     assert breakdown.total == 33
     aggregate = total_cost([breakdown, breakdown])
     assert (aggregate.orders, aggregate.ordering, aggregate.holding, aggregate.stockout) == (
-        4, 40, 14, 12,
+        4,
+        40,
+        14,
+        12,
     )
     assert aggregate.total == 66
     assert total_cost([]).total == 0
