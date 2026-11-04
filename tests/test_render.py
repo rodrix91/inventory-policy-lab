@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from conftest import EXAMPLES
 
 from inventory_policy_lab import Config, __version__, analyze_file, render_json, render_markdown
