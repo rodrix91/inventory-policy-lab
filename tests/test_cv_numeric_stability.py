@@ -55,9 +55,7 @@ def test_existing_small_scale_and_zero_demand_behavior() -> None:
         ([5e-324, 5e-324], 0.0),
     ],
 )
-def test_subnormal_demand_retains_real_variation(
-    series: list[float], expected: float
-) -> None:
+def test_subnormal_demand_retains_real_variation(series: list[float], expected: float) -> None:
     # The old unscaled mean and standard deviation could both underflow
     # even when observations were positive and genuinely different.
     assert coefficient_of_variation(series) == pytest.approx(expected)
