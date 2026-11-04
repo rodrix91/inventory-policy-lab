@@ -70,6 +70,7 @@ def test_markdown_with_a_sku_without_demand(tmp_path: Path) -> None:
     assert "| no demand | 1 |" in text
     assert "Replayed fill rate, all SKUs: n/a" in text
 
+
 @pytest.mark.parametrize("nonfinite", [float("nan"), float("inf"), float("-inf")])
 def test_json_refuses_nonfinite_report_metrics(
     monkeypatch: pytest.MonkeyPatch, nonfinite: float
