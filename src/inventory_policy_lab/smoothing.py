@@ -163,7 +163,15 @@ class SmoothingFit:
             raise ValueError("horizon must be an integer number of periods")
         if horizon < 1:
             raise ValueError(f"horizon must be at least 1, got {horizon}")
-        damping = sum(self.phi**i for i in range(1, horizon + 1))
+        # Repeated powers are accurate for short horizons, but their O(h)
+        # work makes a long lead-time forecast unnecessarily expensive.
+        # For the fitted 0 < phi < 1 models, a geometric sum computes the
+        # same damped trend in constant time. expm1 preserves precision when
+        # horizon * log(phi) is close to zero.
+        if horizon > 64 and 0 < self.phi < 1:
+            damping = -self.phi * math.expm1(horizon * math.log(self.phi)) / (1 - self.phi)
+        else:
+            damping = sum(self.phi**i for i in range(1, horizon + 1))
         base = self.level + damping * self.trend
         if self.seasonals:
             season = self.seasonals[(horizon - 1) % len(self.seasonals)]

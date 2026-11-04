@@ -29,7 +29,7 @@ from inventory_policy_lab import (
 )
 from inventory_policy_lab.analysis import _analyze_sku
 from inventory_policy_lab.reader import DemandData, read_demand
-from inventory_policy_lab.smoothing import ALPHAS, BETAS, PHIS
+from inventory_policy_lab.smoothing import ALPHAS, BETAS, PHIS, SmoothingFit
 
 
 def monthly(table: dict[str, list[float]], start_year: int = 2022) -> DemandData:
@@ -456,3 +456,45 @@ def test_synthetic_example_numbers_quoted_in_the_readme() -> None:
     assert round(
         next(s for s in before.skus if s.sku == "SKU-003").simulation.fill_rate or 0, 3
     ) == (0.98)
+
+
+def test_large_damped_forecast_uses_geometric_limit_without_linear_work() -> None:
+    """Long horizons should converge instead of summing millions of powers."""
+    fit = holt_damped_fit([10.0, 12.0, 15.0, 16.0], alpha=0.5, beta=0.5, phi=0.8)
+    expected = fit.level + fit.trend * fit.phi / (1 - fit.phi)
+    assert fit.forecast(1_000_000) == pytest.approx(expected, rel=1e-12)
+    assert math.isfinite(fit.forecast(1_000_000))
+
+
+def test_geometric_damping_respects_short_horizon_reference_and_boundary() -> None:
+    fit = holt_damped_fit([10.0, 12.0, 15.0, 16.0], alpha=0.5, beta=0.5, phi=0.98)
+    for horizon in (1, 2, 64, 65, 128, 1_000):
+        expected = max(0.0, fit.level + fit.trend * sum(fit.phi**i for i in range(1, horizon + 1)))
+        assert fit.forecast(horizon) == pytest.approx(expected, rel=1e-12)
+
+
+def test_long_horizon_mean_matches_analytic_average_of_damped_trend() -> None:
+    fit = holt_damped_fit([10.0, 12.0, 15.0, 16.0], alpha=0.5, beta=0.5, phi=0.98)
+    horizon = 2_000
+    phi = fit.phi
+    average_damping = phi / (1 - phi) - phi**2 * (1 - phi**horizon) / (horizon * (1 - phi) ** 2)
+    expected = fit.level + fit.trend * average_damping
+    assert fit.mean_forecast(horizon) == pytest.approx(expected, rel=1e-12)
+
+
+def test_long_horizon_keeps_original_fallback_for_non_damped_custom_fits() -> None:
+    # Public fit records can be built directly without the grid fitting guards.
+    # Preserve the original sum for custom factors outside the fitted (0, 1).
+    for phi, expected in ((0.0, 10.0), (1.0, 140.0)):
+        fit = SmoothingFit(
+            model="holt_damped",
+            alpha=0.5,
+            beta=0.5,
+            phi=phi,
+            gamma=None,
+            level=10.0,
+            trend=2.0,
+            seasonals=(),
+            sse=0.0,
+        )
+        assert fit.forecast(65) == expected
