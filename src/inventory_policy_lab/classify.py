@@ -84,9 +84,7 @@ def coefficient_of_variation(demand: Sequence[float]) -> float | None:
     # histories whose unscaled moments overflow.
     if maximum >= sys.float_info.min:
         try:
-            mean = statistics.fmean(demand)
-            if mean > 0:
-                return statistics.pstdev(demand) / mean
+            return statistics.pstdev(demand) / statistics.fmean(demand)
         except OverflowError:
             pass
 
