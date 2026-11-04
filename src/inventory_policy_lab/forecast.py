@@ -12,6 +12,8 @@ import statistics
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
+from .errors import DataError
+
 Method = Callable[[Sequence[float]], float]
 
 
@@ -198,13 +200,19 @@ def backtest(series: Sequence[float], name: str, method: Method, holdout: int) -
         else 0.0
     )
     scale = naive_scale(series[:start])
+    mase = mae / scale if scale > 0 else None
+    # A tiny but nonzero training scale and a very large holdout error can
+    # overflow the ratio even though every demand value and error is finite.
+    # Reporting Infinity would corrupt standard JSON and model comparisons.
+    if mase is not None and not math.isfinite(mase):
+        raise DataError(f"{name} MASE exceeds the finite numeric range")
     return BacktestResult(
         method=name,
         forecasts=tuple(forecasts),
         mae=mae,
         rmse=rmse,
         bias=_stable_fmean(errors),
-        mase=mae / scale if scale > 0 else None,
+        mase=mase,
     )
 
 
