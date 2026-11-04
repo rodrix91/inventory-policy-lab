@@ -165,6 +165,7 @@ def block_bootstrap(
         raise ValueError("bootstrap length must be a positive integer")
     if isinstance(block, bool) or not isinstance(block, int) or block < 1:
         raise ValueError("bootstrap block must be a positive integer")
+    _validate_demand_path_numbers(errors, "errors")
     block = min(block, len(errors))
     drawn: list[float] = []
     while len(drawn) < length:
@@ -191,7 +192,29 @@ def bootstrap_histories(
     if len(one_step) < 2:
         raise ValueError("bootstrapped histories need at least two one-step forecasts")
     _validate_samples(samples)
+    _validate_demand_path_numbers(series, "series")
+    for index, value in enumerate(series):
+        if value < 0:
+            raise ValueError(f"series[{index}] must be non-negative")
+    previous = -1
+    for index, (t, forecast) in enumerate(one_step):
+        # A fixed-design residual bootstrap needs chronological one-step
+        # origins, never duplicated, future or boolean indices. Validate
+        # all metadata before the first random draw.
+        if type(t) is not int or not 1 <= t < len(series) or t <= previous:
+            raise ValueError(
+                f"one_step[{index}] period must be a strictly increasing in-range index"
+            )
+        _validate_demand_path_numbers((forecast,), f"one_step[{index}] forecast")
+        if forecast < 0:
+            raise ValueError(f"one_step[{index}] forecast must be non-negative")
+        previous = t
     errors = [series[t] - forecast for t, forecast in one_step]
+    _validate_demand_path_numbers(errors, "errors")
+    # A sampled residual can be paired with any forecast. All candidate
+    # reconstructions must remain finite, even for very large units.
+    if not math.isfinite(max(forecast for _, forecast in one_step) + max(errors)):
+        raise ValueError("forecast and residual combination produces non-finite demand")
     block = block_length(len(errors))
     histories = []
     for _ in range(samples):
