@@ -50,7 +50,9 @@ def test_nonfinite_replay_quantities_are_not_reported_as_money() -> None:
 
 
 def test_total_cost_rejects_overflow_of_finite_individual_breakdowns() -> None:
-    one = CostBreakdown(orders=1, unit_periods=0, units_short=0, ordering=1e308, holding=0, stockout=0)
+    one = CostBreakdown(
+        orders=1, unit_periods=0, units_short=0, ordering=1e308, holding=0, stockout=0
+    )
     with pytest.raises(DataError, match="aggregated costs exceed"):
         total_cost([one, one])
 
