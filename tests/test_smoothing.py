@@ -29,7 +29,7 @@ from inventory_policy_lab import (
 )
 from inventory_policy_lab.analysis import _analyze_sku
 from inventory_policy_lab.reader import DemandData, read_demand
-from inventory_policy_lab.smoothing import ALPHAS, BETAS, PHIS
+from inventory_policy_lab.smoothing import ALPHAS, BETAS, PHIS, SmoothingFit
 
 
 def monthly(table: dict[str, list[float]], start_year: int = 2022) -> DemandData:
@@ -484,3 +484,20 @@ def test_long_horizon_mean_matches_analytic_average_of_damped_trend() -> None:
     )
     expected = fit.level + fit.trend * average_damping
     assert fit.mean_forecast(horizon) == pytest.approx(expected, rel=1e-12)
+
+def test_long_horizon_keeps_original_fallback_for_non_damped_custom_fits() -> None:
+    # Public fit records can be built directly without the grid fitting guards.
+    # Preserve the original sum for custom factors outside the fitted (0, 1).
+    for phi, expected in ((0.0, 10.0), (1.0, 140.0)):
+        fit = SmoothingFit(
+            model="holt_damped",
+            alpha=0.5,
+            beta=0.5,
+            phi=phi,
+            gamma=None,
+            level=10.0,
+            trend=2.0,
+            seasonals=(),
+            sse=0.0,
+        )
+        assert fit.forecast(65) == expected
