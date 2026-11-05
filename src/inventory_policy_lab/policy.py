@@ -388,9 +388,23 @@ def build_policy(
     for name, value in (("eoq_units", eoq_units), ("bootstrap_units", bootstrap_units)):
         if value is not None and not _valid_nonnegative_number(value):
             raise ValueError(f"{name} must be finite and non-negative, got {value!r}")
-    z, ss = safety_stock(
-        service_level, demand_per_period, sigma_demand, lead_time, sigma_lead_time, review_period
-    )
+    try:
+        z, ss = safety_stock(
+            service_level,
+            demand_per_period,
+            sigma_demand,
+            lead_time,
+            sigma_lead_time,
+            review_period,
+        )
+    except DataError:
+        # An empirical bootstrap stock replaces the normal stock estimate.
+        # A non-representable *unused* normal estimate must not reject an
+        # otherwise finite bootstrap policy. safety_stock() has already
+        # validated every public input before reporting numeric overflow.
+        if bootstrap_units is None:
+            raise
+        z, ss = NormalDist().inv_cdf(service_level), bootstrap_units
     method = "normal"
     if bootstrap_units is not None:
         ss, method = bootstrap_units, "bootstrap"
