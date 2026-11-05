@@ -8,6 +8,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from statistics import NormalDist
 
+from .errors import DataError
 from .forecast import _stable_fmean
 
 POLICY_KINDS = ("sQ", "RS", "RsS")
@@ -118,7 +119,12 @@ def safety_stock(
         math.sqrt(protection) * sigma_demand,
         demand_per_period * sigma_lead_time,
     )
-    return z, z * deviation
+    stock = z * deviation
+    # Valid finite inputs may still overflow the protection variance or the
+    # final quantile. Do not hand a non-finite stock value to reports or JSON.
+    if not math.isfinite(stock):
+        raise DataError("normal safety stock exceeds the finite numeric range")
+    return z, stock
 
 
 def _check_bootstrap_service_level(service_level: float) -> None:
@@ -388,6 +394,11 @@ def build_policy(
     method = "normal"
     if bootstrap_units is not None:
         ss, method = bootstrap_units, "bootstrap"
+    reorder_point = demand_per_period * (lead_time + review_period) + ss
+    # The expected interval demand can overflow even when the safety stock
+    # is exactly zero (for example at a 50% service level).
+    if not math.isfinite(reorder_point):
+        raise DataError("policy reorder point exceeds the finite numeric range")
     return Policy(
         service_level=service_level,
         z=z,
@@ -397,7 +408,7 @@ def build_policy(
         sigma_lead_time=sigma_lead_time,
         review_period=review_period,
         safety_stock=ss,
-        reorder_point=demand_per_period * (lead_time + review_period) + ss,
+        reorder_point=reorder_point,
         eoq=eoq_units,
         safety_stock_method=method,
         kind=kind,
