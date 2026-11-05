@@ -13,6 +13,10 @@ from .forecast import _stable_fmean
 
 POLICY_KINDS = ("sQ", "RS", "RsS")
 BOOTSTRAP_SOURCES = ("demand", "residuals")
+# A single demand bootstrap creates one sampled value per protection period
+# in each draw. Reject pathological workloads before calling rng.choices(),
+# which otherwise attempts to allocate an enormous list in one operation.
+MAX_BOOTSTRAP_DEMAND_DRAWS = 2_000_000
 
 
 def _valid_finite_number(value: float) -> bool:
@@ -200,6 +204,20 @@ def bootstrap_safety_stock(
     expected = demand_per_period * protection
     if not math.isfinite(protection) or not math.isfinite(expected):
         raise DataError("bootstrap expected interval demand exceeds the finite numeric range")
+    # Check all *possible* observed lead times, not just those the RNG
+    # happens to select. Even zero demand cannot make an enormous
+    # rng.choices(k=periods) memory allocation safe.
+    max_lead = max(lead_times) if lead_times else lead_time
+    max_horizon = max_lead + review_period
+    if not math.isfinite(max_horizon):
+        raise DataError("bootstrap sampled interval duration exceeds the finite numeric range")
+    worst_periods = int(max_horizon + 0.5)
+    # A zero-period bootstrap still allocates and sorts one result per draw.
+    # Count those iterations, too; normal-sized seeded draws are unchanged.
+    if samples * max(1, worst_periods) > MAX_BOOTSTRAP_DEMAND_DRAWS:
+        raise ValueError(
+            f"bootstrap demand sampling exceeds {MAX_BOOTSTRAP_DEMAND_DRAWS} draw-periods"
+        )
     rng = rng or random.Random(0)
     sums: list[float] = []
     for _ in range(samples):
