@@ -146,13 +146,9 @@ def _number(text: str, column: str, line: int) -> float:
     try:
         value = float(text)
     except ValueError:
-        raise DataError(
-            f"line {line}: {column} {_bounded_input(text)} is not a number"
-        ) from None
+        raise DataError(f"line {line}: {column} {_bounded_input(text)} is not a number") from None
     if not math.isfinite(value):
-        raise DataError(
-            f"line {line}: {column} {_bounded_input(text)} is not a finite number"
-        )
+        raise DataError(f"line {line}: {column} {_bounded_input(text)} is not a finite number")
     return value
 
 
@@ -377,9 +373,7 @@ def parse_rows(
         else:
             period_rank = date.fromisoformat(period).toordinal()
         if not quantity_text:
-            raise DataError(
-                f"line {line}: empty quantity for sku {_bounded_input(sku)}"
-            )
+            raise DataError(f"line {line}: empty quantity for sku {_bounded_input(sku)}")
         quantity = _number(quantity_text, "quantity", line)
         if quantity < 0:
             number_label = _bounded_input(quantity_text, quoted=False)
