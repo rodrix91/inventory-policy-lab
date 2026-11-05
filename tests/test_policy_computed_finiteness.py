@@ -24,9 +24,7 @@ def test_normal_safety_stock_rejects_unrepresentable_calculated_result(
     review_period: float,
 ) -> None:
     # Inputs are all valid finite numbers, but z times the deviation is not.
-    with pytest.raises(
-        DataError, match="normal safety stock exceeds the finite numeric range"
-    ):
+    with pytest.raises(DataError, match="normal safety stock exceeds the finite numeric range"):
         safety_stock(
             0.95,
             demand_per_period=0.0,
@@ -37,9 +35,7 @@ def test_normal_safety_stock_rejects_unrepresentable_calculated_result(
 
 
 def test_normal_policy_rejects_overflowed_safety_stock_before_publication() -> None:
-    with pytest.raises(
-        DataError, match="normal safety stock exceeds the finite numeric range"
-    ):
+    with pytest.raises(DataError, match="normal safety stock exceeds the finite numeric range"):
         build_policy(0.95, demand_per_period=0, sigma_demand=1.2e308, lead_time=1)
 
 
@@ -48,9 +44,7 @@ def test_build_policy_rejects_overflowed_reorder_point(
     bootstrap_units: float | None,
 ) -> None:
     # The stock is representable, but D * L is larger than binary64.
-    with pytest.raises(
-        DataError, match="policy reorder point exceeds the finite numeric range"
-    ):
+    with pytest.raises(DataError, match="policy reorder point exceeds the finite numeric range"):
         build_policy(
             0.95,
             demand_per_period=1e308,
@@ -64,9 +58,7 @@ def test_half_service_level_keeps_zero_stock_but_rejects_overflowed_reorder() ->
     # With z = 0, the standalone stock estimate still has its documented
     # exact zero result even when variance intermediates overflow.
     assert safety_stock(0.5, 1e308, 1e308, 1e308, 1e308, 1e308) == (0.0, 0.0)
-    with pytest.raises(
-        DataError, match="policy reorder point exceeds the finite numeric range"
-    ):
+    with pytest.raises(DataError, match="policy reorder point exceeds the finite numeric range"):
         build_policy(0.5, 1e308, 0.0, 2.0)
 
 
