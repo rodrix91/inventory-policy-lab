@@ -8,6 +8,7 @@ import pytest
 
 from inventory_policy_lab import DataError, parse_rows
 from inventory_policy_lab.cli import main
+from inventory_policy_lab.reader import _bounded_input
 
 
 def _rows(column: str, value: str, *, sku: str = "A") -> list[list[str]]:
@@ -111,17 +112,23 @@ def test_large_sku_in_negative_and_overflow_messages_is_bounded() -> None:
     ["quantity", "unit_cost", "lead_time", "order_cost", "stockout_cost"],
 )
 @pytest.mark.parametrize("trailing_whitespace", ["\n", "\r", "\t", "\v", "\xa0"])
-def test_negative_numeric_whitespace_cannot_forge_error_lines(
+def test_csv_numeric_outer_whitespace_is_normalized_before_errors(
     column: str, trailing_whitespace: str
 ) -> None:
-    # float() accepts all of these suffixes, unlike most malformed values.
+    # The CSV reader strips whitespace before converting negative numerics.
     number = "-1" + trailing_whitespace
     with pytest.raises(DataError, match="negative " + column) as caught:
         parse_rows(_rows(column, number), cost_columns=True)
     message = str(caught.value)
-    assert repr(number) in message
+    assert "negative " + column + " -1" in message
+    assert repr(number) not in message
     assert not any(control in message for control in ["\n", "\r", "\t", "\v", "\xa0"])
     assert len(message) < 400
+
+
+@pytest.mark.parametrize("raw", ["-1\n", "-1\t", "-1\xa0", "-1\u202e", "\x1b[31m"])
+def test_unquoted_formatter_defensively_escapes_nonprintable_raw_values(raw: str) -> None:
+    assert _bounded_input(raw, quoted=False) == repr(raw)
 
 
 def test_escaped_control_strings_are_bounded_after_repr_expansion() -> None:
@@ -134,15 +141,12 @@ def test_escaped_control_strings_are_bounded_after_repr_expansion() -> None:
     assert "\x1b" not in message
     assert "\\x1b" in message
 
-    # Leading tabs are accepted by float(), so this exercises the negative
-    # numeric path even when its escaped diagnostic expands past 180 chars.
+    # Direct unquoted formatting is safe even when repr() expands 120 tabs.
     whitespace = "\t" * 120 + "-1"
-    with pytest.raises(DataError, match="negative quantity") as caught:
-        parse_rows(_rows("quantity", whitespace))
-    message = str(caught.value)
+    message = _bounded_input(whitespace, quoted=False)
     assert "[truncated]" in message
     assert "\t" not in message
-    assert len(message) < 400
+    assert len(message) <= 195
 
 
 def test_multiline_negative_quantity_cli_error_remains_one_log_line(
@@ -156,8 +160,8 @@ def test_multiline_negative_quantity_cli_error_remains_one_log_line(
     assert main([str(source), "--format", "json"]) == 4
     captured = capsys.readouterr()
     assert captured.out == ""
-    assert "negative quantity" in captured.err
-    assert "\\n" in captured.err
+    assert "negative quantity -2" in captured.err
+    assert "\\n" not in captured.err
     assert captured.err.count("\n") == 1
 
 
