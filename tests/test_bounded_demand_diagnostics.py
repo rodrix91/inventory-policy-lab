@@ -110,7 +110,7 @@ def test_large_sku_in_negative_and_overflow_messages_is_bounded() -> None:
     "column",
     ["quantity", "unit_cost", "lead_time", "order_cost", "stockout_cost"],
 )
-@pytest.mark.parametrize("trailing_whitespace", ["\\n", "\\r", "\\t", "\\v", "\\xa0"])
+@pytest.mark.parametrize("trailing_whitespace", ["\n", "\r", "\t", "\v", "\xa0"])
 def test_negative_numeric_whitespace_cannot_forge_error_lines(
     column: str, trailing_whitespace: str
 ) -> None:
@@ -120,28 +120,28 @@ def test_negative_numeric_whitespace_cannot_forge_error_lines(
         parse_rows(_rows(column, number), cost_columns=True)
     message = str(caught.value)
     assert repr(number) in message
-    assert not any(control in message for control in ["\\n", "\\r", "\\t", "\\v", "\\xa0"])
+    assert not any(control in message for control in ["\n", "\r", "\t", "\v", "\xa0"])
     assert len(message) < 400
 
 
 def test_escaped_control_strings_are_bounded_after_repr_expansion() -> None:
-    invalid = "\\x1b" * 700
+    invalid = "\x1b" * 700
     with pytest.raises(DataError, match="is not a number") as caught:
         parse_rows(_rows("quantity", invalid))
     message = str(caught.value)
     assert "[truncated]" in message
     assert len(message) < 400
-    assert "\\x1b" not in message
-    assert "\\\\x1b" in message
+    assert "\x1b" not in message
+    assert "\\x1b" in message
 
     # Leading tabs are accepted by float(), so this exercises the negative
     # numeric path even when its escaped diagnostic expands past 180 chars.
-    whitespace = "\\t" * 120 + "-1"
+    whitespace = "\t" * 120 + "-1"
     with pytest.raises(DataError, match="negative quantity") as caught:
         parse_rows(_rows("quantity", whitespace))
     message = str(caught.value)
     assert "[truncated]" in message
-    assert "\\t" not in message
+    assert "\t" not in message
     assert len(message) < 400
 
 
@@ -150,15 +150,16 @@ def test_multiline_negative_quantity_cli_error_remains_one_log_line(
 ) -> None:
     source = tmp_path / "supplier.csv"
     source.write_text(
-        'sku,period,quantity\\nA,1,"-2\\n"\\n',
+        'sku,period,quantity\nA,1,"-2\n"\n',
         encoding="utf-8",
     )
     assert main([str(source), "--format", "json"]) == 4
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "negative quantity" in captured.err
-    assert "\\\\n" in captured.err
-    assert captured.err.count("\\n") == 1
+    assert "\\n" in captured.err
+    assert captured.err.count("\n") == 1
+
 
 def test_existing_short_error_wording_stays_stable() -> None:
     with pytest.raises(DataError) as caught:
