@@ -106,7 +106,6 @@ def test_large_sku_in_negative_and_overflow_messages_is_bounded() -> None:
     assert "-private-tail" not in str(caught.value)
 
 
-
 @pytest.mark.parametrize(
     "column",
     ["quantity", "unit_cost", "lead_time", "order_cost", "stockout_cost"],
