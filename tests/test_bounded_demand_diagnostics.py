@@ -42,9 +42,7 @@ def _rows(column: str, value: str, *, sku: str = "A") -> list[list[str]]:
         "bad-stockout",
     ],
 )
-def test_numeric_failures_bound_csv_cell_values(
-    column: str, value: str, expected: str
-) -> None:
+def test_numeric_failures_bound_csv_cell_values(column: str, value: str, expected: str) -> None:
     with pytest.raises(DataError, match=expected) as caught:
         parse_rows(_rows(column, value), cost_columns=True)
     message = str(caught.value)
