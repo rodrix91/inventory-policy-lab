@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from inventory_policy_lab import DataError, parse_rows, read_demand
+from inventory_policy_lab import DataError, parse_rows
 from inventory_policy_lab.cli import main
 
 
