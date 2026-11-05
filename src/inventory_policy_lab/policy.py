@@ -464,12 +464,18 @@ def dynamic_levels(
     """
     _require_nonnegative_periods(periods)
     stocks = _per_period(safety_stock, periods)
-    return tuple(
+    levels = tuple(
         demand * (lead_time + review_period) + stock
         for demand, stock in zip(
             interval_demands(forecasts, periods, lead_time, review_period), stocks, strict=True
         )
     )
+    # Finite forecasts and safety stocks can overflow when multiplied by
+    # the protection interval or added together. Never return infinite
+    # inventory levels to public callers, reports or JSON serializers.
+    if not all(math.isfinite(level) for level in levels):
+        raise DataError("dynamic inventory levels exceed the finite numeric range")
+    return levels
 
 
 def _require_nonnegative_periods(periods: int) -> None:
@@ -538,7 +544,12 @@ def period_safety_stocks(
         raise ValueError("relative_error must be a finite number")
     ratio = max(relative_error, 0.0)
     protection = lead_time + review_period
-    return tuple(
+    stocks = tuple(
         ratio * demand * protection
         for demand in interval_demands(forecasts, periods, lead_time, review_period)
     )
+    # Valid finite inputs can still produce an infinite computed buffer,
+    # especially when a relative-error quantile is unusually large.
+    if not all(math.isfinite(stock) for stock in stocks):
+        raise DataError("period safety stock exceeds the finite numeric range")
+    return stocks
