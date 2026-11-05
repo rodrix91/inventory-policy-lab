@@ -8,6 +8,8 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from statistics import NormalDist
 
+from .forecast import _stable_fmean
+
 POLICY_KINDS = ("sQ", "RS", "RsS")
 BOOTSTRAP_SOURCES = ("demand", "residuals")
 
@@ -463,7 +465,16 @@ def interval_demands(
         raise ValueError(
             f"forecasts must cover {periods} periods plus {steps} ahead, got {len(forecasts)}"
         )
-    return tuple(math.fsum(forecasts[t + 1 : t + 1 + steps]) / steps for t in range(periods))
+    # Public callers may bypass the CSV and model validators. Check the full
+    # sequence before producing any stock levels, even for zero scored periods,
+    # so NaN, negative forecasts or malformed values cannot leak downstream.
+    for index, forecast in enumerate(forecasts):
+        if not _valid_nonnegative_number(forecast):
+            raise ValueError(f"forecasts[{index}] must be finite and non-negative")
+    # The old fsum(window) / steps overflows for [1e308, 1e308], although
+    # the mean (1e308) is finite. Reuse the overflow-safe forecast mean,
+    # which preserves the same arithmetic for ordinary magnitudes.
+    return tuple(_stable_fmean(forecasts[t + 1 : t + 1 + steps]) for t in range(periods))
 
 
 def period_safety_stocks(
