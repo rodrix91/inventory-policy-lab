@@ -11,7 +11,15 @@ from inventory_policy_lab.cli import main
 
 
 def _rows(column: str, value: str, *, sku: str = "A") -> list[list[str]]:
-    header = ["sku", "period", "quantity", "unit_cost", "lead_time", "order_cost", "stockout_cost"]
+    header = [
+        "sku",
+        "period",
+        "quantity",
+        "unit_cost",
+        "lead_time",
+        "order_cost",
+        "stockout_cost",
+    ]
     row = [sku, "1", "3", "2", "1", "4", "5"]
     row[header.index(column)] = value
     return [header, row]
@@ -26,7 +34,13 @@ def _rows(column: str, value: str, *, sku: str = "A") -> list[list[str]]:
         ("order_cost", "1e" + "9" * 12000, "not a finite number"),
         ("stockout_cost", "bad-" + "Z" * 12000 + "-tail", "not a number"),
     ],
-    ids=["bad-quantity", "overflow-cost", "bad-lead-time", "overflow-order", "bad-stockout"],
+    ids=[
+        "bad-quantity",
+        "overflow-cost",
+        "bad-lead-time",
+        "overflow-order",
+        "bad-stockout",
+    ],
 )
 def test_numeric_failures_bound_csv_cell_values(
     column: str, value: str, expected: str
