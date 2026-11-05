@@ -134,9 +134,9 @@ def _calendar(kind: str, values: Iterable[str]) -> tuple[str, ...]:
 def _bounded_input(text: str, *, quoted: bool = True) -> str:
     """Bound and escape untrusted CSV values before reporting them.
 
-    Keep normal short negative numbers unquoted, but float() also accepts
-    trailing line breaks, tabs and Unicode whitespace. Those inputs must not
-    inject control characters into CLI and CI diagnostics.
+    Keep normal short negative numbers unquoted. The CSV parser already
+    strips outer numeric whitespace, but escape nonprintable raw values too
+    so a direct caller cannot introduce log-control characters.
     """
     fragment = text[:120]
     truncated = len(text) > 120
