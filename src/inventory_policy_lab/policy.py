@@ -176,7 +176,9 @@ def bootstrap_safety_stock(
     invalid levels, lead/review times, individual lead-time observations,
     demand observations or forecast demand (negative, non-finite, boolean or
     nonnumeric), and non-integer sample counts raise ``ValueError`` before
-    any random draw, including for zero-length intervals.
+    any random draw, including for zero-length intervals. Computed interval
+    demand that overflows the finite numeric range raises ``DataError``,
+    rather than returning an invalid or misleading stock estimate.
     """
     if isinstance(samples, bool) or not isinstance(samples, int) or samples < 1:
         raise ValueError("samples must be at least 1 (a positive integer)")
@@ -191,16 +193,28 @@ def bootstrap_safety_stock(
         raise ValueError(
             f"demand_per_period must be finite and non-negative, got {demand_per_period}"
         )
+    # Finite input parameters can overflow when combined. Check the
+    # expected protection-period demand before advancing a caller's RNG,
+    # rather than returning a misleading zero stock after subtracting inf.
+    protection = lead_time + review_period
+    expected = demand_per_period * protection
+    if not math.isfinite(protection) or not math.isfinite(expected):
+        raise DataError("bootstrap expected interval demand exceeds the finite numeric range")
     rng = rng or random.Random(0)
     sums: list[float] = []
     for _ in range(samples):
         lead = rng.choice(lead_times) if lead_times else lead_time
         periods = int(lead + review_period + 0.5)
-        sums.append(math.fsum(rng.choices(demand, k=periods)) if periods else 0.0)
+        try:
+            interval_demand = math.fsum(rng.choices(demand, k=periods)) if periods else 0.0
+        except OverflowError:
+            raise DataError(
+                "bootstrap sampled interval demand exceeds the finite numeric range"
+            ) from None
+        sums.append(interval_demand)
     sums.sort()
     rank = max(math.ceil(service_level * samples), 1)
     quantile = sums[rank - 1]
-    expected = demand_per_period * (lead_time + review_period)
     return quantile, max(quantile - expected, 0.0)
 
 
