@@ -13,6 +13,11 @@ from .forecast import _stable_fmean
 
 POLICY_KINDS = ("sQ", "RS", "RsS")
 BOOTSTRAP_SOURCES = ("demand", "residuals")
+# Public bootstrap APIs can otherwise allocate an unbounded list with
+# rng.choices(k=periods), or build an unbounded sorted sample list.
+# A default 2,000-sample analysis can still model intervals up to 1,000 periods.
+MAX_BOOTSTRAP_SAMPLES = 100_000
+MAX_BOOTSTRAP_DEMAND_DRAWS = 2_000_000
 
 
 def _valid_finite_number(value: float) -> bool:
@@ -127,6 +132,14 @@ def safety_stock(
     return z, stock
 
 
+def _check_bootstrap_samples(samples: int) -> None:
+    """Bound bootstrap memory and CPU before drawing from the caller's RNG."""
+    if isinstance(samples, bool) or not isinstance(samples, int) or samples < 1:
+        raise ValueError("samples must be at least 1 (a positive integer)")
+    if samples > MAX_BOOTSTRAP_SAMPLES:
+        raise ValueError(f"samples exceeds the {MAX_BOOTSTRAP_SAMPLES} bootstrap limit")
+
+
 def _check_bootstrap_service_level(service_level: float) -> None:
     """Reject invalid nearest-rank quantiles before drawing random samples."""
     try:
@@ -172,6 +185,10 @@ def bootstrap_safety_stock(
     Safety stock is that quantile minus the expected interval demand
     ``D * (L + R)``, floored at zero: the reorder point is never set below the
     forecast over the interval. Pass a seeded ``rng`` for reproducible results.
+    A bootstrap call is also bounded to 100,000 samples and 2,000,000 total
+    sampled demand-period draws, to prevent extreme valid finite intervals
+    from exhausting memory. Oversized workloads are refused before advancing
+    the caller-provided random generator.
     A bootstrap nearest-rank quantile requires ``0 < service_level <= 1``;
     invalid levels, lead/review times, individual lead-time observations,
     demand observations or forecast demand (negative, non-finite, boolean or
@@ -180,8 +197,7 @@ def bootstrap_safety_stock(
     demand that overflows the finite numeric range raises ``DataError``,
     rather than returning an invalid or misleading stock estimate.
     """
-    if isinstance(samples, bool) or not isinstance(samples, int) or samples < 1:
-        raise ValueError("samples must be at least 1 (a positive integer)")
+    _check_bootstrap_samples(samples)
     _check_bootstrap_service_level(service_level)
     _check_bootstrap_intervals(lead_time, review_period, lead_times)
     if not demand:
@@ -200,6 +216,18 @@ def bootstrap_safety_stock(
     expected = demand_per_period * protection
     if not math.isfinite(protection) or not math.isfinite(expected):
         raise DataError("bootstrap expected interval demand exceeds the finite numeric range")
+    # Check *every* observable lead time before drawing from the RNG.  The
+    # largest possible interval determines the worst-case number of demand
+    # draws; refusing it up front avoids allocating a huge list on one draw
+    # and keeps seeded simulations deterministic on rejected inputs.
+    for possible_lead in (lead_times if lead_times else (lead_time,)):
+        duration = possible_lead + review_period
+        if not math.isfinite(duration):
+            raise DataError("bootstrap sampled protection interval exceeds the finite numeric range")
+        if int(duration + 0.5) > MAX_BOOTSTRAP_DEMAND_DRAWS // samples:
+            raise DataError(
+                f"bootstrap demand sampling exceeds {MAX_BOOTSTRAP_DEMAND_DRAWS} draws"
+            )
     rng = rng or random.Random(0)
     sums: list[float] = []
     for _ in range(samples):
@@ -307,9 +335,9 @@ def residual_bootstrap_quantile(
     outside ``(0, 1]``, or when a lead/review time is negative or non-finite.
     All reachable residuals and possible ``lead_times`` are checked before
     drawing a random sample; residuals for unreachable intervals are ignored.
+    Draw count is limited to 100,000 to bound the in-memory quantile sort.
     """
-    if isinstance(samples, bool) or not isinstance(samples, int) or samples < 1:
-        raise ValueError("samples must be at least 1 (a positive integer)")
+    _check_bootstrap_samples(samples)
     _check_bootstrap_service_level(service_level)
     _check_bootstrap_intervals(lead_time, review_period, lead_times)
     candidates = tuple(lead_times) if lead_times else (lead_time,)
