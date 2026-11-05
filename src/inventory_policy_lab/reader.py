@@ -132,14 +132,21 @@ def _calendar(kind: str, values: Iterable[str]) -> tuple[str, ...]:
 
 
 def _bounded_input(text: str, *, quoted: bool = True) -> str:
-    """Bound untrusted CSV labels in error messages without losing short values.
+    """Bound and escape untrusted CSV values before reporting them.
 
-    For parsed negative numeric values, retain their existing unquoted display.
-    Other fields use repr() so control characters cannot forge log lines.
+    Keep normal short negative numbers unquoted. The CSV parser already
+    strips outer numeric whitespace, but escape nonprintable raw values too
+    so a direct caller cannot introduce log-control characters.
     """
     fragment = text[:120]
-    displayed = repr(fragment) if quoted else fragment
-    return displayed + (" [truncated]" if len(text) > 120 else "")
+    truncated = len(text) > 120
+    displayed = repr(fragment) if quoted or not fragment.isprintable() else fragment
+    # repr() can expand one control into six printable characters. Bound the
+    # escaped representation as well as the original untrusted input.
+    if len(displayed) > 180:
+        displayed = displayed[:177] + "..."
+        truncated = True
+    return displayed + (" [truncated]" if truncated else "")
 
 
 def _number(text: str, column: str, line: int) -> float:
