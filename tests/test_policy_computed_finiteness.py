@@ -19,7 +19,9 @@ from inventory_policy_lab.errors import DataError
     ],
 )
 def test_normal_safety_stock_rejects_unrepresentable_calculated_result(
-    sigma_demand: float, lead_time: float, review_period: float,
+    sigma_demand: float,
+    lead_time: float,
+    review_period: float,
 ) -> None:
     # Inputs are all valid finite numbers, but z times the deviation is not.
     with pytest.raises(
