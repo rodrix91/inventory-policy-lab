@@ -345,7 +345,8 @@ def parse_rows(
         kind = _period_kind(period)
         if kind == "invalid":
             raise DataError(
-                f"line {line}: period {_bounded_input(period)} is not YYYY-MM, YYYY-MM-DD or an integer"
+                f"line {line}: period {_bounded_input(period)} is not "
+                "YYYY-MM, YYYY-MM-DD or an integer"
             )
         kinds.add(kind)
         if len(kinds) > 1:
@@ -376,18 +377,24 @@ def parse_rows(
         else:
             period_rank = date.fromisoformat(period).toordinal()
         if not quantity_text:
-            raise DataError(f"line {line}: empty quantity for sku {_bounded_input(sku)}")
+            raise DataError(
+                f"line {line}: empty quantity for sku {_bounded_input(sku)}"
+            )
         quantity = _number(quantity_text, "quantity", line)
         if quantity < 0:
+            number_label = _bounded_input(quantity_text, quoted=False)
+            sku_label = _bounded_input(sku)
             raise DataError(
-                f"line {line}: negative quantity {_bounded_input(quantity_text, quoted=False)} "f"for sku {_bounded_input(sku)}; "
+                f"line {line}: negative quantity {number_label} for sku {sku_label}; "
                 "net returns out of the demand history before the analysis"
             )
         per_period = totals.setdefault(sku, {})
         combined = per_period.get(period, 0.0) + quantity
         if not math.isfinite(combined):
+            sku_label = _bounded_input(sku)
+            period_label = _bounded_input(period)
             raise DataError(
-                f"line {line}: total quantity for sku {_bounded_input(sku)} "f"in period {_bounded_input(period)} "
+                f"line {line}: total quantity for sku {sku_label} in period {period_label} "
                 "exceeds the finite numeric range"
             )
         per_period[period] = combined
@@ -397,9 +404,8 @@ def parse_rows(
             if cost_text:
                 cost = _number(cost_text, "unit_cost", line)
                 if cost < 0:
-                    raise DataError(
-                        f"line {line}: negative unit_cost {_bounded_input(cost_text, quoted=False)}"
-                    )
+                    number_label = _bounded_input(cost_text, quoted=False)
+                    raise DataError(f"line {line}: negative unit_cost {number_label}")
                 if (
                     sku not in latest_cost_periods["unit_cost"]
                     or period_rank >= latest_cost_periods["unit_cost"][sku]
@@ -411,9 +417,8 @@ def parse_rows(
             if lead_text:
                 lead = _number(lead_text, "lead_time", line)
                 if lead < 0:
-                    raise DataError(
-                        f"line {line}: negative lead_time {_bounded_input(lead_text, quoted=False)}"
-                    )
+                    number_label = _bounded_input(lead_text, quoted=False)
+                    raise DataError(f"line {line}: negative lead_time {number_label}")
                 lead_times.setdefault(sku, []).append(lead)
                 lead_time_periods.setdefault(sku, []).append(period)
         for name in COST_COLUMNS:
@@ -422,9 +427,8 @@ def parse_rows(
                 if text:
                     value = _number(text, name, line)
                     if value < 0:
-                        raise DataError(
-                            f"line {line}: negative {name} {_bounded_input(text, quoted=False)}"
-                        )
+                        number_label = _bounded_input(text, quoted=False)
+                        raise DataError(f"line {line}: negative {name} {number_label}")
                     if (
                         sku not in latest_cost_periods[name]
                         or period_rank >= latest_cost_periods[name][sku]
