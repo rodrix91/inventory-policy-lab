@@ -47,7 +47,7 @@ def test_dynamic_forecasts_reject_invalid_values_at_original_index(
 
 @pytest.mark.parametrize("api", APIS)
 def test_invalid_forecasts_are_rejected_even_with_zero_output_periods(
-    api: Callable[[list[float], int], tuple[float, ...]]
+    api: Callable[[list[float], int], tuple[float, ...]],
 ) -> None:
     # Reject a corrupted input even if an empty output was requested.
     with pytest.raises(ValueError, match=r"forecasts\[0\] must be finite and non-negative"):
