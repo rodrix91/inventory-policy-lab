@@ -7,6 +7,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -99,8 +100,6 @@ def test_direct_parser_uses_supplied_physical_record_positions() -> None:
     ],
 )
 def test_direct_parser_rejects_invalid_physical_metadata(metadata: object) -> None:
-    from typing import cast
-
     rows = [
         ["sku", "period", "quantity"],
         ["A", "1", "2"],
@@ -113,8 +112,6 @@ def test_direct_parser_rejects_invalid_physical_metadata(metadata: object) -> No
 
 @pytest.mark.parametrize("invalid", [True, False, None, -1, 1.5, "1"])
 def test_direct_parser_rejects_invalid_line_offset(invalid: object) -> None:
-    from typing import cast
-
     rows = [["sku", "period", "quantity"], ["A", "1", "2"]]
     with pytest.raises(ConfigError, match="line_offset must be a non-negative integer") as info:
         parse_rows(rows, line_offset=cast(int, invalid))
