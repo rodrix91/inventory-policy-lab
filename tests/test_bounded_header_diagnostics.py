@@ -14,9 +14,7 @@ from inventory_policy_lab.cli import main
 def test_short_missing_header_diagnostic_keeps_existing_wording() -> None:
     with pytest.raises(DataError) as caught:
         parse_rows([["sku", "qty"], ["A", "1"]])
-    assert str(caught.value) == (
-        "missing required column(s): period/date (header: sku, qty)"
-    )
+    assert str(caught.value) == ("missing required column(s): period/date (header: sku, qty)")
 
 
 def test_missing_required_header_with_controls_and_large_names_is_bounded() -> None:
