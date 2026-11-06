@@ -321,6 +321,20 @@ def parse_rows(
     """
     if not rows:
         raise DataError(f"{source} is empty")
+    # Public callers can supply physical positions collected by csv.reader.
+    # Reject malformed metadata up front rather than raising IndexError during
+    # row processing or attributing a data error to the wrong source line.
+    if type(line_offset) is not int or line_offset < 0:
+        raise ConfigError("line_offset must be a non-negative integer")
+    if record_lines is not None and (
+        not isinstance(record_lines, (list, tuple))
+        or len(record_lines) != len(rows)
+        or any(type(line) is not int or line <= line_offset for line in record_lines)
+        or any(left >= right for left, right in zip(record_lines, record_lines[1:]))
+    ):
+        raise ConfigError(
+            "record_lines must contain one increasing physical line number per CSV record"
+        )
     columns = _resolve_columns(rows[0], cost_columns)
     width = max(columns.values()) + 1
     header_width = len(rows[0])
