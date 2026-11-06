@@ -178,8 +178,7 @@ def _resolve_columns(header: list[str], cost_columns: bool = False) -> dict[str,
         matches = [index for index, name in enumerate(normalized) if name in aliases]
         if len(matches) > 1:
             columns = ", ".join(
-                f"{_bounded_input(header[index])} (column {index + 1})"
-                for index in matches[:3]
+                f"{_bounded_input(header[index])} (column {index + 1})" for index in matches[:3]
             )
             if len(matches) > 3:
                 columns += f" (+{len(matches) - 3} more)"
