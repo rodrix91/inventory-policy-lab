@@ -68,11 +68,10 @@ def test_direct_parser_keeps_existing_record_number_contract() -> None:
         parse_rows(rows, line_offset=1)
 
 
-
 def test_direct_parser_uses_supplied_physical_record_positions() -> None:
     rows = [
         ["sku", "period", "quantity", "notes"],
-        ["A", "1", "2", "North\\nbranch"],
+        ["A", "1", "2", "North\nbranch"],
         ["B", "2", "invalid", "ok"],
     ]
     with pytest.raises(DataError, match="line 4: quantity 'invalid'"):
