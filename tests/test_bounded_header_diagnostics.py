@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+from pathlib import Path
 
 import pytest
 
@@ -69,7 +70,7 @@ def test_many_ambiguous_aliases_are_bounded_and_escape_newline() -> None:
 
 
 def test_cli_rejects_long_multiline_header_without_clobbering_output(
-    tmp_path, capsys
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     bad = "private\n::warning::forged\x1b\u202e" + "Y" * 8000 + "PRIVATE-END"
     source = tmp_path / "untrusted.csv"
