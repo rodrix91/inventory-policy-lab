@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from inventory_policy_lab import DataError, parse_rows, read_demand
+from inventory_policy_lab import ConfigError, DataError, parse_rows, read_demand
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -65,6 +65,65 @@ def test_direct_parser_keeps_existing_record_number_contract() -> None:
         parse_rows(rows)
     with pytest.raises(DataError, match="line 4: quantity 'wrong'"):
         parse_rows(rows, line_offset=1)
+
+
+
+def test_direct_parser_uses_supplied_physical_record_positions() -> None:
+    rows = [
+        ["sku", "period", "quantity", "notes"],
+        ["A", "1", "2", "North\\nbranch"],
+        ["B", "2", "invalid", "ok"],
+    ]
+    with pytest.raises(DataError, match="line 4: quantity 'invalid'"):
+        parse_rows(rows, record_lines=[1, 2, 4])
+    # An Excel separator preamble shifts physical positions by one line.
+    with pytest.raises(DataError, match="line 5: quantity 'invalid'"):
+        parse_rows(rows, line_offset=1, record_lines=[2, 3, 5])
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        [],
+        [1, 2],
+        [1, 2, 3, 4],
+        [1, 2, 2],
+        [1, 3, 2],
+        [1, 0, 3],
+        [-1, 2, 3],
+        [1, True, 3],
+        [1, 2.5, 3],
+        [1, "2", 3],
+        "1,2,3",
+        {0: 1, 1: 2, 2: 3},
+    ],
+)
+def test_direct_parser_rejects_invalid_physical_metadata(metadata: object) -> None:
+    from typing import cast
+
+    rows = [
+        ["sku", "period", "quantity"],
+        ["A", "1", "2"],
+        ["B", "2", "invalid"],
+    ]
+    with pytest.raises(ConfigError, match="record_lines must contain one increasing") as info:
+        parse_rows(rows, record_lines=cast(list[int], metadata))
+    assert info.value.exit_code == 2
+
+
+@pytest.mark.parametrize("invalid", [True, False, None, -1, 1.5, "1"])
+def test_direct_parser_rejects_invalid_line_offset(invalid: object) -> None:
+    from typing import cast
+
+    rows = [["sku", "period", "quantity"], ["A", "1", "2"]]
+    with pytest.raises(ConfigError, match="line_offset must be a non-negative integer") as info:
+        parse_rows(rows, line_offset=cast(int, invalid))
+    assert info.value.exit_code == 2
+
+
+def test_direct_parser_accepts_header_only_metadata_then_preserves_data_error() -> None:
+    with pytest.raises(DataError, match="header but no data rows"):
+        parse_rows([["sku", "period", "quantity"]], record_lines=[1])
 
 
 def test_cli_preserves_existing_report_after_multiline_error(tmp_path: Path) -> None:
