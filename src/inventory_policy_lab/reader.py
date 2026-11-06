@@ -149,6 +149,13 @@ def _bounded_input(text: str, *, quoted: bool = True) -> str:
     return displayed + (" [truncated]" if truncated else "")
 
 
+def _bounded_header_names(names: list[str]) -> str:
+    """Summarize untrusted CSV headers safely without altering column selection."""
+    labels = ", ".join(_bounded_input(name, quoted=False) for name in names[:3])
+    rest = len(names) - 3
+    return labels + (f" (+{rest} more)" if rest > 0 else "")
+
+
 def _number(text: str, column: str, line: int) -> float:
     try:
         value = float(text)
@@ -170,7 +177,12 @@ def _resolve_columns(header: list[str], cost_columns: bool = False) -> dict[str,
     for field, aliases in aliases_of.items():
         matches = [index for index, name in enumerate(normalized) if name in aliases]
         if len(matches) > 1:
-            columns = ", ".join(f"{header[index]!r} (column {index + 1})" for index in matches)
+            columns = ", ".join(
+                f"{_bounded_input(header[index])} (column {index + 1})"
+                for index in matches[:3]
+            )
+            if len(matches) > 3:
+                columns += f" (+{len(matches) - 3} more)"
             raise DataError(f"ambiguous {field} columns: {columns}; keep only one")
         if matches:
             found[field] = matches[0]
@@ -178,7 +190,8 @@ def _resolve_columns(header: list[str], cost_columns: bool = False) -> dict[str,
     if missing:
         expected = "; ".join("/".join(COLUMN_ALIASES[field]) for field in missing)
         raise DataError(
-            f"missing required column(s): {expected} (header: {', '.join(header) or 'empty'})"
+            f"missing required column(s): {expected} "
+            f"(header: {_bounded_header_names(header) or 'empty'})"
         )
     return found
 
