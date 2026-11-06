@@ -14,8 +14,7 @@ def test_short_missing_header_diagnostic_keeps_existing_wording() -> None:
     with pytest.raises(DataError) as caught:
         parse_rows([["sku", "qty"], ["A", "1"]])
     assert str(caught.value) == (
-        "missing required column(s): period/date; quantity/qty/demand "
-        "(header: sku, qty)"
+        "missing required column(s): period/date (header: sku, qty)"
     )
 
 
