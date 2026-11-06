@@ -46,7 +46,7 @@ from typing import TYPE_CHECKING
 
 from .classify import abc_classes
 from .costs import CostBreakdown, CostRates, replay_cost, total_cost
-from .errors import HistoryError
+from .errors import DataError, HistoryError
 from .optimize import CostSearch, demand_paths, quantity_grid, safety_grid, search_levels
 from .policy import protection_periods
 from .reader import DemandData, SkuHistory
@@ -212,14 +212,26 @@ class OutOfSampleReport:
 
 
 def _sum(results: list[SimulationResult]) -> ReplayTotals:
-    demand = sum(r.total_demand for r in results)
-    served = sum(r.served_from_stock for r in results)
+    """Accumulate SKU replays accurately without emitting non-finite totals.
+
+    Each SKU can have finite metrics while their sum exceeds float range.
+    Unlike ordinary sum(), fsum() detects overflow rather than returning
+    Infinity, and avoids losing smaller SKU contributions to rounding.
+    """
+    try:
+        demand = math.fsum(r.total_demand for r in results)
+        served = math.fsum(r.served_from_stock for r in results)
+        on_hand = math.fsum(r.average_on_hand for r in results)
+    except (OverflowError, ValueError, TypeError) as exc:
+        raise DataError("aggregated replay totals exceed the finite numeric range") from exc
+    if not all(math.isfinite(value) for value in (demand, served, on_hand)):
+        raise DataError("aggregated replay totals must be finite")
     return ReplayTotals(
         total_demand=demand,
         served_from_stock=served,
         fill_rate=served / demand if demand > 0 else None,
         stockout_periods=sum(r.stockout_periods for r in results),
-        average_on_hand=sum(r.average_on_hand for r in results),
+        average_on_hand=on_hand,
     )
 
 
