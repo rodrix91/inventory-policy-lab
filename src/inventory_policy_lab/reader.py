@@ -330,7 +330,7 @@ def parse_rows(
         not isinstance(record_lines, (list, tuple))
         or len(record_lines) != len(rows)
         or any(type(line) is not int or line <= line_offset for line in record_lines)
-        or any(left >= right for left, right in zip(record_lines, record_lines[1:]))
+        or any(left >= right for left, right in zip(record_lines, record_lines[1:], strict=False))
     ):
         raise ConfigError(
             "record_lines must contain one increasing physical line number per CSV record"
