@@ -345,9 +345,7 @@ def parse_rows(
     # read_demand() always supplies string fields, but parse_rows() is a
     # public entry point. Validate caller-constructed metadata before .strip()
     # would raise AttributeError or accidentally interpret a string as a row.
-    if not isinstance(rows[0], (list, tuple)) or any(
-        not isinstance(cell, str) for cell in rows[0]
-    ):
+    if not isinstance(rows[0], (list, tuple)) or any(not isinstance(cell, str) for cell in rows[0]):
         raise DataError("CSV header must be a sequence of string fields")
     columns = _resolve_columns(rows[0], cost_columns)
     width = max(columns.values()) + 1
@@ -368,9 +366,7 @@ def parse_rows(
 
     for index, row in enumerate(rows[1:], start=1):
         line = record_lines[index] if record_lines is not None else index + 1 + line_offset
-        if not isinstance(row, (list, tuple)) or any(
-            not isinstance(cell, str) for cell in row
-        ):
+        if not isinstance(row, (list, tuple)) or any(not isinstance(cell, str) for cell in row):
             raise DataError(f"line {line}: CSV row must be a sequence of string fields")
         if not any(cell.strip() for cell in row):
             continue
