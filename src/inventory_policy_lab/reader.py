@@ -209,6 +209,10 @@ def read_demand(
     text codec; UTF-8 with optional BOM is the default.
     The delimiter keyword selects a field separator; comma remains the default.
     """
+    # An accidental truthy string such as "false" must not enable pricing
+    # fields. Validate opt-in cost parsing before opening any source file.
+    if not isinstance(cost_columns, bool):
+        raise ConfigError("cost_columns must be a boolean")
     # Public Python callers can pass non-string options despite annotations.
     # Reject them as configuration errors before touching the source file.
     if not isinstance(delimiter, str) or delimiter not in DELIMITERS:
@@ -319,6 +323,9 @@ def parse_rows(
 
     Direct callers without ``record_lines`` retain record-based numbering.
     """
+    # This public parser is also called independently of read_demand().
+    if not isinstance(cost_columns, bool):
+        raise ConfigError("cost_columns must be a boolean")
     if not rows:
         raise DataError(f"{source} is empty")
     # Public callers can supply physical positions collected by csv.reader.
