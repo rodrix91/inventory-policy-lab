@@ -98,6 +98,11 @@ def _croston_parts(history: Sequence[float], alpha: float) -> tuple[float, float
     number of periods up to and including it. They are updated only in periods
     with demand, the interval with the periods since the previous demand.
     """
+    # An empty history is missing evidence, not an observed all-zero series.
+    # Without this guard Croston and SBA silently forecast zero while every
+    # other public forecaster rejects an absence of observations.
+    if not history:
+        raise ValueError("croston needs at least one observed demand period")
     size = interval = 0.0
     last = -1
     for index, value in enumerate(history):
@@ -120,7 +125,7 @@ def _croston_parts(history: Sequence[float], alpha: float) -> tuple[float, float
 
 
 def croston(history: Sequence[float], alpha: float = 0.1) -> float:
-    """Croston (1972): smoothed size divided by smoothed interval; 0 without demand."""
+    """Croston (1972): size / interval; 0 for observed zero-only demand."""
     _validate_alpha(alpha, "croston")
     parts = _croston_parts(history, alpha)
     return 0.0 if parts is None else parts[0] / parts[1]
