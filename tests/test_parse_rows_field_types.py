@@ -57,9 +57,7 @@ def test_public_row_type_errors_honor_physical_source_lines() -> None:
 
 
 def test_valid_rows_and_blank_lines_still_parse_unchanged() -> None:
-    result = parse_rows(
-        [HEADER, ["A", "1", "2"], ["", "", ""], ["A", "2", "3"]]
-    )
+    result = parse_rows([HEADER, ["A", "1", "2"], ["", "", ""], ["A", "2", "3"]])
     assert result.rows == 2
     assert result.calendar == ("1", "2")
     assert result.skus[0].demand == (2.0, 3.0)
