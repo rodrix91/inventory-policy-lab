@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from inventory_policy_lab import backtest, croston, moving_average, naive, sba, ses
-from inventory_policy_lab.forecast import BacktestResult, naive_scale, pick_best
+from inventory_policy_lab.forecast import BacktestResult, Method, naive_scale, pick_best
 
 
 def test_naive_and_moving_average() -> None:
@@ -89,7 +89,7 @@ def test_pick_best_by_mase_then_mae_and_first_on_ties() -> None:
 
 
 @pytest.mark.parametrize("method", [naive, moving_average, ses, croston, sba])
-def test_empty_history_is_missing_data_not_zero_demand(method) -> None:
+def test_empty_history_is_missing_data_not_zero_demand(method: Method) -> None:
     # No observed periods cannot justify a forecast of zero inventory demand.
     # All five public forecasting methods must reject the same invalid input.
     with pytest.raises(ValueError, match="needs at least one observed demand period"):
@@ -97,5 +97,5 @@ def test_empty_history_is_missing_data_not_zero_demand(method) -> None:
 
 
 @pytest.mark.parametrize("method", [naive, moving_average, ses, croston, sba])
-def test_one_observed_zero_period_still_forecasts_zero(method) -> None:
+def test_one_observed_zero_period_still_forecasts_zero(method: Method) -> None:
     assert method([0.0]) == 0.0
