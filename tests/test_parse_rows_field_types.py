@@ -40,7 +40,9 @@ def test_parse_rows_rejects_non_string_fields_in_header(bad_header: object) -> N
     ],
 )
 def test_parse_rows_rejects_non_string_fields_in_data_rows(bad_row: object) -> None:
-    with pytest.raises(DataError, match=r"line 2: CSV row must be a sequence of string fields") as exc:
+    with pytest.raises(
+        DataError, match=r"line 2: CSV row must be a sequence of string fields"
+    ) as exc:
         parse_rows(cast(list[list[str]], [HEADER, bad_row]))
     assert exc.value.exit_code == 4
 
