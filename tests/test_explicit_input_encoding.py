@@ -177,7 +177,7 @@ def test_direct_reader_rejects_nonstring_codec_without_touching_missing_file(
     encoding: object, tmp_path: Path
 ) -> None:
     missing = tmp_path / "never-opened.csv"
-    with pytest.raises(ConfigError, match="input encoding must be a string"):
+    with pytest.raises(ConfigError, match="unknown input encoding.*must be a string"):
         read_demand(missing, encoding=encoding)  # type: ignore[arg-type]
     assert not missing.exists()
 
