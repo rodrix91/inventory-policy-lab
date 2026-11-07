@@ -234,9 +234,7 @@ def read_demand(
         # previously bypassed CLI error handling and caused a traceback.
         raise ConfigError(f"unknown input encoding {_bounded_input(encoding)}") from None
     if not getattr(codec, "_is_text_encoding", True):
-        raise ConfigError(
-            f"input encoding {_bounded_input(encoding)} is not a text codec"
-        )
+        raise ConfigError(f"input encoding {_bounded_input(encoding)} is not a text codec")
     # Decode UTF-8 aliases with BOM support to preserve column identities.
     decoder = "utf-8-sig" if codec.name in ("utf-8", "utf-8-sig") else codec.name
     file = Path(path)
