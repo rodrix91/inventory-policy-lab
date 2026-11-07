@@ -86,3 +86,16 @@ def test_pick_best_by_mase_then_mae_and_first_on_ties() -> None:
     assert pick_best([_result("a", 3, 0.9), _result("b", 4, 0.8)]).method == "b"
     assert pick_best([_result("a", 3, 0.8), _result("b", 3, 0.8)]).method == "a"
     assert pick_best([_result("a", 3, None), _result("b", 2, None)]).method == "b"
+
+
+@pytest.mark.parametrize("method", [naive, moving_average, ses, croston, sba])
+def test_empty_history_is_missing_data_not_zero_demand(method) -> None:
+    # No observed periods cannot justify a forecast of zero inventory demand.
+    # All five public forecasting methods must reject the same invalid input.
+    with pytest.raises(ValueError, match="needs at least one observed demand period"):
+        method([])
+
+
+@pytest.mark.parametrize("method", [naive, moving_average, ses, croston, sba])
+def test_one_observed_zero_period_still_forecasts_zero(method) -> None:
+    assert method([0.0]) == 0.0
