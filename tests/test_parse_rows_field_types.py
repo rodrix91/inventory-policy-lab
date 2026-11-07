@@ -8,7 +8,6 @@ import pytest
 
 from inventory_policy_lab import DataError, parse_rows
 
-
 HEADER = ["sku", "period", "quantity"]
 
 
