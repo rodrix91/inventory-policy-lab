@@ -224,7 +224,7 @@ def read_demand(
     # forged or oversized CI messages. The public Python API also receives
     # non-string values that argparse cannot produce.
     if not isinstance(encoding, str):
-        raise ConfigError("input encoding must be a string")
+        raise ConfigError("unknown input encoding (must be a string)")
     if len(encoding) > 128:
         raise ConfigError("input encoding name exceeds 128 characters")
     try:
