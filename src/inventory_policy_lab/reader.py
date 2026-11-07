@@ -219,12 +219,22 @@ def read_demand(
         raise ConfigError(
             f"unknown CSV delimiter {delimiter!r}; choose comma, semicolon, tab or pipe"
         )
+    # User-supplied codec names are identifiers, not arbitrary data. Bound
+    # their length before codec lookup and escape diagnostic text to prevent
+    # forged or oversized CI messages. The public Python API also receives
+    # non-string values that argparse cannot produce.
+    if not isinstance(encoding, str):
+        raise ConfigError("unknown input encoding (must be a string)")
+    if len(encoding) > 128:
+        raise ConfigError("input encoding name exceeds 128 characters")
     try:
         codec = codecs.lookup(encoding)
-    except (LookupError, TypeError):
-        raise ConfigError(f"unknown input encoding {encoding!r}") from None
+    except (LookupError, ValueError):
+        # codecs.lookup() can raise ValueError for an embedded NUL, which
+        # previously bypassed CLI error handling and caused a traceback.
+        raise ConfigError(f"unknown input encoding {_bounded_input(encoding)}") from None
     if not getattr(codec, "_is_text_encoding", True):
-        raise ConfigError(f"input encoding {encoding!r} is not a text codec")
+        raise ConfigError(f"input encoding {_bounded_input(encoding)} is not a text codec")
     # Decode UTF-8 aliases with BOM support to preserve column identities.
     decoder = "utf-8-sig" if codec.name in ("utf-8", "utf-8-sig") else codec.name
     file = Path(path)

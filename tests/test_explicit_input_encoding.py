@@ -137,3 +137,54 @@ def test_non_utf8_custom_codec_rejects_invalid_bytes_cleanly(tmp_path: Path) -> 
     with pytest.raises(InputFileError, match="not valid ascii") as exc:
         read_demand(path, encoding="ascii")
     assert exc.value.exit_code == 3
+
+
+@pytest.mark.parametrize(
+    "encoding",
+    [
+        "utf-8\x00PRIVATE",
+        "unknown\n::error::forged\r\x1b[31m\u202e",
+        "\u202e" * 65,
+        "x" * 129 + "PRIVATE-TRAILER",
+    ],
+)
+def test_untrusted_codec_names_fail_without_leaking_controls_or_reading_files(
+    encoding: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source = tmp_path / "demand.csv"
+    source.write_text(_history_text(), encoding="utf-8")
+    output = tmp_path / "existing.json"
+    output.write_text('{"preserve":true}\n', encoding="utf-8")
+    with pytest.raises(ConfigError) as error:
+        read_demand(source, encoding=encoding)
+    message = str(error.value)
+    assert len(message) < 220
+    assert "\n" not in message and "\r" not in message
+    assert "\x1b" not in message and "\u202e" not in message
+    assert "PRIVATE-TRAILER" not in message
+    assert main([str(source), "--encoding", encoding, "-o", str(output)]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err.count("\n") == 1
+    assert "PRIVATE-TRAILER" not in captured.err
+    assert "\x1b" not in captured.err
+    assert "\u202e" not in captured.err
+    assert output.read_text(encoding="utf-8") == '{"preserve":true}\n'
+
+
+@pytest.mark.parametrize("encoding", [None, True, 7, b"utf-8", [], {}])
+def test_direct_reader_rejects_nonstring_codec_without_touching_missing_file(
+    encoding: object, tmp_path: Path
+) -> None:
+    missing = tmp_path / "never-opened.csv"
+    with pytest.raises(ConfigError, match="unknown input encoding.*must be a string"):
+        read_demand(missing, encoding=encoding)  # type: ignore[arg-type]
+    assert not missing.exists()
+
+
+def test_valid_explicit_encoding_aliases_still_work(tmp_path: Path) -> None:
+    path = tmp_path / "demand.csv"
+    path.write_text(_history_text(), encoding="utf-8")
+    expected = read_demand(path)
+    for encoding in ("UTF-8", "utf_8", "cp65001", "utf-8-sig"):
+        assert read_demand(path, encoding=encoding) == expected
