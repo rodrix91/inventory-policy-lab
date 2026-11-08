@@ -60,6 +60,12 @@ HOLT_MIN_HISTORY = 4  # two points to start, at least two one-step errors to sco
 SEASONAL_KINDS = ("additive", "multiplicative")
 
 
+def _validate_season_length(season_length: int) -> None:
+    """Reject non-integer season lengths before slicing or grid fitting."""
+    if isinstance(season_length, bool) or not isinstance(season_length, int):
+        raise ValueError("season_length must be an integer number of periods")
+
+
 class FitError(ValueError):
     """No parameter set in the grid gives a valid fit (multiplicative level not positive)."""
 
@@ -262,6 +268,7 @@ def holt_winters_fit(
 
     Raises :class:`FitError` when the multiplicative level stops being positive.
     """
+    _validate_season_length(season_length)
     if seasonal not in SEASONAL_KINDS:
         raise ValueError(f"seasonal must be 'additive' or 'multiplicative', got {seasonal!r}")
     m = season_length
@@ -387,6 +394,7 @@ def fit_holt_winters(
     Parameter sets whose multiplicative level is not positive are skipped; when
     none is left (or the history has a zero), :class:`FitError` is raised.
     """
+    _validate_season_length(season_length)
     if seasonal == "multiplicative" and min(history, default=0) <= 0:
         raise FitError("multiplicative Holt-Winters needs demand above zero in every period")
     if seasonal not in SEASONAL_KINDS:
