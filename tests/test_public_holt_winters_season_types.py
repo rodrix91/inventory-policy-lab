@@ -32,7 +32,21 @@ def _call_model(method: str, season_length: int) -> None:
 @pytest.mark.parametrize("method", ["direct", "grid", "forecast"])
 @pytest.mark.parametrize(
     "invalid",
-    [True, False, 2.0, 2.5, "2", None, math.nan, math.inf, -math.inf, 1 + 0j, [], {}, object()],
+    [
+        True,
+        False,
+        2.0,
+        2.5,
+        "2",
+        None,
+        math.nan,
+        math.inf,
+        -math.inf,
+        1 + 0j,
+        [],
+        {},
+        object(),
+    ],
 )
 def test_holt_winters_public_methods_reject_noninteger_seasons(
     method: str, invalid: Any
@@ -51,9 +65,7 @@ def test_integer_seasons_shorter_than_two_keep_existing_diagnostic(
 
 
 def test_valid_integer_season_preserves_direct_and_grid_forecasts() -> None:
-    direct = holt_winters_fit(
-        _HISTORY, 2, alpha=0.5, beta=0.5, gamma=0.5, phi=0.9
-    )
+    direct = holt_winters_fit(_HISTORY, 2, alpha=0.5, beta=0.5, gamma=0.5, phi=0.9)
     grid = fit_holt_winters(_HISTORY, 2)
     assert math.isfinite(direct.forecast(1))
     assert grid.model == "hw_additive"
