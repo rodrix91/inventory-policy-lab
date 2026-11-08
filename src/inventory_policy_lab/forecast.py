@@ -11,6 +11,7 @@ import math
 import statistics
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from numbers import Real
 
 from .errors import DataError
 
@@ -33,7 +34,10 @@ def _stable_fmean(values: Sequence[float]) -> float:
 
 def _valid_demand_value(value: float) -> bool:
     """Accept non-negative finite demand, not booleans or malformed Python inputs."""
-    if isinstance(value, bool):
+    # math.isfinite() accepts Decimal via float conversion, but smoothing
+    # coefficients are floats and mixed Decimal arithmetic then raises
+    # TypeError. Accept real-number values with compatible float arithmetic.
+    if isinstance(value, bool) or not isinstance(value, Real):
         return False
     try:
         return math.isfinite(value) and value >= 0
