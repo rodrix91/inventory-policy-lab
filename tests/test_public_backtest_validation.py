@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
+from decimal import Decimal
 from typing import Any, cast
 
 import pytest
@@ -98,7 +99,7 @@ def test_backtest_positive_integer_holdout_preserves_rolling_results() -> None:
 
 @pytest.mark.parametrize(
     "invalid",
-    [True, False, "2", None, 1 + 2j, object(), 10**400],
+    [True, False, "2", None, 1 + 2j, object(), 10**400, Decimal("0"), Decimal("2.5")],
 )
 @pytest.mark.parametrize("index", [3, 4])
 def test_backtest_rejects_malformed_custom_model_return_with_original_period(
