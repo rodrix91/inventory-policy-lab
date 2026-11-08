@@ -19,9 +19,7 @@ _HISTORY = (10.0, 20.0, 12.0, 24.0, 11.0, 22.0)
 
 def _call_model(method: str, season_length: int) -> None:
     if method == "direct":
-        holt_winters_fit(
-            _HISTORY, season_length, alpha=0.5, beta=0.5, gamma=0.5, phi=0.9
-        )
+        holt_winters_fit(_HISTORY, season_length, alpha=0.5, beta=0.5, gamma=0.5, phi=0.9)
     elif method == "grid":
         fit_holt_winters(_HISTORY, season_length)
     else:
@@ -47,9 +45,7 @@ def _call_model(method: str, season_length: int) -> None:
         object(),
     ],
 )
-def test_holt_winters_public_methods_reject_noninteger_seasons(
-    method: str, invalid: Any
-) -> None:
+def test_holt_winters_public_methods_reject_noninteger_seasons(method: str, invalid: Any) -> None:
     with pytest.raises(ValueError, match="season_length must be an integer"):
         _call_model(method, cast(int, invalid))
 
