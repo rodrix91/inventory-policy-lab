@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable, Sequence
+from decimal import Decimal
 from typing import Any, cast
 
 import pytest
@@ -16,8 +17,8 @@ from inventory_policy_lab import backtest, croston, moving_average, naive, sba, 
 
 @pytest.mark.parametrize(
     "invalid",
-    [True, False, "3", None, 1 + 0j, object(), 10**400],
-    ids=["true", "false", "numeric-string", "none", "complex", "object", "huge-int"],
+    [True, False, "3", None, 1 + 0j, object(), 10**400, Decimal("2.5")],
+    ids=["true", "false", "numeric-string", "none", "complex", "object", "huge-int", "decimal"],
 )
 @pytest.mark.parametrize("position", [0, 2])
 @pytest.mark.parametrize("method", [naive, moving_average, ses, croston, sba])
@@ -32,8 +33,8 @@ def test_forecasts_reject_malformed_demand_at_original_index(
 
 @pytest.mark.parametrize(
     "invalid",
-    [True, False, "3", None, 1 + 0j, object(), 10**400],
-    ids=["true", "false", "numeric-string", "none", "complex", "object", "huge-int"],
+    [True, False, "3", None, 1 + 0j, object(), 10**400, Decimal("2.5")],
+    ids=["true", "false", "numeric-string", "none", "complex", "object", "huge-int", "decimal"],
 )
 @pytest.mark.parametrize("position", [0, 2, 4])
 def test_backtest_rejects_malformed_actuals_before_invoking_model(
