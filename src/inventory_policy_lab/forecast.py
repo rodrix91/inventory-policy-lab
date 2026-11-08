@@ -128,7 +128,7 @@ def croston(history: Sequence[float], alpha: float = 0.1) -> float:
 
 def sba(history: Sequence[float], alpha: float = 0.1) -> float:
     """Syntetos-Boylan approximation: Croston times ``1 - alpha / 2`` (bias correction)."""
-    _validate_alpha(alpha, "croston")
+    _validate_alpha(alpha, "sba")
     return (1 - alpha / 2) * croston(history, alpha)
 
 

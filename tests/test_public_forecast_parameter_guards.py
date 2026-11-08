@@ -40,7 +40,7 @@ def test_direct_forecasts_preserve_valid_boundary_and_short_history_results() ->
 def test_same_smoothing_guards_apply_even_to_zero_demand() -> None:
     with pytest.raises(ValueError, match="croston alpha"):
         croston([0, 0, 0], alpha=math.nan)
-    with pytest.raises(ValueError, match="croston alpha"):
+    with pytest.raises(ValueError, match="sba alpha"):
         sba([0, 0, 0], alpha=math.inf)
 
 
