@@ -14,7 +14,6 @@ import pytest
 
 from inventory_policy_lab import fit_holt_winters, holt_winters, holt_winters_fit
 
-
 _HISTORY = (10.0, 20.0, 12.0, 24.0, 11.0, 22.0)
 
 
