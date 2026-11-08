@@ -19,7 +19,8 @@ def test_smoothing_rejects_invalid_alpha_types_before_demand(
     method: Callable[[Sequence[float], float], float], invalid: Any
 ) -> None:
     # An invalid alpha must fail before this corrupt demand is processed.
-    message = "ses alpha must be in" if method is ses else "croston alpha must be in"
+    method_name = {ses: "ses", croston: "croston", sba: "sba"}[method]
+    message = f"{method_name} alpha must be in"
     with pytest.raises(ValueError, match=message):
         method([-1.0, float("nan")], invalid)
 
