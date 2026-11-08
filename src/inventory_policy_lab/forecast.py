@@ -180,16 +180,10 @@ def backtest(series: Sequence[float], name: str, method: Method, holdout: int) -
     forecasts = []
     for t in range(start, len(series)):
         forecast = method(series[:t])
-        # bool is a Python integer, but True/False are not demand forecasts.
-        # Bad custom model return types should fail with the same indexed input
-        # error as non-finite predictions, not leak TypeError/OverflowError.
-        if isinstance(forecast, bool):
-            raise ValueError(f"{name} forecast[{t}] must be finite and non-negative")
-        try:
-            valid = math.isfinite(forecast) and forecast >= 0
-        except (TypeError, ValueError, OverflowError):
-            valid = False
-        if not valid:
+        # Apply the same numeric contract as observed demand. math.isfinite()
+        # alone accepts Decimal values, which then raise TypeError when
+        # subtracted from the float actuals during accuracy calculations.
+        if not _valid_demand_value(forecast):
             raise ValueError(f"{name} forecast[{t}] must be finite and non-negative")
         forecasts.append(forecast)
     errors = [f - a for f, a in zip(forecasts, series[start:], strict=True)]
