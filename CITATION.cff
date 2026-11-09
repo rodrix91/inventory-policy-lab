@@ -10,6 +10,11 @@ url: "https://github.com/rodrix91/inventory-policy-lab"
 license: MIT
 version: "0.10.0"
 date-released: "2026-10-16"
+abstract: >-
+  A standard-library Python command-line toolkit and GitHub Action that turns
+  per-SKU demand history into verified inventory-policy analysis, including
+  ABC-XYZ classification, demand-pattern profiling, MASE-backtested forecasts,
+  safety stock, reorder points, EOQ, and policy replay.
 keywords:
   - inventory
   - supply chain

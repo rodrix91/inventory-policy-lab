@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+- `CITATION.cff` now includes an explicit `abstract` describing the toolkit's capabilities, matching `csv-quality-report` and `ops-field-brief`.
+
 - Reject non-finite monetary results from cost replay and aggregation, even when the individual input rates or components are finite: detect multiplication and total-sum overflow, and convert `math.fsum` aggregation overflow into a controlled `DataError` rather than reporting `inf` or propagating an `OverflowError`. Ordinary replay/aggregate costs, schemas and existing rate validation remain unchanged; add direct API regressions.
 
 - Reject malformed direct Python demand observations across `naive()`, `moving_average()`, `ses()`, `croston()`, `sba()` and `backtest()`: booleans no longer count as quantities, and strings, `None`, complex values, objects and oversized integers produce indexed `ValueError` messages instead of leaking conversion errors. Validate all backtest actuals before calling custom models; preserve valid zero, integer and finite floating-point demand, existing CLI behavior and report schemas. Add cross-method regression tests.
