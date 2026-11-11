@@ -9,9 +9,7 @@ import pytest
 from inventory_policy_lab import DataError, parse_rows, read_demand
 from inventory_policy_lab.cli import main
 
-HEADER = [
-    "sku", "period", "quantity", "unit_cost", "lead_time", "order_cost", "stockout_cost"
-]
+HEADER = ["sku", "period", "quantity", "unit_cost", "lead_time", "order_cost", "stockout_cost"]
 VALUES = ["A", "1", "3", "2", "1", "4", "5"]
 
 
