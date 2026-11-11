@@ -157,6 +157,11 @@ def _bounded_header_names(names: list[str]) -> str:
 
 
 def _number(text: str, column: str, line: int) -> float:
+    # float() accepts Python-only underscore separators (e.g. 1_000 and 1e1_0).
+    # Inventory CSVs must use ordinary numeric literals so export defects
+    # cannot silently change demand, cost or lead-time calculations.
+    if "_" in text:
+        raise DataError(f"line {line}: {column} {_bounded_input(text)} is not a number")
     try:
         value = float(text)
     except ValueError:
