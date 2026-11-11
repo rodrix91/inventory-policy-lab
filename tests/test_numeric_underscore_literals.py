@@ -45,7 +45,7 @@ def test_valid_exponent_notation_and_cost_fields_remain_supported() -> None:
 
 def test_file_reader_rejects_underscore_quantity(tmp_path: Path) -> None:
     source = tmp_path / "erp.csv"
-    source.write_text("sku,period,quantity\\nA,1,1_000\\n", encoding="utf-8")
+    source.write_text("sku,period,quantity\nA,1,1_000\n", encoding="utf-8")
     with pytest.raises(DataError, match="line 2: quantity '1_000' is not a number"):
         read_demand(source)
 
@@ -54,9 +54,9 @@ def test_cli_does_not_replace_existing_report_when_export_is_invalid(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     source = tmp_path / "supplier.csv"
-    source.write_text("sku,period,quantity\\nA,1,1e1_0\\n", encoding="utf-8")
+    source.write_text("sku,period,quantity\nA,1,1e1_0\n", encoding="utf-8")
     output = tmp_path / "verified.json"
-    original = '{"status":"verified"}\\n'
+    original = '{"status":"verified"}\n'
     output.write_text(original, encoding="utf-8")
     assert main([str(source), "--format", "json", "--output", str(output)]) == 4
     captured = capsys.readouterr()
